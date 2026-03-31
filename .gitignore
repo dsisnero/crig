@@ -1,4 +1,14 @@
-/lib/
+/lib/*
+!/lib/mcp/
+/lib/mcp/*
+!/lib/mcp/src/
+!/lib/mcp/src/**
+!/lib/mcp/spec/
+!/lib/mcp/spec/**
+!/lib/pdfbox/
+/lib/pdfbox/*
+!/lib/pdfbox/src/
+!/lib/pdfbox/src/**
 /.shards/
 *.dwarf
 .crystal-cache/
@@ -7,3 +17,7 @@ temp/
 # Libraries don't need dependency lock
 # Dependencies will be locked in applications that use them
 /shard.lock
+
+# Make timestamp file for incremental builds
+.timestamp-src
+/lib

@@ -4,3 +4,4 @@ Excluded:
   - lib/**/*
   - temp/**/*
   - vendor/**/*
+  - spec/**/*

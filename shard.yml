@@ -6,6 +6,14 @@ authors:
 
 crystal: '>= 1.19.1'
 
+dependencies:
+  mcp:
+    github: spider-gazelle/mcp.cr
+  discordcr:
+    github: shardlab/discordcr
+  pdfbox:
+    github: dsisnero/pdfbox
+
 development_dependencies:
   ameba:
     github: crystal-ameba/ameba
