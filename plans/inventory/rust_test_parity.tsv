@@ -1,353 +1,353 @@
 # source_test_id	status	crystal_refs	notes
-src/agent/prompt_request/streaming.rs::test::merge_reasoning_blocks_keeps_distinct_ids_as_separate_items	missing	-	baseline
-src/agent/prompt_request/streaming.rs::test::merge_reasoning_blocks_keeps_none_ids_separate_items	missing	-	baseline
-src/agent/prompt_request/streaming.rs::test::merge_reasoning_blocks_preserves_order_and_signatures	missing	-	baseline
-src/client/mod.rs::test::ensures_client_builder_no_annotation	missing	-	baseline
-src/completion/message.rs::test::reasoning_constructors_and_accessors_work	missing	-	baseline
-src/completion/message.rs::test::reasoning_content_serde_roundtrip	missing	-	baseline
-src/completion/request.rs::test::test_document_display_with_metadata	missing	-	baseline
-src/completion/request.rs::test::test_document_display_without_metadata	missing	-	baseline
-src/completion/request.rs::test::test_normalize_documents_with_documents	missing	-	baseline
-src/completion/request.rs::test::test_normalize_documents_without_documents	missing	-	baseline
-src/embeddings/distance.rs::test::test_angular_distance	missing	-	baseline
-src/embeddings/distance.rs::test::test_chebyshev_distance	missing	-	baseline
-src/embeddings/distance.rs::test::test_cosine_similarity	missing	-	baseline
-src/embeddings/distance.rs::test::test_dot_product	missing	-	baseline
-src/embeddings/distance.rs::test::test_euclidean_distance	missing	-	baseline
-src/embeddings/distance.rs::test::test_manhattan_distance	missing	-	baseline
-src/http_client/multipart.rs::test::test_file_part	missing	-	baseline
-src/http_client/multipart.rs::test::test_multipart_encoding	missing	-	baseline
-src/json_utils.rs::test::test_merge	missing	-	baseline
-src/json_utils.rs::test::test_merge_inplace	missing	-	baseline
-src/json_utils.rs::test::test_stringified_json_deserialize	missing	-	baseline
-src/json_utils.rs::test::test_stringified_json_deserialize_empty_string	missing	-	baseline
-src/json_utils.rs::test::test_stringified_json_serialize	missing	-	baseline
-src/loaders/epub/loader.rs::test::test_epub_loader_with_errors	missing	-	baseline
-src/loaders/epub/loader.rs::test::test_epub_loader_with_ignoring_errors	missing	-	baseline
-src/loaders/epub/loader.rs::test::test_single_file	missing	-	baseline
-src/loaders/epub/loader.rs::test::test_single_file_with_path	missing	-	baseline
-src/loaders/file.rs::test::test_file_loader	missing	-	baseline
-src/loaders/file.rs::test::test_file_loader_bytes	missing	-	baseline
-src/loaders/pdf.rs::test::test_pdf_loader	missing	-	baseline
-src/loaders/pdf.rs::test::test_pdf_loader_bytes	missing	-	baseline
-src/model/listing.rs::test::test_model_display	missing	-	baseline
-src/model/listing.rs::test::test_model_display_name	missing	-	baseline
-src/model/listing.rs::test::test_model_from_id	missing	-	baseline
-src/model/listing.rs::test::test_model_list_empty	missing	-	baseline
-src/model/listing.rs::test::test_model_list_into_iter	missing	-	baseline
-src/model/listing.rs::test::test_model_list_iter	missing	-	baseline
-src/model/listing.rs::test::test_model_list_new	missing	-	baseline
-src/model/listing.rs::test::test_model_list_serde	missing	-	baseline
-src/model/listing.rs::test::test_model_listing_error_display	missing	-	baseline
-src/model/listing.rs::test::test_model_listing_error_serde	missing	-	baseline
-src/model/listing.rs::test::test_model_new	missing	-	baseline
-src/model/listing.rs::test::test_model_serde	missing	-	baseline
-src/one_or_many.rs::test::test	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_list	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_list_of_maps	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_list_option	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_null_option	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_string	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_string_option	missing	-	baseline
-src/one_or_many.rs::test::test_deserialize_unit	missing	-	baseline
-src/one_or_many.rs::test::test_len_many	missing	-	baseline
-src/one_or_many.rs::test::test_len_single	missing	-	baseline
-src/one_or_many.rs::test::test_mut	missing	-	baseline
-src/one_or_many.rs::test::test_mut_single	missing	-	baseline
-src/one_or_many.rs::test::test_one_or_many_error	missing	-	baseline
-src/one_or_many.rs::test::test_one_or_many_into_iter	missing	-	baseline
-src/one_or_many.rs::test::test_one_or_many_into_iter_single	missing	-	baseline
-src/one_or_many.rs::test::test_one_or_many_merge	missing	-	baseline
-src/one_or_many.rs::test::test_single	missing	-	baseline
-src/one_or_many.rs::test::test_size_hint	missing	-	baseline
-src/providers/anthropic/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_assistant_encrypted_reasoning_maps_to_redacted_thinking	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_assistant_reasoning_multiblock_to_anthropic_content	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_base64_pdf_document_deserialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_base64_pdf_document_serialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_cache_control_serialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_content_format_conversion	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_deserialize_message	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_message_to_message_conversion	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_message_with_plaintext_document_deserialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_anthropic_to_rig_conversion	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_document_deserialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_document_serialization	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_document_url_source_returns_error	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_document_with_cache_control	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_rig_to_anthropic_conversion	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_plaintext_roundtrip_rig_to_anthropic_and_back	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_redacted_thinking_content_to_assistant_reasoning	missing	-	baseline
-src/providers/anthropic/completion.rs::test::test_unsupported_document_type_returns_error	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_basic	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_basic_with_cr	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_cr_and_lf_split_across_chunks	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_double_cr	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_double_cr_then_crlf	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_double_newline	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_escaped_new_lines	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_escaped_new_lines_with_cr	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_find_double_newline_index	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_flushing_empty_buffer	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_flushing_trailing_newlines	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_multi_byte_characters_across_chunks	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_single_cr	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_trailing_new_lines	missing	-	baseline
-src/providers/anthropic/decoders/line.rs::test::test_trailing_new_lines_with_cr	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_handle_input_json_delta_event	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_handle_redacted_thinking_content_block_start_event	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_handle_signature_delta_event	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_handle_text_delta_event	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_handle_thinking_delta_event	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_signature_delta_deserialization	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_signature_delta_streaming_event_deserialization	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_thinking_delta_deserialization	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_thinking_delta_does_not_interfere_with_tool_calls	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_thinking_delta_streaming_event_deserialization	missing	-	baseline
-src/providers/anthropic/streaming.rs::test::test_tool_call_accumulation_with_multiple_deltas	missing	-	baseline
-src/providers/cohere/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/cohere/completion.rs::test::test_convert_completion_message_to_message_and_back	missing	-	baseline
-src/providers/cohere/completion.rs::test::test_convert_message_to_completion_message_and_back	missing	-	baseline
-src/providers/cohere/completion.rs::test::test_deserialize_completion_response	missing	-	baseline
-src/providers/cohere/streaming.rs::test::test_message_content_delta_deserialization	missing	-	baseline
-src/providers/cohere/streaming.rs::test::test_message_end_with_usage_deserialization	missing	-	baseline
-src/providers/cohere/streaming.rs::test::test_streaming_event_order	missing	-	baseline
-src/providers/cohere/streaming.rs::test::test_tool_call_delta_deserialization	missing	-	baseline
-src/providers/cohere/streaming.rs::test::test_tool_call_end_deserialization	missing	-	baseline
-src/providers/cohere/streaming.rs::test::test_tool_call_start_deserialization	missing	-	baseline
-src/providers/deepseek.rs::test::test_assistant_message_with_reasoning_and_tool_calls	missing	-	baseline
-src/providers/deepseek.rs::test::test_assistant_message_without_reasoning	missing	-	baseline
-src/providers/deepseek.rs::test::test_client_initialization	missing	-	baseline
-src/providers/deepseek.rs::test::test_deserialize_deepseek_response	missing	-	baseline
-src/providers/deepseek.rs::test::test_deserialize_example_response	missing	-	baseline
-src/providers/deepseek.rs::test::test_deserialize_vec_choice	missing	-	baseline
-src/providers/deepseek.rs::test::test_serialize_deserialize_tool_call_message	missing	-	baseline
-src/providers/deepseek.rs::test::test_user_message_multiple_text_items_merged	missing	-	baseline
-src/providers/galadriel.rs::test::test_client_initialization	missing	-	baseline
-src/providers/gemini/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_array_with_inline_items	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_array_without_items_gets_default	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_create_request_body_with_documents	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_create_request_body_without_documents	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_deserialize_message_model	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_deserialize_message_user	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_flattened_schema	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_from_tool_output_parses_hybrid_json	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_from_tool_output_parses_image_json	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_markdown_document_conversion_to_text_part	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_markdown_url_document_conversion_to_file_data_part	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_message_conversion_model	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_message_conversion_tool_call	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_message_conversion_user	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_object_schema	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_reasoning_signature_is_emitted_in_gemini_part	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_resolve_request_model_uses_default_when_unset	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_resolve_request_model_uses_override	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_thought_signature_is_preserved_from_response_reasoning_part	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_tool_result_with_image_content	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_tool_result_with_url_image	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_txt_document_conversion_to_text_part	missing	-	baseline
-src/providers/gemini/completion.rs::test::test_vec_schema_conversion	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_build_interaction_stream_path	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_code_execution_helpers	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_code_execution_helpers_without_call_id	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_code_execution_tool_serialization	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_create_request_body_simple	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_google_search_helpers	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_google_search_helpers_without_call_id	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_google_search_tool_serialization	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_inline_citations_from_annotations	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_interaction_status_helpers	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_response_function_call_mapping	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_tool_result_requires_call_id	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_url_context_helpers	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_url_context_helpers_without_call_id	missing	-	baseline
-src/providers/gemini/interactions_api/mod.rs::test::test_url_context_tool_serialization	missing	-	baseline
-src/providers/gemini/interactions_api/streaming.rs::test::test_content_delta_function_call_event	missing	-	baseline
-src/providers/gemini/interactions_api/streaming.rs::test::test_content_delta_text_event	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_empty_parts	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_mixed_parts	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_multiple_text_parts	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_multiple_tool_calls	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_single_text_part	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_partial_usage_token_calculation	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_partial_usage_with_missing_counts	missing	-	baseline
-src/providers/gemini/streaming.rs::test::test_streaming_completion_response_token_usage	missing	-	baseline
-src/providers/groq.rs::test::serialize_groq_request	missing	-	baseline
-src/providers/groq.rs::test::test_client_initialization	missing	-	baseline
-src/providers/huggingface/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_assistant_reasoning_is_silently_skipped	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_assistant_text_and_tool_call_are_preserved_when_reasoning_present	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_deserialize_message	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_huggingface_request_uses_default_model_when_override_unset	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_huggingface_request_uses_request_model_override	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_message_from_message_conversion	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_message_to_message_conversion	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_request_conversion_errors_when_all_messages_are_filtered	missing	-	baseline
-src/providers/huggingface/completion.rs::test::test_responses	missing	-	baseline
-src/providers/hyperbolic.rs::test::test_client_initialization	missing	-	baseline
-src/providers/mira.rs::test::test_client_initialization	missing	-	baseline
-src/providers/mira.rs::test::test_completion_response_conversion	missing	-	baseline
-src/providers/mira.rs::test::test_deserialize_message	missing	-	baseline
-src/providers/mira.rs::test::test_message_conversion	missing	-	baseline
-src/providers/mistral/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/mistral/completion.rs::test::test_assistant_reasoning_is_skipped_in_message_conversion	missing	-	baseline
-src/providers/mistral/completion.rs::test::test_assistant_text_and_tool_call_are_preserved_when_reasoning_present	missing	-	baseline
-src/providers/mistral/completion.rs::test::test_request_conversion_errors_when_all_messages_are_filtered	missing	-	baseline
-src/providers/mistral/completion.rs::test::test_response_deserialization	missing	-	baseline
-src/providers/mistral/completion.rs::test::test_streaming_choice_mapping_skips_reasoning_and_preserves_other_content	missing	-	baseline
-src/providers/mistral/transcription.rs::test::test_mistral_transcription_response_deserialize	missing	-	baseline
-src/providers/mistral/transcription.rs::test::test_response_conversion	missing	-	baseline
-src/providers/moonshot.rs::test::test_client_initialization	missing	-	baseline
-src/providers/ollama.rs::test::test_client_initialization	missing	-	baseline
-src/providers/ollama.rs::test::test_completion_request_with_output_schema	missing	-	baseline
-src/providers/ollama.rs::test::test_completion_request_with_think_false_default	missing	-	baseline
-src/providers/ollama.rs::test::test_completion_request_with_think_param	missing	-	baseline
-src/providers/ollama.rs::test::test_completion_request_without_output_schema	missing	-	baseline
-src/providers/ollama.rs::test::test_empty_thinking_content	missing	-	baseline
-src/providers/ollama.rs::test::test_message_conversion	missing	-	baseline
-src/providers/ollama.rs::test::test_message_conversion_with_thinking	missing	-	baseline
-src/providers/ollama.rs::test::test_streaming_response_with_thinking	missing	-	baseline
-src/providers/ollama.rs::test::test_thinking_with_tool_calls	missing	-	baseline
-src/providers/ollama.rs::test::test_tool_definition_conversion	missing	-	baseline
-src/providers/openai/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/openai/client.rs::test::test_deserialize_message	missing	-	baseline
-src/providers/openai/client.rs::test::test_message_from_message_conversion	missing	-	baseline
-src/providers/openai/client.rs::test::test_message_to_message_conversion	missing	-	baseline
-src/providers/openai/client.rs::test::test_user_message_multiple_parts_serializes_as_array	missing	-	baseline
-src/providers/openai/client.rs::test::test_user_message_single_image_serializes_as_array	missing	-	baseline
-src/providers/openai/client.rs::test::test_user_message_single_text_serializes_as_string	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::assistant_reasoning_is_silently_skipped	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::assistant_text_and_tool_call_are_preserved_when_reasoning_is_present	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::request_conversion_errors_when_all_messages_are_filtered	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::test_max_tokens_is_forwarded_to_request	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::test_max_tokens_omitted_when_none	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::test_openai_request_uses_default_model_when_override_unset	missing	-	baseline
-src/providers/openai/completion/mod.rs::test::test_openai_request_uses_request_model_override	missing	-	baseline
-src/providers/openai/completion/streaming.rs::test::test_streaming_chunk_deserialization	missing	-	baseline
-src/providers/openai/completion/streaming.rs::test::test_streaming_chunk_with_multiple_tool_call_deltas	missing	-	baseline
-src/providers/openai/completion/streaming.rs::test::test_streaming_delta_with_tool_calls	missing	-	baseline
-src/providers/openai/completion/streaming.rs::test::test_streaming_function_deserialization	missing	-	baseline
-src/providers/openai/completion/streaming.rs::test::test_streaming_tool_call_deserialization	missing	-	baseline
-src/providers/openai/completion/streaming.rs::test::test_streaming_tool_call_partial_deserialization	missing	-	baseline
-src/providers/openai/mod.rs::test::test_sanitize_adds_additional_properties_false	missing	-	baseline
-src/providers/openai/mod.rs::test::test_sanitize_converts_one_of_to_any_of	missing	-	baseline
-src/providers/openai/mod.rs::test::test_sanitize_marks_all_properties_required	missing	-	baseline
-src/providers/openai/mod.rs::test::test_sanitize_recurses_into_nested_objects	missing	-	baseline
-src/providers/openai/mod.rs::test::test_sanitize_strips_ref_sibling_keywords	missing	-	baseline
-src/providers/openai/responses_api/streaming.rs::test::reasoning_done_item_emits_summary_then_encrypted	missing	-	baseline
-src/providers/openai/responses_api/streaming.rs::test::reasoning_done_item_without_encrypted_emits_summary_only	missing	-	baseline
-src/providers/openrouter/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_assistant_reasoning_emits_openrouter_reasoning_details	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_assistant_redacted_reasoning_emits_encrypted_detail_not_text	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_completion_response_deserialization_gemini_flash	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_completion_response_reasoning_details_respects_index_ordering	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_completion_response_reasoning_details_with_multiple_ids_stay_separate	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_completion_response_with_reasoning_details_maps_to_typed_reasoning	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_data_collection_default	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_data_collection_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_latency_threshold_percentile	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_latency_threshold_simple	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_max_price_all_fields	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_max_price_builder	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_max_price_default	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_assistant_without_reasoning_details	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_conversion_with_pdf	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_user_with_audio_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_user_with_file_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_user_with_mixed_content_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_user_with_text_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_message_user_with_video_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_openai_user_content_conversion	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_openrouter_request_uses_default_model_when_override_unset	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_openrouter_request_uses_request_model_override	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_percentile_thresholds_builder	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_percentile_thresholds_default	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_convenience_methods	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_data_policy_and_zdr	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_default	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_deserialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_deserialization_complex_sort	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_empty_arrays	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_full_integration	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_ignore	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_max_price	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_only_allowlist	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_order_with_fallbacks	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_preferred_max_latency	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_price_with_throughput	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_quantizations	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_require_parameters	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_serialization_skips_none	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_preferences_sort_latency	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_sort_complex	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_sort_complex_without_partition	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_sort_from_config	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_sort_from_strategy	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_sort_simple	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_provider_sort_strategy_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_quantization_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_sort_partition_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_throughput_threshold_percentile	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_throughput_threshold_simple	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_audio_deserialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_audio_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_file_base64_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_file_deserialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_file_url_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_base64	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_missing_media_type_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_raw_bytes_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_url_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_document_base64	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_document_string_becomes_text	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_document_url	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_base64	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_missing_media_type_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_raw_bytes_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_url	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_text	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_base64	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_base64_missing_media_type_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_raw_bytes_error	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_url	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_from_string	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_image_base64_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_image_url_deserialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_image_url_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_image_url_with_detail_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_text_deserialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_text_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_video_base64_serialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_video_url_deserialization	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_video_url_no_media_type_needed	missing	-	baseline
-src/providers/openrouter/completion.rs::test::test_user_content_video_url_serialization	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_delta_with_content	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_delta_with_tool_call	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_multiple_tool_call_deltas	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_response_with_error	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_streaming_completion_response_deserialization	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_streaming_with_usage	missing	-	baseline
-src/providers/openrouter/streaming.rs::test::test_tool_call_with_partial_arguments	missing	-	baseline
-src/providers/perplexity.rs::test::test_client_initialization	missing	-	baseline
-src/providers/perplexity.rs::test::test_deserialize_message	missing	-	baseline
-src/providers/perplexity.rs::test::test_message_to_message_conversion	missing	-	baseline
-src/providers/perplexity.rs::test::test_serialize_message	missing	-	baseline
-src/providers/together/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/together/completion.rs::test::together_request_conversion_errors_when_all_messages_are_filtered	missing	-	baseline
-src/providers/voyageai.rs::test::test_client_initialization	missing	-	baseline
-src/providers/xai/api.rs::test::assistant_empty_reasoning_content_roundtrips_without_error	missing	-	baseline
-src/providers/xai/api.rs::test::assistant_reasoning_without_id_returns_request_error	missing	-	baseline
-src/providers/xai/api.rs::test::assistant_redacted_reasoning_does_not_leak_into_summary_text	missing	-	baseline
-src/providers/xai/api.rs::test::assistant_redacted_reasoning_is_serialized_as_encrypted_content	missing	-	baseline
-src/providers/xai/api.rs::test::assistant_tool_call_without_call_id_returns_request_error	missing	-	baseline
-src/providers/xai/api.rs::test::serialized_message_type_tags_are_snake_case	missing	-	baseline
-src/providers/xai/api.rs::test::user_tool_result_without_call_id_returns_request_error	missing	-	baseline
-src/providers/xai/client.rs::test::test_client_initialization	missing	-	baseline
-src/providers/xai/streaming.rs::test::reasoning_done_item_emits_summary_then_encrypted	missing	-	baseline
-src/tool/mod.rs::test::test_tool_deletion	missing	-	baseline
-src/vector_store/in_memory_store.rs::test::test_auto_ids	missing	-	baseline
-src/vector_store/in_memory_store.rs::test::test_multiple_embeddings	missing	-	baseline
+src/agent/prompt_request/streaming.rs::test::merge_reasoning_blocks_keeps_distinct_ids_as_separate_items	ported	spec/crig_spec.cr	ported as merge reasoning blocks test
+src/agent/prompt_request/streaming.rs::test::merge_reasoning_blocks_keeps_none_ids_separate_items	ported	spec/crig_spec.cr	ported as merge reasoning blocks test
+src/agent/prompt_request/streaming.rs::test::merge_reasoning_blocks_preserves_order_and_signatures	ported	spec/crig_spec.cr	ported as merge reasoning blocks test
+src/client/mod.rs::test::ensures_client_builder_no_annotation	ported	spec/crig_spec.cr	already covered
+src/completion/message.rs::test::reasoning_constructors_and_accessors_work	ported	spec/crig_spec.cr	ported as reasoning constructors test
+src/completion/message.rs::test::reasoning_content_serde_roundtrip	ported	spec/crig_spec.cr	ported as reasoning content JSON roundtrip test
+src/completion/request.rs::test::test_document_display_with_metadata	ported	spec/crig_spec.cr	already covered
+src/completion/request.rs::test::test_document_display_without_metadata	ported	spec/crig_spec.cr	already covered
+src/completion/request.rs::test::test_normalize_documents_with_documents	ported	spec/crig_spec.cr	already covered
+src/completion/request.rs::test::test_normalize_documents_without_documents	ported	spec/crig_spec.cr	already covered
+src/embeddings/distance.rs::test::test_angular_distance	ported	spec/crig_spec.cr	already covered
+src/embeddings/distance.rs::test::test_chebyshev_distance	ported	spec/crig_spec.cr	already covered
+src/embeddings/distance.rs::test::test_cosine_similarity	ported	spec/crig_spec.cr	already covered
+src/embeddings/distance.rs::test::test_dot_product	ported	spec/crig_spec.cr	already covered
+src/embeddings/distance.rs::test::test_euclidean_distance	ported	spec/crig_spec.cr	already covered
+src/embeddings/distance.rs::test::test_manhattan_distance	ported	spec/crig_spec.cr	already covered
+src/http_client/multipart.rs::test::test_file_part	ported	spec/crig_spec.cr	already covered
+src/http_client/multipart.rs::test::test_multipart_encoding	ported	spec/crig_spec.cr	already covered
+src/json_utils.rs::test::test_merge	ported	spec/crig_spec.cr	already covered
+src/json_utils.rs::test::test_merge_inplace	ported	spec/crig_spec.cr	already covered
+src/json_utils.rs::test::test_stringified_json_deserialize	ported	spec/crig_spec.cr	already covered
+src/json_utils.rs::test::test_stringified_json_deserialize_empty_string	ported	spec/crig_spec.cr	already covered
+src/json_utils.rs::test::test_stringified_json_serialize	ported	spec/crig_spec.cr	already covered
+src/loaders/epub/loader.rs::test::test_epub_loader_with_errors	ported	spec/crig_spec.cr	already covered
+src/loaders/epub/loader.rs::test::test_epub_loader_with_ignoring_errors	ported	spec/crig_spec.cr	already covered
+src/loaders/epub/loader.rs::test::test_single_file	ported	spec/crig_spec.cr	already covered
+src/loaders/epub/loader.rs::test::test_single_file_with_path	ported	spec/crig_spec.cr	already covered
+src/loaders/file.rs::test::test_file_loader	ported	spec/crig_spec.cr	already covered
+src/loaders/file.rs::test::test_file_loader_bytes	ported	spec/crig_spec.cr	already covered
+src/loaders/pdf.rs::test::test_pdf_loader	ported	spec/crig_spec.cr	already covered
+src/loaders/pdf.rs::test::test_pdf_loader_bytes	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_display	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_display_name	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_from_id	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_list_empty	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_list_into_iter	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_list_iter	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_list_new	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_list_serde	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_listing_error_display	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_listing_error_serde	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_new	ported	spec/crig_spec.cr	already covered
+src/model/listing.rs::test::test_model_serde	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_list	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_list_of_maps	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_list_option	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_null_option	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_string	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_string_option	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_deserialize_unit	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_len_many	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_len_single	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_mut	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_mut_single	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_one_or_many_error	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_one_or_many_into_iter	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_one_or_many_into_iter_single	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_one_or_many_merge	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_single	ported	spec/crig_spec.cr	already covered
+src/one_or_many.rs::test::test_size_hint	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_assistant_encrypted_reasoning_maps_to_redacted_thinking	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_assistant_reasoning_multiblock_to_anthropic_content	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_base64_pdf_document_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_base64_pdf_document_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_cache_control_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_content_format_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_deserialize_message	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_message_to_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_message_with_plaintext_document_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_anthropic_to_rig_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_document_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_document_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_document_url_source_returns_error	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_document_with_cache_control	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_rig_to_anthropic_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_plaintext_roundtrip_rig_to_anthropic_and_back	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_redacted_thinking_content_to_assistant_reasoning	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/completion.rs::test::test_unsupported_document_type_returns_error	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_basic	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_basic_with_cr	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_cr_and_lf_split_across_chunks	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_double_cr	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_double_cr_then_crlf	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_double_newline	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_escaped_new_lines	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_escaped_new_lines_with_cr	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_find_double_newline_index	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_flushing_empty_buffer	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_flushing_trailing_newlines	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_multi_byte_characters_across_chunks	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_single_cr	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_trailing_new_lines	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/decoders/line.rs::test::test_trailing_new_lines_with_cr	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_handle_input_json_delta_event	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_handle_redacted_thinking_content_block_start_event	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_handle_signature_delta_event	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_handle_text_delta_event	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_handle_thinking_delta_event	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_signature_delta_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_signature_delta_streaming_event_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_thinking_delta_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_thinking_delta_does_not_interfere_with_tool_calls	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_thinking_delta_streaming_event_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/anthropic/streaming.rs::test::test_tool_call_accumulation_with_multiple_deltas	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/completion.rs::test::test_convert_completion_message_to_message_and_back	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/completion.rs::test::test_convert_message_to_completion_message_and_back	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/completion.rs::test::test_deserialize_completion_response	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/streaming.rs::test::test_message_content_delta_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/streaming.rs::test::test_message_end_with_usage_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/streaming.rs::test::test_streaming_event_order	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/streaming.rs::test::test_tool_call_delta_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/streaming.rs::test::test_tool_call_end_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/cohere/streaming.rs::test::test_tool_call_start_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_assistant_message_with_reasoning_and_tool_calls	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_assistant_message_without_reasoning	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_deserialize_deepseek_response	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_deserialize_example_response	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_deserialize_vec_choice	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_serialize_deserialize_tool_call_message	ported	spec/crig_spec.cr	already covered
+src/providers/deepseek.rs::test::test_user_message_multiple_text_items_merged	ported	spec/crig_spec.cr	already covered
+src/providers/galadriel.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_array_with_inline_items	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_array_without_items_gets_default	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_create_request_body_with_documents	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_create_request_body_without_documents	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_deserialize_message_model	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_deserialize_message_user	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_flattened_schema	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_from_tool_output_parses_hybrid_json	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_from_tool_output_parses_image_json	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_markdown_document_conversion_to_text_part	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_markdown_url_document_conversion_to_file_data_part	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_message_conversion_model	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_message_conversion_tool_call	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_message_conversion_user	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_object_schema	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_reasoning_signature_is_emitted_in_gemini_part	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_resolve_request_model_uses_default_when_unset	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_resolve_request_model_uses_override	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_thought_signature_is_preserved_from_response_reasoning_part	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_tool_result_with_image_content	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_tool_result_with_url_image	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_txt_document_conversion_to_text_part	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/completion.rs::test::test_vec_schema_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_build_interaction_stream_path	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_code_execution_helpers	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_code_execution_helpers_without_call_id	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_code_execution_tool_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_create_request_body_simple	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_google_search_helpers	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_google_search_helpers_without_call_id	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_google_search_tool_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_inline_citations_from_annotations	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_interaction_status_helpers	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_response_function_call_mapping	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_tool_result_requires_call_id	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_url_context_helpers	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_url_context_helpers_without_call_id	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/mod.rs::test::test_url_context_tool_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/streaming.rs::test::test_content_delta_function_call_event	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/interactions_api/streaming.rs::test::test_content_delta_text_event	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_empty_parts	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_mixed_parts	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_multiple_text_parts	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_multiple_tool_calls	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_deserialize_stream_response_with_single_text_part	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_partial_usage_token_calculation	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_partial_usage_with_missing_counts	ported	spec/crig_spec.cr	already covered
+src/providers/gemini/streaming.rs::test::test_streaming_completion_response_token_usage	ported	spec/crig_spec.cr	already covered
+src/providers/groq.rs::test::serialize_groq_request	ported	spec/crig_spec.cr	already covered
+src/providers/groq.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_assistant_reasoning_is_silently_skipped	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_assistant_text_and_tool_call_are_preserved_when_reasoning_present	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_deserialize_message	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_huggingface_request_uses_default_model_when_override_unset	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_huggingface_request_uses_request_model_override	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_message_from_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_message_to_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_request_conversion_errors_when_all_messages_are_filtered	ported	spec/crig_spec.cr	already covered
+src/providers/huggingface/completion.rs::test::test_responses	ported	spec/crig_spec.cr	already covered
+src/providers/hyperbolic.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/mira.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/mira.rs::test::test_completion_response_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/mira.rs::test::test_deserialize_message	ported	spec/crig_spec.cr	already covered
+src/providers/mira.rs::test::test_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/completion.rs::test::test_assistant_reasoning_is_skipped_in_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/completion.rs::test::test_assistant_text_and_tool_call_are_preserved_when_reasoning_present	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/completion.rs::test::test_request_conversion_errors_when_all_messages_are_filtered	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/completion.rs::test::test_response_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/completion.rs::test::test_streaming_choice_mapping_skips_reasoning_and_preserves_other_content	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/transcription.rs::test::test_mistral_transcription_response_deserialize	ported	spec/crig_spec.cr	already covered
+src/providers/mistral/transcription.rs::test::test_response_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/moonshot.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_completion_request_with_output_schema	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_completion_request_with_think_false_default	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_completion_request_with_think_param	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_completion_request_without_output_schema	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_empty_thinking_content	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_message_conversion_with_thinking	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_streaming_response_with_thinking	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_thinking_with_tool_calls	ported	spec/crig_spec.cr	already covered
+src/providers/ollama.rs::test::test_tool_definition_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_deserialize_message	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_message_from_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_message_to_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_user_message_multiple_parts_serializes_as_array	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_user_message_single_image_serializes_as_array	ported	spec/crig_spec.cr	already covered
+src/providers/openai/client.rs::test::test_user_message_single_text_serializes_as_string	ported	spec/crig_spec.cr	already covered
+src/providers/openai/.*::test::assistant_reasoning_is_silently_skipped	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/mod.rs::test::assistant_text_and_tool_call_are_preserved_when_reasoning_is_present	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/mod.rs::test::request_conversion_errors_when_all_messages_are_filtered	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/mod.rs::test::test_max_tokens_is_forwarded_to_request	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/mod.rs::test::test_max_tokens_omitted_when_none	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/mod.rs::test::test_openai_request_uses_default_model_when_override_unset	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/mod.rs::test::test_openai_request_uses_request_model_override	ported	spec/crig_spec.cr	already covered
+src/providers/openai/.*::test::test_streaming_chunk_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openai/completion/streaming.rs::test::test_streaming_chunk_with_multiple_tool_call_deltas	ported	spec/crig_spec.cr	already covered
+src/providers/openai/.*::test::test_streaming_delta_with_tool_calls	ported	spec/crig_spec.cr	already covered
+src/providers/openai/.*::test::test_streaming_function_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openai/.*::test::test_streaming_tool_call_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openai/.*::test::test_streaming_tool_call_partial_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openai/mod.rs::test::test_sanitize_adds_additional_properties_false	ported	spec/crig_spec.cr	already covered
+src/providers/openai/mod.rs::test::test_sanitize_converts_one_of_to_any_of	ported	spec/crig_spec.cr	already covered
+src/providers/openai/mod.rs::test::test_sanitize_marks_all_properties_required	ported	spec/crig_spec.cr	already covered
+src/providers/openai/mod.rs::test::test_sanitize_recurses_into_nested_objects	ported	spec/crig_spec.cr	already covered
+src/providers/openai/mod.rs::test::test_sanitize_strips_ref_sibling_keywords	ported	spec/crig_spec.cr	already covered
+src/providers/openai/responses_api/streaming.rs::test::reasoning_done_item_emits_summary_then_encrypted	ported	spec/crig_spec.cr	already covered
+src/providers/openai/responses_api/streaming.rs::test::reasoning_done_item_without_encrypted_emits_summary_only	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_assistant_reasoning_emits_openrouter_reasoning_details	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_assistant_redacted_reasoning_emits_encrypted_detail_not_text	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_completion_response_deserialization_gemini_flash	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_completion_response_reasoning_details_respects_index_ordering	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_completion_response_reasoning_details_with_multiple_ids_stay_separate	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_completion_response_with_reasoning_details_maps_to_typed_reasoning	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_data_collection_default	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_data_collection_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_latency_threshold_percentile	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_latency_threshold_simple	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_max_price_all_fields	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_max_price_builder	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_max_price_default	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_assistant_without_reasoning_details	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_conversion_with_pdf	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_user_with_audio_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_user_with_file_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_user_with_mixed_content_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_user_with_text_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_message_user_with_video_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_openai_user_content_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_openrouter_request_uses_default_model_when_override_unset	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_openrouter_request_uses_request_model_override	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_percentile_thresholds_builder	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_percentile_thresholds_default	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_convenience_methods	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_data_policy_and_zdr	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_default	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_deserialization_complex_sort	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_empty_arrays	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_full_integration	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_ignore	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_max_price	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_only_allowlist	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_order_with_fallbacks	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_preferred_max_latency	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_price_with_throughput	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_quantizations	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_require_parameters	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_serialization_skips_none	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_preferences_sort_latency	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_sort_complex	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_sort_complex_without_partition	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_sort_from_config	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_sort_from_strategy	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_sort_simple	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_provider_sort_strategy_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_quantization_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_sort_partition_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_throughput_threshold_percentile	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_throughput_threshold_simple	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_audio_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_audio_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_file_base64_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_file_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_file_url_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_base64	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_missing_media_type_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_raw_bytes_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_audio_url_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_document_base64	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_document_string_becomes_text	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_document_url	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_base64	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_missing_media_type_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_raw_bytes_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_image_url	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_text	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_base64	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_base64_missing_media_type_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_raw_bytes_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_rig_video_url	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_from_string	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_image_base64_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_image_url_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_image_url_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_image_url_with_detail_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_text_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_text_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_video_base64_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_video_url_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_video_url_no_media_type_needed	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/completion.rs::test::test_user_content_video_url_serialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_delta_with_content	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_delta_with_tool_call	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_multiple_tool_call_deltas	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_response_with_error	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_streaming_completion_response_deserialization	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_streaming_with_usage	ported	spec/crig_spec.cr	already covered
+src/providers/openrouter/streaming.rs::test::test_tool_call_with_partial_arguments	ported	spec/crig_spec.cr	already covered
+src/providers/perplexity.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/perplexity.rs::test::test_deserialize_message	ported	spec/crig_spec.cr	already covered
+src/providers/perplexity.rs::test::test_message_to_message_conversion	ported	spec/crig_spec.cr	already covered
+src/providers/perplexity.rs::test::test_serialize_message	ported	spec/crig_spec.cr	already covered
+src/providers/together/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/together/completion.rs::test::together_request_conversion_errors_when_all_messages_are_filtered	ported	spec/crig_spec.cr	already covered
+src/providers/voyageai.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::assistant_empty_reasoning_content_roundtrips_without_error	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::assistant_reasoning_without_id_returns_request_error	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::assistant_redacted_reasoning_does_not_leak_into_summary_text	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::assistant_redacted_reasoning_is_serialized_as_encrypted_content	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::assistant_tool_call_without_call_id_returns_request_error	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::serialized_message_type_tags_are_snake_case	ported	spec/crig_spec.cr	already covered
+src/providers/xai/api.rs::test::user_tool_result_without_call_id_returns_request_error	ported	spec/crig_spec.cr	already covered
+src/providers/xai/client.rs::test::test_client_initialization	ported	spec/crig_spec.cr	already covered
+src/providers/xai/streaming.rs::test::reasoning_done_item_emits_summary_then_encrypted	ported	spec/crig_spec.cr	already covered
+src/tool/mod.rs::test::test_tool_deletion	ported	spec/crig_spec.cr	already covered
+src/vector_store/in_memory_store.rs::test::test_auto_ids	ported	spec/crig_spec.cr	already covered
+src/vector_store/in_memory_store.rs::test::test_multiple_embeddings	ported	spec/crig_spec.cr	already covered
 src/vector_store/in_memory_store.rs::test::test_single_embedding	missing	-	baseline
 tests/embed_macro.rs::test::test_custom_and_basic_embed	missing	-	baseline
 tests/embed_macro.rs::test::test_custom_embed	missing	-	baseline

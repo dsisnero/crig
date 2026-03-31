@@ -41,7 +41,7 @@ ruby -e '
 
 # Detect placeholder tests in Crystal side when applicable.
 if [[ -d "${ROOT_DIR}/spec" ]]; then
-  if rg -n "\bpending\b|\bxit\(|\bxdescribe\(|\bxcontext\(" "${ROOT_DIR}/spec" "${ROOT_DIR}/src" >/dev/null 2>&1; then
+  if rg --pcre2 -n "^\s*pending(?!\s*(=|<<|\+=|-=|\*=|\/=))(\s|$)|^\s*xit\(|^\s*xdescribe\(|^\s*xcontext\(" "${ROOT_DIR}/spec" "${ROOT_DIR}/src" >/dev/null 2>&1; then
     echo "Found placeholder specs in src/spec. Resolve before parity signoff." >&2
     exit 1
   fi
