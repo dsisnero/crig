@@ -38,9 +38,97 @@ module Crig
     end
 
     class VectorStoreError < Exception
+      enum Kind
+        EmbeddingError
+        JsonError
+        DatastoreError
+        FilterError
+        MissingIdError
+        HttpError
+        ExternalApiError
+        BuilderError
+        Other
+      end
+
+      getter kind : Kind
+      getter source_error : Exception?
+      getter status_code : Int32?
+      getter detail : String?
+
+      def initialize(
+        @kind : Kind = Kind::Other,
+        message : String? = nil,
+        @source_error : Exception? = nil,
+        @status_code : Int32? = nil,
+        @detail : String? = nil,
+      )
+        super(message || build_message)
+      end
+
+      def self.embedding_error(error : Exception) : self
+        new(Kind::EmbeddingError, source_error: error)
+      end
+
+      def self.json_error(error : Exception) : self
+        new(Kind::JsonError, source_error: error)
+      end
+
+      def self.datastore_error(error : Exception) : self
+        new(Kind::DatastoreError, source_error: error)
+      end
+
+      def self.filter_error(error : Exception) : self
+        new(Kind::FilterError, source_error: error)
+      end
+
+      def self.missing_id(id : String) : self
+        new(Kind::MissingIdError, detail: id)
+      end
+
+      def self.http_error(error : Exception) : self
+        new(Kind::HttpError, source_error: error)
+      end
+
+      def self.external_api_error(status_code : Int32, detail : String) : self
+        new(Kind::ExternalApiError, status_code: status_code, detail: detail)
+      end
+
+      def self.builder_error(detail : String) : self
+        new(Kind::BuilderError, detail: detail)
+      end
+
+      private def build_message : String
+        case @kind
+        when Kind::EmbeddingError
+          "Embedding error: #{source_message}"
+        when Kind::JsonError
+          "Json error: #{source_message}"
+        when Kind::DatastoreError
+          "Datastore error: #{source_message}"
+        when Kind::FilterError
+          "Filter error: #{source_message}"
+        when Kind::MissingIdError
+          "Missing Id: #{@detail}"
+        when Kind::HttpError
+          "HTTP request error: #{source_message}"
+        when Kind::ExternalApiError
+          "External call to API returned an error. Error code: #{@status_code} Message: #{@detail}"
+        when Kind::BuilderError
+          "Error while building VectorSearchRequest: #{@detail}"
+        else
+          @detail || source_message
+        end
+      end
+
+      private def source_message : String
+        @source_error.try(&.message) || @source_error.to_s
+      end
     end
 
     class BuilderError < VectorStoreError
+      def initialize(detail : String)
+        super(Kind::BuilderError, detail: detail)
+      end
     end
 
     struct VectorStoreOutput

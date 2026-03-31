@@ -41,6 +41,10 @@ module Crig
 
       getter inner : Crig::Completion::CompletionModelDyn
 
+      def self.make(_client, _model) : self
+        raise "Cannot create a completion model handle from a client"
+      end
+
       def self.new(inner : Crig::Completion::CompletionModelDyn) : self
         allocate.tap(&.initialize(inner))
       end

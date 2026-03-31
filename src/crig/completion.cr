@@ -3,32 +3,102 @@ require "json"
 module Crig
   module Completion
     class CompletionError < Exception
+      enum Kind
+        HttpError
+        JsonError
+        UrlError
+        RequestError
+        ResponseError
+        ProviderError
+        Other
+      end
+
+      getter kind : Kind
+      getter source_error : Exception?
+
+      def initialize(message : String, @kind : Kind = Kind::Other, @source_error : Exception? = nil)
+        super(message)
+      end
+
+      def self.http_error(error : Exception) : self
+        new("HttpError: #{error.message || error.class.name}", Kind::HttpError, error)
+      end
+
+      def self.json_error(error : Exception) : self
+        new("JsonError: #{error.message || error.class.name}", Kind::JsonError, error)
+      end
+
+      def self.url_error(error : Exception) : self
+        new("UrlError: #{error.message || error.class.name}", Kind::UrlError, error)
+      end
+
+      def self.request_error(error : Exception) : self
+        new("RequestError: #{error.message || error.class.name}", Kind::RequestError, error)
+      end
+
+      def self.response_error(message : String) : self
+        new("ResponseError: #{message}", Kind::ResponseError)
+      end
+
+      def self.provider_error(message : String) : self
+        new("ProviderError: #{message}", Kind::ProviderError)
+      end
     end
 
     class PromptError < Exception
+      enum Kind
+        CompletionError
+        ToolError
+        ToolServerError
+        MaxTurnsError
+        PromptCancelled
+        Other
+      end
+
+      getter kind : Kind
       getter chat_history : Array(Message)?
       getter prompt : Message?
       getter max_turns : Int32?
       getter reason : String?
+      getter completion_error : CompletionError?
+      getter tool_error : Crig::ToolSetError?
+      getter tool_server_error : Crig::ToolServerError?
 
       def initialize(
         message : String,
+        @kind : Kind = Kind::Other,
         @chat_history : Array(Message)? = nil,
         @prompt : Message? = nil,
         @max_turns : Int32? = nil,
         @reason : String? = nil,
+        @completion_error : CompletionError? = nil,
+        @tool_error : Crig::ToolSetError? = nil,
+        @tool_server_error : Crig::ToolServerError? = nil,
       )
         super(message)
       end
 
+      def self.completion_error(error : CompletionError) : self
+        new("CompletionError: #{error.message}", Kind::CompletionError, completion_error: error)
+      end
+
+      def self.tool_error(error : Crig::ToolSetError) : self
+        new("ToolCallError: #{error.message}", Kind::ToolError, tool_error: error)
+      end
+
+      def self.tool_server_error(error : Crig::ToolServerError) : self
+        new("ToolServerError: #{error.message}", Kind::ToolServerError, tool_server_error: error)
+      end
+
       def self.prompt_cancelled(chat_history : Array(Message), reason : String) : self
-        new("PromptCancelled: #{reason}", chat_history: chat_history, reason: reason)
+        new("PromptCancelled: #{reason}", Kind::PromptCancelled, chat_history: chat_history, reason: reason)
       end
 
       def self.max_turns_exceeded(max_turns : Int32, chat_history : Array(Message), prompt : Message) : self
         reason = "MaxTurnsExceeded: #{max_turns}"
         new(
           reason,
+          Kind::MaxTurnsError,
           chat_history: chat_history,
           prompt: prompt,
           max_turns: max_turns,
@@ -38,6 +108,37 @@ module Crig
     end
 
     class StructuredOutputError < Exception
+      enum Kind
+        PromptError
+        DeserializationError
+        EmptyResponse
+        Other
+      end
+
+      getter kind : Kind
+      getter prompt_error : PromptError?
+      getter source_error : Exception?
+
+      def initialize(
+        message : String,
+        @kind : Kind = Kind::Other,
+        @prompt_error : PromptError? = nil,
+        @source_error : Exception? = nil,
+      )
+        super(message)
+      end
+
+      def self.prompt_error(error : PromptError) : self
+        new("PromptError: #{error.message}", Kind::PromptError, prompt_error: error, source_error: error)
+      end
+
+      def self.deserialization_error(error : Exception) : self
+        new("DeserializationError: #{error.message || error.class.name}", Kind::DeserializationError, source_error: error)
+      end
+
+      def self.empty_response : self
+        new("EmptyResponse: model returned no content", Kind::EmptyResponse)
+      end
     end
 
     module GetTokenUsage
@@ -53,7 +154,7 @@ module Crig
     end
 
     module TypedPrompt
-      abstract def prompt_typed(prompt : Message | String)
+      abstract def prompt_typed(type : T.class, prompt : Message | String) forall T
     end
 
     module Completion

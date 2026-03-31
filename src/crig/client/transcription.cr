@@ -16,6 +16,10 @@ module Crig
       def initialize(@inner : Crig::TranscriptionModelDyn)
       end
 
+      def self.make(_client, _model : String) : self
+        raise "Invalid method: Cannot make a TranscriptionModelHandle from a client + model identifier"
+      end
+
       def transcription(request : Crig::TranscriptionRequest)
         @inner.transcription(request)
       end

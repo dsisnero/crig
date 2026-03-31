@@ -1,5 +1,40 @@
 module Crig
   class TranscriptionError < Exception
+    enum Kind
+      HttpError
+      JsonError
+      RequestError
+      ResponseError
+      ProviderError
+      Other
+    end
+
+    getter kind : Kind
+    getter source_error : Exception?
+
+    def initialize(message : String, @kind : Kind = Kind::Other, @source_error : Exception? = nil)
+      super(message)
+    end
+
+    def self.http_error(error : Exception) : self
+      new("HttpError: #{error.message || error.class.name}", Kind::HttpError, error)
+    end
+
+    def self.json_error(error : Exception) : self
+      new("JsonError: #{error.message || error.class.name}", Kind::JsonError, error)
+    end
+
+    def self.request_error(error : Exception) : self
+      new("RequestError: #{error.message || error.class.name}", Kind::RequestError, error)
+    end
+
+    def self.response_error(message : String) : self
+      new("ResponseError: #{message}", Kind::ResponseError)
+    end
+
+    def self.provider_error(message : String) : self
+      new("ProviderError: #{message}", Kind::ProviderError)
+    end
   end
 
   module Transcription
@@ -84,6 +119,12 @@ module Crig
 
     def data(data : Bytes) : self
       self.class.new(@model, data, @filename_value, @language_value, @prompt_value, @temperature_value, @additional_params_value)
+    end
+
+    def load_file(path : Path | String) : self
+      filename = File.basename(path.to_s)
+      data = File.read(path).to_slice.dup
+      self.filename(filename).data(data)
     end
 
     def language(language : String) : self

@@ -1,15 +1,49 @@
 module Crig
   class StreamingError < Exception
+    enum Kind
+      Completion
+      Prompt
+      Tool
+      Other
+    end
+
+    getter kind : Kind
+    getter completion_error : Crig::Completion::CompletionError?
+    getter prompt_error : Crig::Completion::PromptError?
+    getter tool_error : Exception?
+
+    def initialize(
+      message : String,
+      @kind : Kind = Kind::Other,
+      @completion_error : Crig::Completion::CompletionError? = nil,
+      @prompt_error : Crig::Completion::PromptError? = nil,
+      @tool_error : Exception? = nil,
+    )
+      super(message)
+    end
+
     def self.completion(message : String) : self
-      new("CompletionError: #{message}")
+      new("CompletionError: #{message}", Kind::Completion)
+    end
+
+    def self.completion(error : Crig::Completion::CompletionError) : self
+      new("CompletionError: #{error.message}", Kind::Completion, completion_error: error)
     end
 
     def self.prompt(message : String) : self
-      new("PromptError: #{message}")
+      new("PromptError: #{message}", Kind::Prompt)
+    end
+
+    def self.prompt(error : Crig::Completion::PromptError) : self
+      new("PromptError: #{error.message}", Kind::Prompt, prompt_error: error)
     end
 
     def self.tool(message : String) : self
-      new("ToolSetError: #{message}")
+      new("ToolSetError: #{message}", Kind::Tool)
+    end
+
+    def self.tool(error : Exception) : self
+      new("ToolSetError: #{error.message || error.class.name}", Kind::Tool, tool_error: error)
     end
   end
 
@@ -115,7 +149,6 @@ module Crig
       self.class.new(@agent, @prompt, @chat_history, @max_turns, hook)
     end
 
-    # ameba:disable Metrics/CyclomaticComplexity
     def send_items : Crig::MultiTurnStreamingResult(Crig::FinalResponse)
       history = (@chat_history || [] of Crig::Completion::Message).dup
       has_history = !@chat_history.nil?
@@ -127,19 +160,17 @@ module Crig
       loop do
         if current_turn > @max_turns + 1
           error = Crig::Completion::PromptError.max_turns_exceeded(@max_turns, history, current_prompt)
-          raise Crig::StreamingError.prompt(
-            error.reason || error.message || "MaxTurnsExceeded: #{@max_turns}"
-          )
+          raise Crig::StreamingError.prompt(error)
         end
 
         current_turn += 1
         maybe_run_completion_hook(current_prompt, history)
 
         stream = @agent.stream_completion(current_prompt, history).stream(@agent.model)
-        aggregated_usage = aggregated_usage + (stream.response.try(&.usage) || Crig::Completion::Usage.new)
         history << current_prompt
 
         turn_result = process_stream_turn(stream, current_prompt, history, items)
+        aggregated_usage += turn_result.usage
 
         if turn_result.saw_tool_call
           append_tool_turn_history(history, turn_result.reasoning, turn_result.tool_calls, turn_result.tool_results)
@@ -155,14 +186,6 @@ module Crig
           has_history ? final_history : nil,
         )
 
-        if hook = @hook
-          action = hook.on_stream_completion_response_finish(current_prompt, final_response)
-          if action.kind.terminate?
-            reason = action.reason || "terminated"
-            raise Crig::StreamingError.prompt("PromptCancelled: #{reason}")
-          end
-        end
-
         items << Crig::MultiTurnStreamItem(Crig::FinalResponse).final_response_with_history(
           final_response.response,
           final_response.usage,
@@ -171,8 +194,6 @@ module Crig
         return Crig::MultiTurnStreamingResult(Crig::FinalResponse).new(items)
       end
     end
-
-    # ameba:enable Metrics/CyclomaticComplexity
 
     def send : Crig::StreamingCompletionResponse(Crig::FinalResponse)
       items = send_items
@@ -188,7 +209,8 @@ module Crig
       saw_tool_call : Bool,
       tool_calls : Array(Crig::Completion::AssistantContent),
       tool_results : Array(Tuple(String, String?, String)),
-      reasoning : Array(Crig::Completion::Reasoning)
+      reasoning : Array(Crig::Completion::Reasoning),
+      usage : Crig::Completion::Usage
 
     private def maybe_run_completion_hook(
       prompt : Crig::Completion::Message,
@@ -198,11 +220,12 @@ module Crig
         action = hook.on_completion_call(prompt, history)
         if action.kind.terminate?
           reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt("PromptCancelled: #{reason}")
+          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
         end
       end
     end
 
+    # ameba:disable Metrics/CyclomaticComplexity
     private def process_stream_turn(
       stream,
       prompt : Crig::Completion::Message,
@@ -214,17 +237,20 @@ module Crig
       tool_calls = [] of Crig::Completion::AssistantContent
       tool_results = [] of Tuple(String, String?, String)
       reasoning = [] of Crig::Completion::Reasoning
+      turn_usage = Crig::Completion::Usage.new
+      pending_reasoning_delta_text = ""
+      pending_reasoning_delta_id = nil.as(String?)
 
-      stream.choice.each do |assistant_content|
-        case assistant_content.kind
+      stream.each_item do |item|
+        case item.kind
         in .text?
-          if text = assistant_content.text
+          if text = item.text
             response_text += text.text
             if hook = @hook
               action = hook.on_text_delta(text.text, response_text)
               if action.kind.terminate?
                 reason = action.reason || "terminated"
-                raise Crig::StreamingError.prompt("PromptCancelled: #{reason}")
+                raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
               end
             end
 
@@ -233,22 +259,54 @@ module Crig
             )
           end
         in .reasoning?
-          if reasoning_item = assistant_content.reasoning
+          if reasoning_item = item.reasoning
             Crig.merge_reasoning_blocks(reasoning, reasoning_item)
             items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
               Crig::StreamedAssistantContent(Crig::FinalResponse).reasoning(reasoning_item)
             )
           end
+        in .reasoning_delta?
+          if delta = item.reasoning_delta
+            pending_reasoning_delta_text += delta
+            pending_reasoning_delta_id ||= item.id
+            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
+              Crig::StreamedAssistantContent(Crig::FinalResponse).reasoning_delta(item.id, delta)
+            )
+          end
+        in .tool_call_delta?
+          if hook = @hook
+            if id = item.id
+              if internal_call_id = item.internal_call_id
+                name = nil.as(String?)
+                delta = ""
+                if content = item.content
+                  if content.kind.name?
+                    name = content.value
+                  else
+                    delta = content.value
+                  end
+                end
+                action = hook.on_tool_call_delta(id, internal_call_id, name, delta)
+                if action.kind.terminate?
+                  reason = action.reason || "terminated"
+                  raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
+                end
+              end
+            end
+          end
         in .tool_call?
-          if tool_call = assistant_content.tool_call
-            internal_call_id = tool_call.call_id || tool_call.id
+          if tool_call = item.tool_call
+            internal_call_id = item.internal_call_id || tool_call.call_id || tool_call.id
             saw_tool_call = true
 
             items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
               Crig::StreamedAssistantContent(Crig::FinalResponse).tool_call(tool_call, internal_call_id)
             )
 
-            tool_calls << assistant_content
+            tool_calls << Crig::Completion::AssistantContent.new(
+              Crig::Completion::AssistantContent::Kind::ToolCall,
+              tool_call: tool_call,
+            )
 
             tool_result = execute_tool_call(tool_call, internal_call_id, history)
             tool_results << {tool_call.id, tool_call.call_id, tool_result}
@@ -265,12 +323,38 @@ module Crig
               )
             )
           end
-        in .image?
+        in .final?
+          if final = item.final
+            turn_usage += final.token_usage || Crig::Completion::Usage.new
+            if !response_text.empty?
+              if hook = @hook
+                action = hook.on_stream_completion_response_finish(prompt, final)
+                if action.kind.terminate?
+                  reason = action.reason || "terminated"
+                  raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
+                end
+              end
+
+              items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
+                Crig::StreamedAssistantContent(Crig::FinalResponse).final_response(
+                  Crig::FinalResponse.new(response_text, turn_usage)
+                )
+              )
+            end
+          end
         end
       end
 
-      StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning)
+      if reasoning.empty? && !pending_reasoning_delta_text.empty?
+        assembled = Crig::Completion::Reasoning.new(pending_reasoning_delta_text)
+        assembled = assembled.with_id(pending_reasoning_delta_id) if pending_reasoning_delta_id
+        reasoning << assembled
+      end
+
+      StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning, turn_usage)
     end
+
+    # ameba:enable Metrics/CyclomaticComplexity
 
     private def execute_tool_call(
       tool_call : Crig::Completion::ToolCall,
@@ -284,7 +368,7 @@ module Crig
         case action.kind
         in .terminate?
           reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt("PromptCancelled: #{reason}")
+          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
         in .skip?
           return action.reason || ""
         in .continue?
@@ -297,14 +381,14 @@ module Crig
       result = begin
         handle.call_tool(tool_call.function.name, args)
       rescue ex
-        raise Crig::StreamingError.tool(ex.message || ex.class.name)
+        raise Crig::StreamingError.tool(ex)
       end
 
       if hook = @hook
         action = hook.on_tool_result(tool_call.function.name, tool_call.call_id, internal_call_id, args, result)
         if action.kind.terminate?
           reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt("PromptCancelled: #{reason}")
+          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
         end
       end
 

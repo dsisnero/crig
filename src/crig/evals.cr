@@ -126,6 +126,137 @@ module Crig
     abstract def passes : Bool
   end
 
+  struct LlmJudgeMetric(M, T)
+    include Eval(T)
+
+    getter ext : Extractor(M, T)
+
+    def initialize(@ext : Extractor(M, T))
+    end
+
+    def eval(input : String) : EvalOutcome(T)
+      judgment = @ext.extract(input)
+      judgment.passes ? EvalOutcome(T).pass(judgment) : EvalOutcome(T).fail(judgment)
+    rescue ex
+      EvalOutcome(T).invalid(ex.message || ex.class.name)
+    end
+  end
+
+  struct LlmJudgeMetricWithFn(M, T)
+    include Eval(T)
+
+    getter ext : Extractor(M, T)
+
+    def initialize(@ext : Extractor(M, T), &@evaluator : T -> Bool)
+    end
+
+    def eval(input : String) : EvalOutcome(T)
+      judgment = @ext.extract(input)
+      @evaluator.call(judgment) ? EvalOutcome(T).pass(judgment) : EvalOutcome(T).fail(judgment)
+    rescue ex
+      EvalOutcome(T).invalid(ex.message || ex.class.name)
+    end
+  end
+
+  struct LlmJudgeBuilder(M, T)
+    getter ext : ExtractorBuilder(M, T)
+
+    def initialize(@ext : ExtractorBuilder(M, T))
+    end
+
+    def with_fn(&evaluator : T -> Bool) : LlmJudgeBuilderWithFn(M, T)
+      LlmJudgeBuilderWithFn(M, T).new(@ext, &evaluator)
+    end
+
+    def build : LlmJudgeMetric(M, T)
+      ext = @ext
+        .preamble("Judge the prompt input by the schema given and return it as a JSON tool result")
+        .build
+      LlmJudgeMetric(M, T).new(ext)
+    end
+  end
+
+  struct LlmJudgeBuilderWithFn(M, T)
+    getter ext : ExtractorBuilder(M, T)
+
+    def initialize(@ext : ExtractorBuilder(M, T), &@evaluator : T -> Bool)
+    end
+
+    def with_fn(&evaluator : T -> Bool) : self
+      self.class.new(@ext, &evaluator)
+    end
+
+    def build : LlmJudgeMetricWithFn(M, T)
+      ext = @ext
+        .preamble("Judge the prompt input by the schema given and return it as a JSON tool result")
+        .build
+      LlmJudgeMetricWithFn(M, T).new(ext, &@evaluator)
+    end
+  end
+
+  struct LlmScoreMetricScore
+    include JSON::Serializable
+
+    getter score : Float64
+    getter feedback : String
+
+    def initialize(@score : Float64, @feedback : String)
+    end
+  end
+
+  struct LlmScoreMetric(M)
+    include Eval(LlmScoreMetricScore)
+
+    getter agent : Extractor(M, LlmScoreMetricScore)
+    getter threshold : Float64
+
+    def initialize(@agent : Extractor(M, LlmScoreMetricScore), @threshold : Float64)
+    end
+
+    def eval(input : String) : EvalOutcome(LlmScoreMetricScore)
+      res = @agent.extract(input)
+      return EvalOutcome(LlmScoreMetricScore).invalid("Score #{res.score} outside valid range [0.0, 1.0]") unless (0.0..1.0).includes?(res.score)
+
+      if res.score >= @threshold
+        EvalOutcome(LlmScoreMetricScore).pass(res)
+      else
+        EvalOutcome(LlmScoreMetricScore).fail(res)
+      end
+    rescue ex
+      EvalOutcome(LlmScoreMetricScore).invalid(ex.message || ex.class.name)
+    end
+  end
+
+  struct LlmScoreMetricBuilder(M)
+    getter agent : ExtractorBuilder(M, LlmScoreMetricScore)
+    getter criteria_values : Array(String)
+    getter threshold_value : Float64?
+
+    def initialize(
+      @agent : ExtractorBuilder(M, LlmScoreMetricScore),
+      @criteria_values : Array(String) = [] of String,
+      @threshold_value : Float64? = nil,
+    )
+    end
+
+    def threshold(threshold : Float64) : self
+      self.class.new(@agent, @criteria_values, threshold)
+    end
+
+    def criteria(criteria : String) : self
+      self.class.new(@agent, @criteria_values + [criteria], @threshold_value)
+    end
+
+    def build : LlmScoreMetric(M)
+      threshold = @threshold_value || raise EvalError.field_cannot_be_null("threshold")
+      preamble = "You are an evaluation model. Score the input based on these criteria:\n#{@criteria_values.join("\n")}\n\n" \
+                 "Provide a score between 0.0 and 1.0 (where 1.0 is best) and explain your reasoning."
+
+      agent = @agent.preamble(preamble).build
+      LlmScoreMetric(M).new(agent, threshold)
+    end
+  end
+
   struct SemanticSimilarityMetricScore
     include JSON::Serializable
 

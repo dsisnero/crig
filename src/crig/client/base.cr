@@ -22,6 +22,10 @@ module Crig
       end
     end
 
+    module Capability
+      abstract def capable? : Bool
+    end
+
     struct BearerAuth
       include ApiKey
 
@@ -41,6 +45,11 @@ module Crig
 
     struct Nothing
       include ApiKey
+      include Capability
+
+      def capable? : Bool
+        false
+      end
 
       def self.try_from(value : String) : self
         raise "Tried to create a Nothing from a string - this should not happen, please file an issue"
@@ -48,13 +57,11 @@ module Crig
     end
 
     struct Capable(M)
+      include Capability
+
       def capable? : Bool
         true
       end
-    end
-
-    module Capability
-      abstract def capable? : Bool
     end
 
     struct NeedsApiKey
@@ -71,12 +78,11 @@ module Crig
     end
 
     module Provider(B)
-      def build_uri(base_url : String, path : String, transport : Transport) : String
-        _ = transport
-        trimmed = path.lstrip('/')
-        return trimmed if base_url.empty?
-        "#{base_url.rstrip('/')}/#{trimmed}"
-      end
+      abstract def build_uri(base_url : String, path : String, transport : Transport) : String
+      abstract def with_custom(request : RequestBuilder) : RequestBuilder
+
+      abstract def verify_path : String
+      abstract def builder_type : B.class
     end
 
     module Capabilities
@@ -89,9 +95,17 @@ module Crig
     end
 
     module ProviderBuilder(E, A)
+      abstract def base_url : String
+      abstract def build(builder : ClientBuilder(self, A, H)) : E forall H
+
+      def finish(builder : ClientBuilder(self, A, H)) : ClientBuilder(self, A, H) forall H
+        builder
+      end
     end
 
     struct Client(Ext, H)
+      include HttpClient::HttpClientExt
+
       getter base_url : String
       getter headers : Hash(String, String)
       getter http_client : H?
@@ -142,15 +156,66 @@ module Crig
         request_builder("GET", path, Transport::Sse)
       end
 
-      private def request_builder(method : String, path : String, transport : Transport) : RequestBuilder
-        uri = if @ext.responds_to?(:build_uri)
-                @ext.build_uri(@base_url, path, transport)
-              else
-                trimmed = path.lstrip('/')
-                @base_url.empty? ? trimmed : "#{@base_url.rstrip('/')}/#{trimmed}"
-              end
+      def send(req : HTTP::Request, body : Bytes = Bytes.empty) : HttpClient::Result(HttpClient::Response(HttpClient::LazyBytes), HttpClient::Error)
+        # Add content-type header if not present
+        unless req.headers.has_key?("Content-Type")
+          req.headers["Content-Type"] = "application/json"
+        end
 
-        RequestBuilder.new(method, uri, @headers.dup)
+        # Merge client headers
+        @headers.each do |key, value|
+          req.headers[key] = value
+        end
+
+        if http_client = @http_client
+          http_client.send(req, body)
+        else
+          HttpClient::Result(HttpClient::Response(HttpClient::LazyBytes), HttpClient::Error).err(
+            HttpClient::Error.new(HttpClient::Error::Kind::Instance, "No HTTP client configured")
+          )
+        end
+      end
+
+      def send_multipart(req : HTTP::Request, form : HttpClient::MultipartForm) : HttpClient::Result(HttpClient::Response(HttpClient::LazyBytes), HttpClient::Error)
+        # Merge client headers
+        @headers.each do |key, value|
+          req.headers[key] = value
+        end
+
+        if http_client = @http_client
+          http_client.send_multipart(req, form)
+        else
+          HttpClient::Result(HttpClient::Response(HttpClient::LazyBytes), HttpClient::Error).err(
+            HttpClient::Error.new(HttpClient::Error::Kind::Instance, "No HTTP client configured")
+          )
+        end
+      end
+
+      def send_streaming(req : HTTP::Request, body : Bytes = Bytes.empty) : HttpClient::Result(HttpClient::StreamingResponse, HttpClient::Error)
+        # Add content-type header if not present
+        unless req.headers.has_key?("Content-Type")
+          req.headers["Content-Type"] = "application/json"
+        end
+
+        # Merge client headers
+        @headers.each do |key, value|
+          req.headers[key] = value
+        end
+
+        if http_client = @http_client
+          http_client.send_streaming(req, body)
+        else
+          HttpClient::Result(HttpClient::StreamingResponse, HttpClient::Error).err(
+            HttpClient::Error.new(HttpClient::Error::Kind::Instance, "No HTTP client configured")
+          )
+        end
+      end
+
+      private def request_builder(method : String, path : String, transport : Transport) : RequestBuilder
+        uri = @ext.build_uri(@base_url, path, transport)
+
+        builder = RequestBuilder.new(method, uri, @headers.dup)
+        @ext.with_custom(builder)
       end
     end
 
@@ -170,6 +235,12 @@ module Crig
 
       def body(value) : self
         self.class.new(@method, @uri, @headers, value.to_s)
+      end
+
+      def with_header(key : String, value : String) : self
+        new_headers = @headers.dup
+        new_headers[key] = value
+        self.class.new(@method, @uri, new_headers, @body_value)
       end
     end
 

@@ -72,6 +72,49 @@ module Crig
           "perplexity",
         }
       end
+
+      def env_factory : ProviderFactory
+        factory = case self
+                  in .anthropic?
+                    -> { AnyClient.new(Crig::Providers::Anthropic::Client.from_env) }
+                  in .cohere?
+                    -> { AnyClient.new(Crig::Providers::Cohere::Client.from_env) }
+                  in .gemini?
+                    -> { AnyClient.new(Crig::Providers::Gemini::Client.from_env) }
+                  in .hugging_face?
+                    -> { AnyClient.new(Crig::Providers::HuggingFace::Client.from_env) }
+                  in .open_ai?
+                    -> { AnyClient.new(Crig::Providers::OpenAI::Client.from_env) }
+                  in .open_router?
+                    -> { AnyClient.new(Crig::Providers::OpenRouter::Client.from_env) }
+                  in .together?
+                    -> { AnyClient.new(Crig::Providers::Together::Client.from_env) }
+                  in .xai?
+                    -> { AnyClient.new(Crig::Providers::XAI::Client.from_env) }
+                  in .azure?
+                    -> { AnyClient.new(Crig::Providers::Azure::Client.from_env) }
+                  in .deep_seek?
+                    -> { AnyClient.new(Crig::Providers::DeepSeek::Client.from_env) }
+                  in .galadriel?
+                    -> { AnyClient.new(Crig::Providers::Galadriel::Client.from_env) }
+                  in .groq?
+                    -> { AnyClient.new(Crig::Providers::Groq::Client.from_env) }
+                  in .hyperbolic?
+                    -> { AnyClient.new(Crig::Providers::Hyperbolic::Client.from_env) }
+                  in .moonshot?
+                    -> { AnyClient.new(Crig::Providers::Moonshot::Client.from_env) }
+                  in .mira?
+                    -> { AnyClient.new(Crig::Providers::Mira::Client.from_env) }
+                  in .mistral?
+                    -> { AnyClient.new(Crig::Providers::Mistral::Client.from_env) }
+                  in .ollama?
+                    -> { AnyClient.new(Crig::Providers::Ollama::Client.from_env) }
+                  in .perplexity?
+                    -> { AnyClient.new(Crig::Providers::Perplexity::Client.from_env) }
+                  end
+
+        ProviderFactory.new(factory)
+      end
     end
 
     class AnyClient
@@ -131,7 +174,7 @@ module Crig
     struct DynClientBuilder
       getter factories : Hash(String, ProviderFactory)
 
-      def initialize(@factories : Hash(String, ProviderFactory) = {} of String => ProviderFactory)
+      def initialize(@factories : Hash(String, ProviderFactory) = self.class.default_factories)
       end
 
       def register(provider_name : String, model : String, &from_env : -> AnyClient) : self
@@ -140,7 +183,7 @@ module Crig
       end
 
       def factory(provider_name : String, model : String) : ProviderFactory?
-        @factories[self.class.to_key(provider_name, model)]?
+        @factories[self.class.to_key(provider_name, model)]? || @factories[provider_name]?
       end
 
       def from_env(provider_name : String, model : String) : AnyClient
@@ -232,6 +275,14 @@ module Crig
 
       def self.to_key(provider_name : String, model : String) : String
         "#{provider_name}:#{model}"
+      end
+
+      def self.default_factories : Hash(String, ProviderFactory)
+        factories = {} of String => ProviderFactory
+        DefaultProviders.all.each do |provider|
+          factories[provider.provider_name] = provider.env_factory
+        end
+        factories
       end
     end
   end

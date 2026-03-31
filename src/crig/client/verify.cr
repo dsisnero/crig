@@ -16,10 +16,22 @@ module Crig
 
     module VerifyClient
       abstract def verify : Nil
+
+      def verify_async : Channel(Crig::Concurrency::Result(Nil))
+        Crig::Concurrency.run do
+          verify
+        end
+      end
     end
 
     module VerifyClientDyn
       abstract def verify : Nil
+
+      def verify_async : Channel(Crig::Concurrency::Result(Nil))
+        Crig::Concurrency.run do
+          verify
+        end
+      end
     end
   end
 end

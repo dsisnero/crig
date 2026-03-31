@@ -42,5 +42,68 @@ module Crig
         JSON.parse(string)
       end
     end
+
+    module StringOrVecConverter(T)
+      def self.from_json(pull : JSON::PullParser) : Array(T)
+        case pull.kind
+        when .begin_array?
+          Array(T).new(pull)
+        when .string?
+          val = pull.read_string
+          [convert(val)].as(Array(T))
+        when .int?
+          val = pull.read_int
+          [convert(val)].as(Array(T))
+        when .float?
+          val = pull.read_float
+          [convert(val)].as(Array(T))
+        else
+          Array(T).new(pull)
+        end
+      end
+
+      private def self.convert(val : String) : T
+        {% if T == String %}
+          val
+        {% else %}
+          T.new(val)
+        {% end %}
+      end
+
+      private def self.convert(val : Int64) : T
+        {% if T == String %}
+          val.to_s
+        {% else %}
+          T.new(val)
+        {% end %}
+      end
+
+      private def self.convert(val : Float64) : T
+        {% if T == String %}
+          val.to_s
+        {% else %}
+          T.new(val)
+        {% end %}
+      end
+
+      def self.to_json(value : Array(T), json : JSON::Builder) : Nil
+        value.to_json(json)
+      end
+    end
+
+    module NullOrVecConverter(T)
+      def self.from_json(pull : JSON::PullParser) : Array(T)
+        if pull.kind.null?
+          pull.read_null
+          [] of T
+        else
+          Array(T).new(pull)
+        end
+      end
+
+      def self.to_json(value : Array(T), json : JSON::Builder) : Nil
+        value.to_json(json)
+      end
+    end
   end
 end

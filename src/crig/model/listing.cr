@@ -38,6 +38,7 @@ module Crig
 
     struct ModelList
       include JSON::Serializable
+      include Enumerable(Model)
 
       getter data : Array(Model)
 
@@ -48,12 +49,61 @@ module Crig
         @data.empty?
       end
 
+      # ameba:disable Naming/PredicateName
+      def is_empty : Bool
+        empty?
+      end
+
+      # ameba:enable Naming/PredicateName
+
       def len : Int32
         @data.size
       end
 
-      def iter : Array(Model)
-        @data
+      def iter : ModelIter
+        ModelIter.new(@data)
+      end
+
+      def into_iter : ModelIntoIter
+        ModelIntoIter.new(@data)
+      end
+
+      def each(& : Model ->) : Nil
+        @data.each do |model|
+          yield model
+        end
+      end
+    end
+
+    struct ModelIter
+      include Iterator(Model)
+
+      def initialize(@data : Array(Model), @index : Int32 = 0)
+      end
+
+      def next : Model | Iterator::Stop
+        model = @data[@index]?
+        return stop unless model
+
+        @index += 1
+        model
+      end
+    end
+
+    struct ModelIntoIter
+      include Iterator(Model)
+
+      def initialize(data : Array(Model))
+        @data = data.dup
+        @index = 0
+      end
+
+      def next : Model | Iterator::Stop
+        model = @data[@index]?
+        return stop unless model
+
+        @index += 1
+        model
       end
     end
 

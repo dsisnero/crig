@@ -20,6 +20,10 @@ module Crig
       def initialize(@inner : Crig::ImageGenerationModelDyn)
       end
 
+      def self.make(_client, _model : String) : self
+        raise "Invalid method: Cannot make an ImageGenerationModelHandle from a client + model identifier"
+      end
+
       def image_generation(request : Crig::ImageGenerationRequest)
         @inner.image_generation(request)
       end

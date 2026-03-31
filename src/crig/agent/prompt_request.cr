@@ -56,8 +56,9 @@ module Crig
 
     def on_completion_response(
       prompt : Crig::Completion::Message,
-      response : Crig::Completion::CompletionResponse(String),
+      response,
     ) : Crig::HookAction
+      _ = response
       Crig::HookAction.cont
     end
 
@@ -186,38 +187,174 @@ module Crig
 
     def send
       {% if S == Crig::Extended %}
-        history = (@chat_history || [] of Crig::Completion::Message).dup
-        if hook = @hook
-          action = hook.on_completion_call(@prompt, history)
-          if action.kind.terminate?
-            reason = action.reason || "terminated"
-            raise Crig::Completion::PromptError.prompt_cancelled(history, reason)
+        chat_history = (@chat_history || [] of Crig::Completion::Message).dup
+        chat_history << @prompt
+
+        current_max_turns = 0
+        usage = Crig::Completion::Usage.new
+
+        last_prompt = loop do
+          prompt = chat_history.last
+
+          if current_max_turns > @max_turns + 1
+            break prompt
           end
+
+          current_max_turns += 1
+
+          run_completion_call_hook(prompt, chat_history[0...-1])
+
+          response = @agent.completion(prompt, chat_history[0...-1]).send(@agent.model)
+          usage += response.usage
+
+          run_completion_response_hook(prompt, response, chat_history)
+
+          tool_calls = [] of Crig::Completion::AssistantContent
+          text_parts = [] of String
+          response.choice.each do |choice|
+            if choice.kind.tool_call?
+              tool_calls << choice
+            elsif choice.kind.text?
+              if text = choice.text
+                text_parts << text.text
+              end
+            end
+          end
+
+          chat_history << Crig::Completion::Message.new(
+            Crig::Completion::Message::Role::Assistant,
+            Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(
+              response.choice.to_a.map(&.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+            ),
+            response.message_id,
+          )
+
+          if tool_calls.empty?
+            output = text_parts.join("\n")
+            return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup)
+          end
+
+          tool_content = execute_tool_calls(tool_calls, chat_history)
+          chat_history << Crig::Completion::Message.from(Crig::OneOrMany(Crig::Completion::UserContent).many(tool_content))
         end
 
-        response = @agent.completion(@prompt, history).send(@agent.model)
-        if hook = @hook
-          action = hook.on_completion_response(@prompt, response)
-          if action.kind.terminate?
-            reason = action.reason || "terminated"
-            raise Crig::Completion::PromptError.prompt_cancelled(history, reason)
-          end
-        end
-
-        output = response.choice.to_a.compact_map do |content|
-          next unless content.kind.text?
-          content.text.try(&.text)
-        end.join("\n")
-
-        messages = history + [
-          @prompt,
-          Crig::Completion::Message.from(response.choice),
-        ]
-
-        Crig::PromptResponse.new(output, response.usage).with_messages(messages)
+        raise Crig::Completion::PromptError.max_turns_exceeded(@max_turns, chat_history.dup, last_prompt)
       {% else %}
         extended_details.send.output
       {% end %}
+    end
+
+    private record ToolExecutionResult, index : Int32, content : Crig::Completion::UserContent
+
+    private def run_completion_call_hook(
+      prompt : Crig::Completion::Message,
+      history : Array(Crig::Completion::Message),
+    ) : Nil
+      if hook = @hook
+        action = hook.on_completion_call(prompt, history)
+        if action.kind.terminate?
+          reason = action.reason || "terminated"
+          raise Crig::Completion::PromptError.prompt_cancelled(history + [prompt], reason)
+        end
+      end
+    end
+
+    private def run_completion_response_hook(
+      prompt : Crig::Completion::Message,
+      response,
+      chat_history : Array(Crig::Completion::Message),
+    ) : Nil
+      if hook = @hook
+        action = hook.on_completion_response(prompt, response)
+        if action.kind.terminate?
+          reason = action.reason || "terminated"
+          raise Crig::Completion::PromptError.prompt_cancelled(chat_history.dup, reason)
+        end
+      end
+    end
+
+    private def execute_tool_calls(
+      tool_calls : Array(Crig::Completion::AssistantContent),
+      chat_history : Array(Crig::Completion::Message),
+    ) : Array(Crig::Completion::UserContent)
+      results = [] of ToolExecutionResult
+      limit = Math.max(@concurrency, 1)
+
+      tool_calls.each_slice(limit) do |batch|
+        channels = batch.each_with_index.map do |choice, index|
+          global_index = (results.size + index).to_i32
+          Crig::Concurrency.run do
+            execute_tool_call(choice, chat_history.dup, global_index)
+          end
+        end
+
+        batch_results = channels.map do |channel|
+          channel.receive.unwrap
+        end
+        results.concat(batch_results)
+      end
+
+      results.sort_by!(&.index)
+      results.map(&.content)
+    end
+
+    private def execute_tool_call(
+      choice : Crig::Completion::AssistantContent,
+      chat_history : Array(Crig::Completion::Message),
+      index : Int32,
+    ) : ToolExecutionResult
+      tool_call = choice.tool_call
+      raise "Expected tool call assistant content" unless tool_call
+
+      tool_name = tool_call.function.name
+      args = tool_call.function.arguments.to_json
+      internal_call_id = "tool-call-#{tool_call.id}"
+
+      if hook = @hook
+        action = hook.on_tool_call(tool_name, tool_call.call_id, internal_call_id, args)
+        case action.kind
+        in .terminate?
+          reason = action.reason || "terminated"
+          raise Crig::Completion::PromptError.prompt_cancelled(chat_history, reason)
+        in .skip?
+          return ToolExecutionResult.new(index, tool_result_user_content(tool_call.id, tool_call.call_id, action.reason || ""))
+        in .continue?
+        end
+      end
+
+      handle = @agent.tool_server_handle
+      raise Crig::Completion::PromptError.new("Tool server handle is required for tool-calling prompts") unless handle
+
+      output = begin
+        handle.call_tool(tool_name, args)
+      rescue ex
+        ex.to_s
+      end
+
+      if hook = @hook
+        action = hook.on_tool_result(tool_name, tool_call.call_id, internal_call_id, args, output)
+        if action.kind.terminate?
+          reason = action.reason || "terminated"
+          raise Crig::Completion::PromptError.prompt_cancelled(chat_history, reason)
+        end
+      end
+
+      ToolExecutionResult.new(index, tool_result_user_content(tool_call.id, tool_call.call_id, output))
+    end
+
+    private def tool_result_user_content(
+      id : String,
+      call_id : String?,
+      output : String,
+    ) : Crig::Completion::UserContent
+      content = Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
+        Crig::Completion::ToolResultContent.text(output)
+      )
+      if call_id
+        Crig::Completion::UserContent.tool_result_with_call_id(id, call_id, content)
+      else
+        Crig::Completion::UserContent.tool_result(id, content)
+      end
     end
   end
 

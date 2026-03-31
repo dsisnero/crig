@@ -28,12 +28,6 @@ module Crig
 
       def initialize(@name : String, @arguments : JSON::Any)
       end
-
-      def self.new(name : String, arguments : JSON::Any) : self
-        allocate.tap do |value|
-          value.initialize(name, arguments)
-        end
-      end
     end
 
     struct ToolCall
@@ -550,9 +544,9 @@ module Crig
       Auto
 
       def self.parse?(value : String) : self?
-        parse(value)
-      rescue ArgumentError
-        nil
+        return Low if value.downcase == "low"
+        return High if value.downcase == "high"
+        return Auto if value.downcase == "auto"
       end
     end
 
@@ -705,6 +699,22 @@ module Crig
           raise MessageError.new("Tried to convert unknown type to a URL: #{@data}")
         end
       end
+
+      def self.url(url : String, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.url(url), media_type, detail, additional_params)
+      end
+
+      def self.base64(data : String, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.base64(data), media_type, detail, additional_params)
+      end
+
+      def self.raw(data : Bytes, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.raw(data), media_type, detail, additional_params)
+      end
+
+      def self.string(data : String, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.string(data), media_type, detail, additional_params)
+      end
     end
 
     struct Audio
@@ -713,6 +723,22 @@ module Crig
       getter additional_params : JSON::Any?
 
       def initialize(@data : DocumentSourceKind, @media_type : AudioMediaType? = nil, @additional_params : JSON::Any? = nil)
+      end
+
+      def self.url(url : String, media_type : AudioMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.url(url), media_type, additional_params)
+      end
+
+      def self.base64(data : String, media_type : AudioMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.base64(data), media_type, additional_params)
+      end
+
+      def self.raw(data : Bytes, media_type : AudioMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.raw(data), media_type, additional_params)
+      end
+
+      def self.string(data : String, media_type : AudioMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.string(data), media_type, additional_params)
       end
     end
 
@@ -723,6 +749,22 @@ module Crig
 
       def initialize(@data : DocumentSourceKind, @media_type : VideoMediaType? = nil, @additional_params : JSON::Any? = nil)
       end
+
+      def self.url(url : String, media_type : VideoMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.url(url), media_type, additional_params)
+      end
+
+      def self.base64(data : String, media_type : VideoMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.base64(data), media_type, additional_params)
+      end
+
+      def self.raw(data : Bytes, media_type : VideoMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.raw(data), media_type, additional_params)
+      end
+
+      def self.string(data : String, media_type : VideoMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.string(data), media_type, additional_params)
+      end
     end
 
     struct Document
@@ -731,6 +773,22 @@ module Crig
       getter additional_params : JSON::Any?
 
       def initialize(@data : DocumentSourceKind, @media_type : DocumentMediaType? = nil, @additional_params : JSON::Any? = nil)
+      end
+
+      def self.url(url : String, media_type : DocumentMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.url(url), media_type, additional_params)
+      end
+
+      def self.base64(data : String, media_type : DocumentMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.base64(data), media_type, additional_params)
+      end
+
+      def self.raw(data : Bytes, media_type : DocumentMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.raw(data), media_type, additional_params)
+      end
+
+      def self.string(data : String, media_type : DocumentMediaType? = nil, additional_params : JSON::Any? = nil) : self
+        new(DocumentSourceKind.string(data), media_type, additional_params)
       end
     end
 
@@ -930,6 +988,18 @@ module Crig
         new(Kind::Audio, audio: Audio.new(DocumentSourceKind.url(url), media_type))
       end
 
+      def self.video_base64(data : String, media_type : VideoMediaType? = nil) : self
+        new(Kind::Video, video: Video.new(DocumentSourceKind.base64(data), media_type))
+      end
+
+      def self.video_raw(data : Bytes, media_type : VideoMediaType? = nil) : self
+        new(Kind::Video, video: Video.new(DocumentSourceKind.raw(data), media_type))
+      end
+
+      def self.video_url(url : String, media_type : VideoMediaType? = nil) : self
+        new(Kind::Video, video: Video.new(DocumentSourceKind.url(url), media_type))
+      end
+
       def self.document(data : String, media_type : DocumentMediaType? = nil) : self
         new(Kind::Document, document: Document.new(DocumentSourceKind.string(data), media_type))
       end
@@ -1004,6 +1074,20 @@ module Crig
 
       def self.user(text : String) : self
         new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).one(UserContent.text(text)))
+      end
+
+      def self.user(content : UserContent) : self
+        new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).one(content))
+      end
+
+      def self.user(contents : Array(UserContent)) : self
+        mixed = contents.map(&.as(UserContent | AssistantContent))
+        new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).many(mixed))
+      end
+
+      def self.user(contents : Crig::OneOrMany(UserContent)) : self
+        mixed = contents.to_a.map(&.as(UserContent | AssistantContent))
+        new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).many(mixed))
       end
 
       def self.assistant(text : String) : self

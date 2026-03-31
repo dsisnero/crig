@@ -13,6 +13,45 @@ module Crig
     def self.no_data : self
       new("No data extracted")
     end
+
+    def self.deserialization_error(error : Exception) : self
+      new("Failed to deserialize the extracted data: #{error.message || error.class.name}")
+    end
+
+    def self.completion_error(error : Exception) : self
+      new("CompletionError: #{error.message || error.class.name}")
+    end
+  end
+
+  struct ExtractorSubmitTool(T)
+    include Crig::Tool(T, T)
+
+    def name : String
+      "submit"
+    end
+
+    def definition(prompt : String) : Crig::Completion::ToolDefinition
+      _ = prompt
+      parameters = JSON.parse(
+        JSON.build do |json|
+          json.object do
+            {% begin %}
+              Crig::ToolMacro.json_schema_for({{ @type.type_vars[0] }})
+            {% end %}
+          end
+        end
+      )
+
+      Crig::Completion::ToolDefinition.new(
+        name,
+        "Submit the structured data you extracted from the provided text.",
+        parameters,
+      )
+    end
+
+    def call_typed(args : T) : T
+      args
+    end
   end
 
   struct Extractor(M, T)
@@ -25,6 +64,68 @@ module Crig
     def model : M
       @agent.model
     end
+
+    def extract(text : Crig::Completion::Message | String) : T
+      extract_with_chat_history(text, [] of Crig::Completion::Message)
+    end
+
+    def extract_with_chat_history(
+      text : Crig::Completion::Message | String,
+      chat_history : Array(Crig::Completion::Message),
+    ) : T
+      extract_with_chat_history_with_usage(text, chat_history).data
+    end
+
+    def extract_with_usage(text : Crig::Completion::Message | String) : ExtractionResponse(T)
+      extract_with_chat_history_with_usage(text, [] of Crig::Completion::Message)
+    end
+
+    def extract_with_chat_history_with_usage(
+      text : Crig::Completion::Message | String,
+      chat_history : Array(Crig::Completion::Message),
+    ) : ExtractionResponse(T)
+      usage = Crig::Completion::Usage.new
+      last_error = nil.as(Exception?)
+
+      (0..@retries).each do
+        begin
+          data, response_usage = extract_json_with_usage(text, chat_history)
+          usage.add!(response_usage)
+          return ExtractionResponse(T).new(data, usage)
+        rescue ex
+          last_error = ex
+        end
+      end
+
+      raise last_error || ExtractionError.no_data
+    end
+
+    private def extract_json_with_usage(
+      text : Crig::Completion::Message | String,
+      chat_history : Array(Crig::Completion::Message),
+    ) : {T, Crig::Completion::Usage}
+      response = begin
+        @agent.completion(text, chat_history).send(@agent.model)
+      rescue ex : Crig::Completion::CompletionError
+        raise ExtractionError.completion_error(ex)
+      end
+
+      arguments = response.choice.to_a.compact_map do |content|
+        next unless content.kind.tool_call?
+        tool_call = content.tool_call
+        next unless tool_call
+        next unless tool_call.function.name == "submit"
+        tool_call.function.arguments
+      end
+
+      raw_data = arguments.last? || raise ExtractionError.no_data
+
+      begin
+        {T.from_json(raw_data.to_json), response.usage}
+      rescue ex
+        raise ExtractionError.deserialization_error(ex)
+      end
+    end
   end
 
   struct ExtractorBuilder(M, T)
@@ -35,6 +136,7 @@ module Crig
       model : M,
       @agent_builder : AgentBuilder(M) = AgentBuilder(M).new(model)
         .preamble(EXTRACTOR_PREAMBLE)
+        .tool(ExtractorSubmitTool(T).new)
         .tool_choice(Crig::Completion::ToolChoice.required),
       @retries_value : Int32 = 0,
     )

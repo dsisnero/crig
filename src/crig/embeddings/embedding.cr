@@ -1,6 +1,82 @@
 module Crig
   module Embeddings
     class EmbeddingError < Exception
+      enum Kind
+        HttpError
+        JsonError
+        UrlError
+        DocumentError
+        ResponseError
+        ProviderError
+        Other
+      end
+
+      getter kind : Kind
+      getter source_error : Exception?
+      getter detail : String?
+
+      def initialize(
+        @kind : Kind = Kind::Other,
+        message : String? = nil,
+        @source_error : Exception? = nil,
+        @detail : String? = nil,
+      )
+        super(message || build_message)
+      end
+
+      def initialize(message : String)
+        @kind = Kind::Other
+        @source_error = nil
+        @detail = message
+        super(message)
+      end
+
+      def self.http_error(error : Exception) : self
+        new(Kind::HttpError, source_error: error)
+      end
+
+      def self.json_error(error : Exception) : self
+        new(Kind::JsonError, source_error: error)
+      end
+
+      def self.url_error(error : Exception) : self
+        new(Kind::UrlError, source_error: error)
+      end
+
+      def self.document_error(error : Exception) : self
+        new(Kind::DocumentError, source_error: error)
+      end
+
+      def self.response_error(detail : String) : self
+        new(Kind::ResponseError, detail: detail)
+      end
+
+      def self.provider_error(detail : String) : self
+        new(Kind::ProviderError, detail: detail)
+      end
+
+      private def build_message : String
+        case @kind
+        when Kind::HttpError
+          "HttpError: #{source_message}"
+        when Kind::JsonError
+          "JsonError: #{source_message}"
+        when Kind::UrlError
+          "UrlError: #{source_message}"
+        when Kind::DocumentError
+          "DocumentError: #{source_message}"
+        when Kind::ResponseError
+          "ResponseError: #{@detail}"
+        when Kind::ProviderError
+          "ProviderError: #{@detail}"
+        else
+          @detail || source_message
+        end
+      end
+
+      private def source_message : String
+        @source_error.try(&.message) || @source_error.to_s
+      end
     end
 
     struct Embedding

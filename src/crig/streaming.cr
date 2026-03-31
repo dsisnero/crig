@@ -1,12 +1,31 @@
+require "json"
+require "random/secure"
+
 module Crig
-  class PauseControl
-    @paused = false
+  struct MockResponse
+    include Crig::Completion::GetTokenUsage
+
+    getter token_count : Int64
+
+    def initialize(@token_count : Int64)
+    end
+
+    def token_usage : Crig::Completion::Usage?
+      Crig::Completion::Usage.new(total_tokens: @token_count)
+    end
+  end
+
+  struct PauseControl
+    # ameba:disable Naming/QueryBoolMethods
+    property paused : Bool
+
+    # ameba:enable Naming/QueryBoolMethods
+
+    def initialize(@paused : Bool = false)
+    end
 
     def self.new : self
       allocate.tap(&.initialize)
-    end
-
-    def initialize
     end
 
     def pause : Nil
@@ -24,41 +43,41 @@ module Crig
     # ameba:enable Naming/PredicateName
   end
 
-  enum ToolCallDeltaContentKind
-    Name
-    Delta
-  end
-
   struct ToolCallDeltaContent
-    getter kind : ToolCallDeltaContentKind
+    enum Kind
+      Name
+      Delta
+    end
+
+    getter kind : Kind
     getter value : String
 
-    def initialize(@kind : ToolCallDeltaContentKind, @value : String)
+    def initialize(@kind : Kind, @value : String)
     end
 
     def self.name(value : String) : self
-      new(ToolCallDeltaContentKind::Name, value)
+      new(Kind::Name, value)
     end
 
     def self.delta(value : String) : self
-      new(ToolCallDeltaContentKind::Delta, value)
+      new(Kind::Delta, value)
     end
   end
 
-  class RawStreamingToolCall
+  struct RawStreamingToolCall
     getter id : String
-    property internal_call_id : String
-    property call_id : String?
+    getter internal_call_id : String
+    getter call_id : String?
     getter name : String
     getter arguments : JSON::Any
-    property signature : String?
-    property additional_params : JSON::Any?
+    getter signature : String?
+    getter additional_params : JSON::Any?
 
     def initialize(
       @id : String,
       @name : String,
       @arguments : JSON::Any,
-      @internal_call_id : String = "",
+      @internal_call_id : String = Random::Secure.hex(8),
       @call_id : String? = nil,
       @signature : String? = nil,
       @additional_params : JSON::Any? = nil,
@@ -70,23 +89,19 @@ module Crig
     end
 
     def with_internal_call_id(internal_call_id : String) : self
-      @internal_call_id = internal_call_id
-      self
+      self.class.new(@id, @name, @arguments, internal_call_id, @call_id, @signature, @additional_params)
     end
 
     def with_call_id(call_id : String) : self
-      @call_id = call_id
-      self
+      self.class.new(@id, @name, @arguments, @internal_call_id, call_id, @signature, @additional_params)
     end
 
     def with_signature(signature : String?) : self
-      @signature = signature
-      self
+      self.class.new(@id, @name, @arguments, @internal_call_id, @call_id, signature, @additional_params)
     end
 
     def with_additional_params(additional_params : JSON::Any?) : self
-      @additional_params = additional_params
-      self
+      self.class.new(@id, @name, @arguments, @internal_call_id, @call_id, @signature, additional_params)
     end
 
     def to_tool_call : Crig::Completion::ToolCall
@@ -95,7 +110,7 @@ module Crig
         Crig::Completion::ToolFunction.new(@name, @arguments),
         @call_id,
         @signature,
-        @additional_params,
+        @additional_params
       )
     end
   end
@@ -113,12 +128,12 @@ module Crig
 
     getter kind : Kind
     getter message : String?
-    getter tool_call : Crig::RawStreamingToolCall?
+    getter tool_call : RawStreamingToolCall?
     getter id : String?
     getter internal_call_id : String?
-    getter content : Crig::ToolCallDeltaContent?
-    getter reasoning_id : String?
+    getter content : ToolCallDeltaContent?
     getter reasoning_content : Crig::Completion::ReasoningContent?
+    getter reasoning_id : String?
     getter reasoning_delta : String?
     getter final_response : R?
     getter message_id : String?
@@ -126,27 +141,27 @@ module Crig
     def initialize(
       @kind : Kind,
       @message : String? = nil,
-      @tool_call : Crig::RawStreamingToolCall? = nil,
+      @tool_call : RawStreamingToolCall? = nil,
       @id : String? = nil,
       @internal_call_id : String? = nil,
-      @content : Crig::ToolCallDeltaContent? = nil,
-      @reasoning_id : String? = nil,
+      @content : ToolCallDeltaContent? = nil,
       @reasoning_content : Crig::Completion::ReasoningContent? = nil,
+      @reasoning_id : String? = nil,
       @reasoning_delta : String? = nil,
       @final_response : R? = nil,
       @message_id : String? = nil,
     )
     end
 
-    def self.message(text : String) : self
-      new(Kind::Message, message: text)
+    def self.message(message : String) : self
+      new(Kind::Message, message: message)
     end
 
-    def self.tool_call(tool_call : Crig::RawStreamingToolCall) : self
+    def self.tool_call(tool_call : RawStreamingToolCall) : self
       new(Kind::ToolCall, tool_call: tool_call)
     end
 
-    def self.tool_call_delta(id : String, internal_call_id : String, content : Crig::ToolCallDeltaContent) : self
+    def self.tool_call_delta(id : String, internal_call_id : String, content : ToolCallDeltaContent) : self
       new(Kind::ToolCallDelta, id: id, internal_call_id: internal_call_id, content: content)
     end
 
@@ -167,6 +182,13 @@ module Crig
     end
   end
 
+  struct StreamingResult(R)
+    getter items : Array(RawStreamingChoice(R))
+
+    def initialize(@items : Array(RawStreamingChoice(R)))
+    end
+  end
+
   struct StreamedAssistantContent(R)
     enum Kind
       Text
@@ -181,8 +203,7 @@ module Crig
     getter text : Crig::Completion::Text?
     getter tool_call : Crig::Completion::ToolCall?
     getter internal_call_id : String?
-    getter id : String?
-    getter content : Crig::ToolCallDeltaContent?
+    getter content : ToolCallDeltaContent?
     getter reasoning : Crig::Completion::Reasoning?
     getter reasoning_delta : String?
     getter final : R?
@@ -192,8 +213,7 @@ module Crig
       @text : Crig::Completion::Text? = nil,
       @tool_call : Crig::Completion::ToolCall? = nil,
       @internal_call_id : String? = nil,
-      @id : String? = nil,
-      @content : Crig::ToolCallDeltaContent? = nil,
+      @content : ToolCallDeltaContent? = nil,
       @reasoning : Crig::Completion::Reasoning? = nil,
       @reasoning_delta : String? = nil,
       @final : R? = nil,
@@ -201,27 +221,43 @@ module Crig
     end
 
     def self.text(text : String) : self
-      new(Kind::Text, Crig::Completion::Text.new(text))
+      new(Kind::Text, text: Crig::Completion::Text.new(text))
     end
 
     def self.tool_call(tool_call : Crig::Completion::ToolCall, internal_call_id : String) : self
-      new(Kind::ToolCall, nil, tool_call, internal_call_id, nil, nil, nil, nil, nil)
+      new(Kind::ToolCall, tool_call: tool_call, internal_call_id: internal_call_id)
     end
 
-    def self.tool_call_delta(id : String, internal_call_id : String, content : Crig::ToolCallDeltaContent) : self
-      new(Kind::ToolCallDelta, nil, nil, internal_call_id, id, content)
+    def self.tool_call_delta(id : String, internal_call_id : String, content : ToolCallDeltaContent) : self
+      placeholder = Crig::Completion::ToolCall.new(
+        id,
+        Crig::Completion::ToolFunction.new("", JSON.parse("null"))
+      )
+      new(Kind::ToolCallDelta, tool_call: placeholder, internal_call_id: internal_call_id, content: content)
     end
 
     def self.reasoning(reasoning : Crig::Completion::Reasoning) : self
-      new(Kind::Reasoning, nil, nil, nil, nil, nil, reasoning)
+      new(Kind::Reasoning, reasoning: reasoning)
     end
 
     def self.reasoning_delta(id : String?, reasoning : String) : self
-      new(Kind::ReasoningDelta, nil, nil, nil, id, nil, nil, reasoning)
+      new(Kind::ReasoningDelta, reasoning: Crig::Completion::Reasoning.new([Crig::Completion::ReasoningContent.text(reasoning)], id), reasoning_delta: reasoning)
     end
 
-    def self.final_response(res : R) : self
-      new(Kind::Final, nil, nil, nil, nil, nil, nil, nil, res)
+    def self.final_response(response : R) : self
+      new(Kind::Final, final: response)
+    end
+
+    def id : String?
+      @tool_call.try(&.id)
+    end
+
+    def message : String?
+      @text.try(&.text)
+    end
+
+    def reasoning_content : Crig::Completion::ReasoningContent?
+      @reasoning.try(&.content.first?)
     end
   end
 
@@ -232,250 +268,87 @@ module Crig
 
     getter kind : Kind
     getter tool_result : Crig::Completion::ToolResult?
-    getter internal_call_id : String?
+    getter internal_call_id : String
 
-    def initialize(
-      @kind : Kind,
-      @tool_result : Crig::Completion::ToolResult? = nil,
-      @internal_call_id : String? = nil,
-    )
+    def initialize(@kind : Kind, @internal_call_id : String, @tool_result : Crig::Completion::ToolResult? = nil)
     end
 
     def self.tool_result(tool_result : Crig::Completion::ToolResult, internal_call_id : String) : self
-      new(Kind::ToolResult, tool_result: tool_result, internal_call_id: internal_call_id)
+      new(Kind::ToolResult, internal_call_id, tool_result)
     end
   end
 
-  struct StreamingResult(R)
-    getter items : Array(Crig::RawStreamingChoice(R))
-
-    def initialize(@items : Array(Crig::RawStreamingChoice(R)))
-    end
-  end
-
-  module StreamingPrompt(M, R)
-    abstract def stream_prompt(prompt : Crig::Completion::Message | String)
-  end
-
-  module StreamingChat(M, R)
-    abstract def stream_chat(prompt : Crig::Completion::Message | String, chat_history : Array(Crig::Completion::Message))
-  end
-
-  module StreamingCompletion(M)
-    abstract def stream_completion(prompt : Crig::Completion::Message | String, chat_history : Array(Crig::Completion::Message))
-  end
-
-  struct StreamingCompletionResponse(R)
+  class StreamingCompletionResponse(R)
     getter chunks : Array(String)
-    getter response : R?
-    getter pause_control : Crig::PauseControl
     getter choice : Crig::OneOrMany(Crig::Completion::AssistantContent)
+    getter response : R?
     getter message_id : String?
-    getter? final_response_yielded : Bool
+    getter pause_control : PauseControl
+    # ameba:disable Naming/QueryBoolMethods
+    getter cancelled : Bool
+    # ameba:enable Naming/QueryBoolMethods
+
+    @raw_choices : Array(RawStreamingChoice(R))
+    @source_channel : Channel(Crig::Concurrency::Result(RawStreamingChoice(R)))?
+    @position : Int32
+    @assistant_items : Array(Crig::Completion::AssistantContent)
+    @text_item_index : Int32?
+    @reasoning_item_index : Int32?
+    @final_response_yielded : Bool
 
     def initialize(
       @chunks : Array(String),
       @response : R? = nil,
-      @pause_control : Crig::PauseControl = Crig::PauseControl.new,
-      @choice : Crig::OneOrMany(Crig::Completion::AssistantContent) = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text("")),
+      choice : Crig::OneOrMany(Crig::Completion::AssistantContent)? = nil,
       @message_id : String? = nil,
-      @raw_choices : Array(Crig::RawStreamingChoice(R))? = nil,
-      @raw_index : Int32 = 0,
-      @assistant_items : Array(Crig::Completion::AssistantContent) = [] of Crig::Completion::AssistantContent,
-      @text_item_index : Int32? = nil,
-      @reasoning_item_index : Int32? = nil,
+      @pause_control : PauseControl = PauseControl.new,
       @cancelled : Bool = false,
-      @final_response_yielded : Bool = false,
     )
+      @raw_choices = if choice
+                       self.class.raw_choices_from_choice(choice)
+                     else
+                       @chunks.map { |chunk| RawStreamingChoice(R).message(chunk) }
+                     end
+      @source_channel = nil
+      @raw_choices << RawStreamingChoice(R).final_response(@response.as(R)) if @response
+      @position = 0
+      @assistant_items = choice ? choice.to_a : [] of Crig::Completion::AssistantContent
+      @text_item_index = nil
+      @reasoning_item_index = nil
+      @final_response_yielded = false
+      @choice = choice || Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(""))
     end
 
-    def self.stream(chunks : Enumerable(String), response : R? = nil) : self
-      items = chunks.to_a
-      choice = if items.empty?
-                 Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(""))
-               else
-                 Crig::OneOrMany(Crig::Completion::AssistantContent).many(
-                   items.map { |chunk| Crig::Completion::AssistantContent.text(chunk).as(Crig::Completion::AssistantContent) }
-                 )
-               end
-      new(items, response, choice: choice)
+    def self.stream(chunks : Array(String), response : R? = nil) : self
+      new(chunks, response)
     end
 
-    def self.stream_raw_choices(raw_choices : Enumerable(Crig::RawStreamingChoice(R))) : self
-      new(
-        [] of String,
-        nil,
-        choice: Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-          Crig::Completion::AssistantContent.text("")
-        ),
-        raw_choices: raw_choices.to_a,
-        assistant_items: [] of Crig::Completion::AssistantContent,
-      )
-    end
-
-    def self.from_raw_choices(raw_choices : Enumerable(Crig::RawStreamingChoice(R))) : self
-      response = stream_raw_choices(raw_choices)
-      while response.next_item
+    def self.stream(raw_choices : Array(RawStreamingChoice(R))) : self
+      new([] of String).tap do |response|
+        response.load_raw_choices(raw_choices)
       end
-      response
     end
 
-    private def append_text_chunk(
-      text : String,
-    ) : Int32
-      if index = @text_item_index
-        if item = @assistant_items[index]?
-          if item.kind.text?
-            if existing = item.text
-              @assistant_items[index] = Crig::Completion::AssistantContent.text(existing.text + text)
-              return index
-            end
-          end
-        end
+    def self.stream(source_channel : Channel(Crig::Concurrency::Result(RawStreamingChoice(R)))) : self
+      new([] of String).tap do |response|
+        response.load_stream_channel(source_channel)
       end
-
-      @assistant_items << Crig::Completion::AssistantContent.text(text)
-      @assistant_items.size - 1
     end
 
-    private def append_reasoning_chunk(
-      id : String?,
-      text : String,
-    ) : Int32
-      if index = @reasoning_item_index
-        if item = @assistant_items[index]?
-          if item.kind.reasoning?
-            if existing = item.reasoning
-              content = existing.content.dup
-              if last = content.last?
-                if last.kind.text?
-                  content[-1] = Crig::Completion::ReasoningContent.text(
-                    (last.text || "") + text,
-                    last.signature,
-                  )
-                  @assistant_items[index] = Crig::Completion::AssistantContent.new(
-                    Crig::Completion::AssistantContent::Kind::Reasoning,
-                    reasoning: Crig::Completion::Reasoning.new(content, existing.id),
-                  )
-                  return index
-                end
-              end
-            end
-          end
-        end
-      end
-
-      @assistant_items << Crig::Completion::AssistantContent.new(
-        Crig::Completion::AssistantContent::Kind::Reasoning,
-        reasoning: Crig::Completion::Reasoning.new(
-          [Crig::Completion::ReasoningContent.text(text)],
-          id,
-        ),
-      )
-      @assistant_items.size - 1
+    def self.stream_raw_choices(raw_choices : Array(RawStreamingChoice(R))) : self
+      stream(raw_choices)
     end
 
-    # ameba:disable Metrics/CyclomaticComplexity
-    def next_item : Crig::StreamedAssistantContent(R)?
-      return if @cancelled
-      return if is_paused
-
-      raw_choices = @raw_choices
-      unless raw_choices
-        finalize_choice
-        return
-      end
-
-      while choice = raw_choices[@raw_index]?
-        @raw_index += 1
-
-        case choice.kind
-        in .message?
-          if text = choice.message
-            @reasoning_item_index = nil
-            @chunks << text
-            @text_item_index = append_text_chunk(text)
-            return Crig::StreamedAssistantContent(R).text(text)
-          end
-        in .tool_call_delta?
-          if id = choice.id
-            if internal_call_id = choice.internal_call_id
-              if content = choice.content
-                return Crig::StreamedAssistantContent(R).tool_call_delta(id, internal_call_id, content)
-              end
-            end
-          end
-        in .reasoning?
-          if content = choice.reasoning_content
-            reasoning = Crig::Completion::Reasoning.new([content], choice.reasoning_id)
-            @text_item_index = nil
-            @reasoning_item_index = nil
-            @assistant_items << Crig::Completion::AssistantContent.new(
-              Crig::Completion::AssistantContent::Kind::Reasoning,
-              reasoning: reasoning,
-            )
-            return Crig::StreamedAssistantContent(R).reasoning(reasoning)
-          end
-        in .reasoning_delta?
-          if reasoning = choice.reasoning_delta
-            @text_item_index = nil
-            @reasoning_item_index = append_reasoning_chunk(choice.reasoning_id, reasoning)
-            return Crig::StreamedAssistantContent(R).reasoning_delta(choice.reasoning_id, reasoning)
-          end
-        in .tool_call?
-          if raw_tool_call = choice.tool_call
-            internal_call_id = raw_tool_call.internal_call_id
-            tool_call = raw_tool_call.to_tool_call
-            @text_item_index = nil
-            @reasoning_item_index = nil
-            @assistant_items << if call_id = tool_call.call_id
-              Crig::Completion::AssistantContent.tool_call_with_call_id(
-                tool_call.id,
-                call_id,
-                tool_call.function.name,
-                tool_call.function.arguments,
-              )
-            else
-              Crig::Completion::AssistantContent.tool_call(
-                tool_call.id,
-                tool_call.function.name,
-                tool_call.function.arguments,
-              )
-            end
-            return Crig::StreamedAssistantContent(R).tool_call(tool_call, internal_call_id)
-          end
-        in .final_response?
-          if value = choice.final_response
-            unless @final_response_yielded
-              @response = value
-              @final_response_yielded = true
-              return Crig::StreamedAssistantContent(R).final_response(value)
-            end
-          end
-        in .message_id?
-          @message_id = choice.message_id
-        end
-      end
-
-      finalize_choice
-      nil
+    def self.from_raw_choices(raw_choices : Array(RawStreamingChoice(R))) : self
+      stream(raw_choices).tap(&.consume)
     end
 
-    # ameba:enable Metrics/CyclomaticComplexity
-
-    private def finalize_choice : Nil
-      return unless @raw_choices
-
-      if @assistant_items.empty?
-        @assistant_items << Crig::Completion::AssistantContent.text("")
-      end
-      @choice = Crig::OneOrMany(Crig::Completion::AssistantContent).many(@assistant_items)
-      @raw_choices = nil
+    def final_response_yielded? : Bool
+      @final_response_yielded
     end
 
-    def cancel : Nil
-      @cancelled = true
-      finalize_choice
+    def final_response_yielded : Bool
+      @final_response_yielded
     end
 
     def pause : Nil
@@ -490,6 +363,283 @@ module Crig
     def is_paused : Bool
       @pause_control.is_paused
     end
+
     # ameba:enable Naming/PredicateName
+
+    def cancel : Nil
+      @cancelled = true
+      if source_channel = @source_channel
+        begin
+          source_channel.close
+        rescue Channel::ClosedError
+        end
+      end
+    end
+
+    def load_raw_choices(raw_choices : Array(RawStreamingChoice(R))) : self
+      @raw_choices = raw_choices
+      @source_channel = nil
+      @chunks = [] of String
+      @assistant_items = [] of Crig::Completion::AssistantContent
+      @text_item_index = nil
+      @reasoning_item_index = nil
+      @choice = Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+        Crig::Completion::AssistantContent.text("")
+      )
+      @position = 0
+      @message_id = nil
+      @response = nil
+      @final_response_yielded = false
+      @cancelled = false
+      self
+    end
+
+    def load_stream_channel(source_channel : Channel(Crig::Concurrency::Result(RawStreamingChoice(R)))) : self
+      @source_channel = source_channel
+      @raw_choices = [] of RawStreamingChoice(R)
+      @chunks = [] of String
+      @assistant_items = [] of Crig::Completion::AssistantContent
+      @text_item_index = nil
+      @reasoning_item_index = nil
+      @choice = Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+        Crig::Completion::AssistantContent.text("")
+      )
+      @position = 0
+      @message_id = nil
+      @response = nil
+      @final_response_yielded = false
+      @cancelled = false
+      self
+    end
+
+    def consume : Array(StreamedAssistantContent(R))
+      items = [] of StreamedAssistantContent(R)
+      while item = next_item
+        items << item
+      end
+      items
+    end
+
+    def next_item : StreamedAssistantContent(R)?
+      return if @cancelled || is_paused
+
+      if @source_channel
+        return next_stream_item
+      end
+
+      choice = @raw_choices[@position]?
+      return unless choice
+
+      @position += 1
+      process_choice(choice)
+    end
+
+    private def next_stream_item : StreamedAssistantContent(R)?
+      source_channel = @source_channel
+      return unless source_channel
+
+      loop do
+        return if @cancelled || is_paused
+
+        result = source_channel.receive?
+        unless result
+          finalize_choice
+          return
+        end
+
+        if item = process_choice(result.unwrap)
+          return item
+        end
+      end
+    end
+
+    def each_item(& : StreamedAssistantContent(R) ->) : Nil
+      while item = next_item
+        yield item
+      end
+    end
+
+    def to_completion_response : Crig::Completion::CompletionResponse(R?)
+      Crig::Completion::CompletionResponse(R?).new(
+        @choice,
+        Crig::Completion::Usage.new,
+        @response,
+        @message_id
+      )
+    end
+
+    private def process_choice(choice : RawStreamingChoice(R)) : StreamedAssistantContent(R)?
+      case choice.kind
+      in .message?
+        text = choice.message || ""
+        @reasoning_item_index = nil
+        append_text_chunk(text)
+        finalize_choice
+        StreamedAssistantContent(R).text(text)
+      in .tool_call_delta?
+        finalize_choice
+        StreamedAssistantContent(R).tool_call_delta(
+          choice.id || "",
+          choice.internal_call_id || "",
+          choice.content || ToolCallDeltaContent.delta("")
+        )
+      in .reasoning?
+        @text_item_index = nil
+        @reasoning_item_index = nil
+        reasoning = Crig::Completion::Reasoning.new(
+          [choice.reasoning_content || Crig::Completion::ReasoningContent.text("")],
+          choice.reasoning_id
+        )
+        @assistant_items << Crig::Completion::AssistantContent.new(
+          Crig::Completion::AssistantContent::Kind::Reasoning,
+          reasoning: reasoning
+        )
+        finalize_choice
+        StreamedAssistantContent(R).reasoning(reasoning)
+      in .reasoning_delta?
+        @text_item_index = nil
+        append_reasoning_chunk(choice.reasoning_id, choice.reasoning_delta || "")
+        finalize_choice
+        StreamedAssistantContent(R).reasoning_delta(choice.reasoning_id, choice.reasoning_delta || "")
+      in .tool_call?
+        @text_item_index = nil
+        @reasoning_item_index = nil
+        raw_tool_call = choice.tool_call || RawStreamingToolCall.empty
+        tool_call = raw_tool_call.to_tool_call
+        @assistant_items << Crig::Completion::AssistantContent.new(
+          Crig::Completion::AssistantContent::Kind::ToolCall,
+          tool_call: tool_call
+        )
+        finalize_choice
+        StreamedAssistantContent(R).tool_call(tool_call, raw_tool_call.internal_call_id)
+      in .final_response?
+        return if @final_response_yielded
+        @response = choice.final_response
+        @final_response_yielded = true
+        finalize_choice
+        StreamedAssistantContent(R).final_response(choice.final_response.as(R))
+      in .message_id?
+        @message_id = choice.message_id
+        next_item
+      end
+    end
+
+    private def append_text_chunk(text : String) : Nil
+      @chunks << text
+
+      if index = @text_item_index
+        existing = @assistant_items[index]?
+        if existing && existing.kind.text?
+          existing_text = existing.text
+          if existing_text
+            @assistant_items[index] = Crig::Completion::AssistantContent.text("#{existing_text.text}#{text}")
+            return
+          end
+        end
+      end
+
+      @assistant_items << Crig::Completion::AssistantContent.text(text)
+      @text_item_index = @assistant_items.size - 1
+    end
+
+    private def append_reasoning_chunk(id : String?, text : String) : Nil
+      if index = @reasoning_item_index
+        existing = @assistant_items[index]?
+        if existing && existing.kind.reasoning?
+          reasoning = existing.reasoning
+          if reasoning && (content = reasoning.content.last?) && content.kind.text?
+            updated = Crig::Completion::Reasoning.new(
+              reasoning.content[0...-1] + [
+                Crig::Completion::ReasoningContent.text("#{content.text}#{text}", content.signature),
+              ],
+              reasoning.id
+            )
+            @assistant_items[index] = Crig::Completion::AssistantContent.new(
+              Crig::Completion::AssistantContent::Kind::Reasoning,
+              reasoning: updated
+            )
+            return
+          end
+        end
+      end
+
+      @assistant_items << Crig::Completion::AssistantContent.new(
+        Crig::Completion::AssistantContent::Kind::Reasoning,
+        reasoning: Crig::Completion::Reasoning.new(
+          [Crig::Completion::ReasoningContent.text(text)],
+          id
+        )
+      )
+      @reasoning_item_index = @assistant_items.size - 1
+    end
+
+    private def finalize_choice : Nil
+      items = @assistant_items.empty? ? [Crig::Completion::AssistantContent.text("")] : @assistant_items
+      @choice = Crig::OneOrMany(Crig::Completion::AssistantContent).many(items)
+    end
+
+    def self.raw_choices_from_choice(
+      choice : Crig::OneOrMany(Crig::Completion::AssistantContent),
+    ) : Array(RawStreamingChoice(R))
+      choice.to_a.flat_map do |item|
+        case item.kind
+        in .text?
+          [RawStreamingChoice(R).message(item.text.try(&.text) || "")]
+        in .tool_call?
+          tool_call = item.tool_call
+          if tool_call
+            raw_tool_call = RawStreamingToolCall.new(
+              tool_call.id,
+              tool_call.function.name,
+              tool_call.function.arguments,
+              tool_call.call_id || tool_call.id,
+              tool_call.call_id,
+              tool_call.signature,
+              tool_call.additional_params
+            )
+            [RawStreamingChoice(R).tool_call(raw_tool_call)]
+          else
+            [] of RawStreamingChoice(R)
+          end
+        in .reasoning?
+          reasoning = item.reasoning
+          if reasoning
+            reasoning.content.map do |content|
+              RawStreamingChoice(R).reasoning(reasoning.id, content)
+            end
+          else
+            [] of RawStreamingChoice(R)
+          end
+        in .image?
+          [] of RawStreamingChoice(R)
+        end
+      end
+    end
+  end
+
+  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(R), io : IO = STDOUT) : R forall R
+    final_response = nil.as(R?)
+
+    stream.each_item do |item|
+      case item.kind
+      in .text?
+        if text = item.text
+          io.print(text.text)
+          io.flush
+        end
+      in .reasoning?
+        if reasoning = item.reasoning
+          io.print(reasoning.display_text)
+          io.flush
+        end
+      in .tool_call?
+      in .tool_call_delta?
+      in .reasoning_delta?
+      in .final?
+        final_response = item.final
+      end
+    end
+
+    final_response || stream.response || raise "stream produced no final response"
   end
 end

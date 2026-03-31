@@ -107,9 +107,25 @@ module Crig
         )
         end
 
-        def self.from_prompt(prompt : Crig::Completion::Message | String) : self
+        def self.new(prompt : Crig::Completion::Message | String) : self
           prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-          new(prompt_message)
+          new(
+            prompt_message,
+            nil,
+            nil,
+            [] of Crig::Completion::Message,
+            [] of Document,
+            [] of Crig::Completion::ToolDefinition,
+            nil,
+            nil,
+            nil,
+            nil,
+            nil,
+          )
+        end
+
+        def self.from_prompt(prompt : Crig::Completion::Message | String) : self
+          new(prompt)
         end
 
         def preamble(value : String) : self

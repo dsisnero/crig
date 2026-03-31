@@ -2,11 +2,26 @@ module Crig
   alias ToolResolver = String, String -> String
 
   UNKNOWN_AGENT_NAME = "Unnamed Agent"
+  AGENT_TOOL_NAME    = "agent_tool"
+
+  struct AgentToolArgs
+    include JSON::Serializable
+
+    getter prompt : String
+
+    def initialize(@prompt : String)
+    end
+  end
 
   struct ToolServerHandle
     getter id : String
 
-    def initialize(@id : String, @resolver : ToolResolver? = nil)
+    def initialize(
+      @id : String,
+      @resolver : ToolResolver? = nil,
+      @server : Crig::ToolServer? = nil,
+      @inbox : Channel(Crig::ToolServerRequest)? = nil,
+    )
     end
 
     def self.with_resolver(id : String, resolver : ToolResolver) : self
@@ -14,10 +29,88 @@ module Crig
     end
 
     def call_tool(name : String, arguments : String) : String
+      if response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments))
+        if response.kind.tool_executed?
+          result = response.result
+          return result if result
+        end
+        if response.kind.tool_error? && (error = response.error)
+          raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(Exception.new(error)))
+        end
+        raise Crig::ToolServerError.invalid_message(response)
+      end
+
       resolver = @resolver
-      raise "Tool server handle '#{@id}' has no resolver" unless resolver
+      raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' has no resolver") unless resolver
 
       resolver.call(name, arguments)
+    end
+
+    def add_tool(tool : Crig::ToolDyn) : Nil
+      if server = @server
+        response = server.add_tool(tool)
+        raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_added?
+        return
+      end
+
+      response = request(Crig::ToolServerRequestMessageKind.add_tool(tool)) ||
+                 raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+      raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_added?
+    end
+
+    def append_toolset(toolset : Crig::ToolSet) : Nil
+      if server = @server
+        response = server.append_toolset(toolset)
+        raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_added?
+        return
+      end
+
+      response = request(Crig::ToolServerRequestMessageKind.append_toolset(toolset)) ||
+                 raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+      raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_added?
+    end
+
+    def remove_tool(tool_name : String) : Nil
+      if server = @server
+        response = server.remove_tool(tool_name)
+        raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_deleted?
+        return
+      end
+
+      response = request(Crig::ToolServerRequestMessageKind.remove_tool(tool_name)) ||
+                 raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+      raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_deleted?
+    end
+
+    def get_tool_defs(prompt : String?) : Array(Crig::Completion::ToolDefinition)
+      response = request(Crig::ToolServerRequestMessageKind.get_tool_defs(prompt)) ||
+                 raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+      definitions = response.tool_definitions
+      raise Crig::ToolServerError.invalid_message(response) unless response.kind.tool_definitions? && definitions
+      definitions
+    end
+
+    private def request(kind : Crig::ToolServerRequestMessageKind) : Crig::ToolServerResponse?
+      if inbox = @inbox
+        reply_channel = Channel(Crig::ToolServerResponse).new(1)
+        begin
+          inbox.send(Crig::ToolServerRequest.new(kind, reply_channel))
+        rescue Channel::ClosedError
+          raise Crig::ToolServerError.send_error("Tool server inbox is closed")
+        end
+
+        begin
+          return reply_channel.receive
+        rescue Channel::ClosedError
+          raise Crig::ToolServerError.canceled
+        end
+      end
+
+      if server = @server
+        return server.handle_message(Crig::ToolServerRequest.new(kind))
+      end
+
+      nil
     end
   end
 
@@ -67,7 +160,25 @@ module Crig
     end
   end
 
+  struct OutputSchemaBuilder(T)
+    def self.build : JSON::Any
+      JSON.parse(
+        JSON.build do |json|
+          json.object do
+            {% begin %}
+              Crig::ToolMacro.json_schema_for({{ @type.type_vars[0] }})
+            {% end %}
+          end
+        end
+      )
+    end
+  end
+
   struct Agent(M)
+    include StreamingPrompt(M)
+    include StreamingChat(M)
+    include StreamingCompletion(M)
+
     getter model : M
     getter name : String?
     getter description : String?
@@ -105,6 +216,29 @@ module Crig
 
     def resolved_name : String
       @name || UNKNOWN_AGENT_NAME
+    end
+
+    def name : String
+      @name || AGENT_TOOL_NAME
+    end
+
+    def definition(prompt : String) : Crig::Completion::ToolDefinition
+      Crig::Completion::ToolDefinition.new(
+        name,
+        "Prompt a sub-agent to do a task for you.\n\nAgent name: #{resolved_name}\nAgent description: #{@description || ""}\nAgent system prompt: #{@preamble || ""}",
+        JSON.parse(%({"type":"object","properties":{"prompt":{"type":"string","description":"The prompt for the agent to call."}},"required":["prompt"]})),
+      )
+    end
+
+    def call(args : Crig::AgentToolArgs) : String
+      prompt(args.prompt).send
+    end
+
+    def call(args : String) : String
+      parsed = Crig::AgentToolArgs.from_json(args)
+      call(parsed)
+    rescue ex : JSON::ParseException | JSON::SerializableError
+      raise Crig::ToolError.json_error(ex)
     end
 
     def completion(
@@ -161,6 +295,10 @@ module Crig
       Crig::PromptRequest(Crig::Standard, M).from_agent(self, prompt)
     end
 
+    def prompt(prompt : Crig::Completion::Image | Crig::Completion::Audio | Crig::Completion::Document | Crig::Completion::UserContent) : Crig::PromptRequest(Crig::Standard, M)
+      prompt(Crig::Completion::Message.from(prompt))
+    end
+
     def chat(
       prompt : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message),
@@ -174,6 +312,10 @@ module Crig
 
     def stream_prompt(prompt : Crig::Completion::Message | String) : Crig::StreamingPromptRequest(M)
       Crig::StreamingPromptRequest(M).from_agent(self, prompt)
+    end
+
+    def stream_prompt(prompt : Crig::Completion::Image | Crig::Completion::Audio | Crig::Completion::Document | Crig::Completion::UserContent) : Crig::StreamingPromptRequest(M)
+      stream_prompt(Crig::Completion::Message.from(prompt))
     end
 
     def stream_chat(
@@ -205,6 +347,27 @@ module Crig
       end
 
       tool_map.values
+    end
+  end
+
+  struct AgentToolAdapter(M)
+    include Crig::ToolDyn
+
+    getter agent : Agent(M)
+
+    def initialize(@agent : Agent(M))
+    end
+
+    def name : String
+      @agent.name
+    end
+
+    def definition(prompt : String) : Crig::Completion::ToolDefinition
+      @agent.definition(prompt)
+    end
+
+    def call(args : String) : String
+      @agent.call(args)
     end
   end
 
@@ -285,8 +448,112 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value + [tool], @dynamic_tools_value, nil, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    def tool(tool : Crig::ToolDyn) : self
+      handle = tool_server_handle_for_builder
+      handle.add_tool(tool)
+      self.class.new(
+        @model,
+        @name_value,
+        @description_value,
+        @preamble_value,
+        @static_context_value,
+        @dynamic_context_value,
+        @static_tools_value + [tool.definition("")],
+        @dynamic_tools_value,
+        handle,
+        @additional_params_value,
+        @max_tokens_value,
+        @default_max_turns_value,
+        @temperature_value,
+        @tool_choice_value,
+        @output_schema_value,
+      )
+    end
+
+    def tool(tool : Crig::Agent(T)) : self forall T
+      adapter = Crig::AgentToolAdapter(T).new(tool)
+      handle = tool_server_handle_for_builder
+      handle.add_tool(adapter)
+      self.class.new(
+        @model,
+        @name_value,
+        @description_value,
+        @preamble_value,
+        @static_context_value,
+        @dynamic_context_value,
+        @static_tools_value + [adapter.definition("")],
+        @dynamic_tools_value,
+        handle,
+        @additional_params_value,
+        @max_tokens_value,
+        @default_max_turns_value,
+        @temperature_value,
+        @tool_choice_value,
+        @output_schema_value,
+      )
+    end
+
     def tools(tools : Array(Crig::Completion::ToolDefinition)) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value + tools, @dynamic_tools_value, nil, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
+    end
+
+    def tools(tools : Array(Crig::ToolDyn)) : self
+      handle = tool_server_handle_for_builder
+      tools.each { |tool| handle.add_tool(tool) }
+      self.class.new(
+        @model,
+        @name_value,
+        @description_value,
+        @preamble_value,
+        @static_context_value,
+        @dynamic_context_value,
+        @static_tools_value + tools.map(&.definition("")),
+        @dynamic_tools_value,
+        handle,
+        @additional_params_value,
+        @max_tokens_value,
+        @default_max_turns_value,
+        @temperature_value,
+        @tool_choice_value,
+        @output_schema_value,
+      )
+    end
+
+    def tools(tools : Array(Crig::Agent(T))) : self forall T
+      handle = tool_server_handle_for_builder
+      adapters = tools.map { |tool| Crig::AgentToolAdapter(T).new(tool) }
+      adapters.each { |tool| handle.add_tool(tool) }
+      self.class.new(
+        @model,
+        @name_value,
+        @description_value,
+        @preamble_value,
+        @static_context_value,
+        @dynamic_context_value,
+        @static_tools_value + adapters.map(&.definition("")),
+        @dynamic_tools_value,
+        handle,
+        @additional_params_value,
+        @max_tokens_value,
+        @default_max_turns_value,
+        @temperature_value,
+        @tool_choice_value,
+        @output_schema_value,
+      )
+    end
+
+    def rmcp_tool(tool : MCP::Protocol::Tool, client : MCP::Client::Client) : self
+      handle = tool_server_handle_for_builder
+      handle.add_tool(Crig::McpTool.from_mcp_server(tool, client))
+      self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
+    end
+
+    def rmcp_tools(tools : Array(MCP::Protocol::Tool), client : MCP::Client::Client) : self
+      handle = tool_server_handle_for_builder
+      tools.each do |tool|
+        handle.add_tool(Crig::McpTool.from_mcp_server(tool, client))
+      end
+      self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
     def dynamic_tools(sample : Int32, dynamic_tools, tools : Array(Crig::Completion::ToolDefinition)) : self
@@ -299,6 +566,10 @@ module Crig
 
     def tool_server_handle(handle : ToolServerHandle) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
+    end
+
+    private def tool_server_handle_for_builder : ToolServerHandle
+      @tool_server_handle_value || Crig::ToolServer.new.run
     end
 
     def additional_params(params : JSON::Any) : self
@@ -324,6 +595,11 @@ module Crig
 
     def output_schema(output_schema : JSON::Any) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, output_schema)
+    end
+
+    def output_schema(type : T.class) : self forall T
+      _ = type
+      output_schema(Crig::OutputSchemaBuilder(T).build)
     end
 
     def build : Agent(M)

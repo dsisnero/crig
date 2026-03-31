@@ -16,6 +16,10 @@ module Crig
       def initialize(@inner : Crig::AudioGenerationModelDyn)
       end
 
+      def self.make(_client, _model : String) : self
+        raise "Invalid method: Cannot make an AudioGenerationModelHandle from a client + model identifier"
+      end
+
       def audio_generation(request : Crig::AudioGenerationRequest)
         @inner.audio_generation(request)
       end

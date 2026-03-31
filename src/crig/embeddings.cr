@@ -25,8 +25,63 @@ module Crig
       end
     end
 
+    annotation EmbedField
+    end
+
     module Embed
       abstract def embed(embedder : TextEmbedder) : Nil
+    end
+
+    macro derive_embed(type)
+      {% embed_methods = type.methods.select { |method| method.annotation(Crig::Embeddings::EmbedField) && method.args.empty? } %}
+
+      {% if embed_methods.empty? %}
+        {% raise "Add at least one zero-arg method tagged with @[Crig::Embeddings::EmbedField]." %}
+      {% end %}
+
+      include Crig::Embeddings::Embed
+
+      def embed(embedder : Crig::Embeddings::TextEmbedder) : Nil
+        {% for method in embed_methods %}
+          {% if method.annotation(Crig::Embeddings::EmbedField)[:embed_with] %}
+            {{ method.annotation(Crig::Embeddings::EmbedField)[:embed_with] }}(embedder, self.{{ method.name }})
+          {% else %}
+            Crig::Embeddings.append_embedded(embedder, self.{{ method.name }})
+          {% end %}
+        {% end %}
+      end
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : Embed) : Nil
+      item.embed(embedder)
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : String) : Nil
+      embedder.embed(item)
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : Number | Bool | Char) : Nil
+      embedder.embed(item.to_s)
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : JSON::Any) : Nil
+      embedder.embed(item.to_json)
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : Hash) : Nil
+      embedder.embed(item.to_json)
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : Tuple) : Nil
+      item.each { |entry| append_embedded(embedder, entry) }
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : Enumerable) : Nil
+      item.each { |entry| append_embedded(embedder, entry) }
+    end
+
+    def self.append_embedded(embedder : TextEmbedder, item : ToolSchema) : Nil
+      item.embedding_docs.each { |entry| embedder.embed(entry) }
     end
 
     def self.to_texts(item : Embed) : Array(String)
@@ -75,6 +130,7 @@ module Crig
   alias EmbeddingsBuilder = Embeddings::EmbeddingsBuilder
   alias EmbeddingModel = Embeddings::EmbeddingModel
   alias EmbeddingModelDyn = Embeddings::EmbeddingModelDyn
+  alias EmbedField = Embeddings::EmbedField
   alias ImageEmbeddingModel = Embeddings::ImageEmbeddingModel
   alias TextEmbedder = Embeddings::TextEmbedder
   alias ToolSchema = Embeddings::ToolSchema
