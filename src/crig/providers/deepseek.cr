@@ -704,7 +704,7 @@ module Crig
           response = @client.post_json("/chat/completions", request_payload.to_json_value.to_json, "text/event-stream")
           text = response.body
           raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
-          Crig::Streaming::StreamingCompletionResponse(StreamingCompletionResponse).from_raw_choices(parse_streaming_choices(text))
+          Crig::StreamingCompletionResponse(StreamingCompletionResponse).from_raw_choices(parse_streaming_choices(text))
         end
 
         private def parse_streaming_choices(text : String) : Array(Crig::RawStreamingChoice(StreamingCompletionResponse))
