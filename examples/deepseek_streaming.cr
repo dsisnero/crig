@@ -81,11 +81,11 @@ begin
     puts "   - Assistant: [calculates...]"
     puts "   - User: Now multiply that by 3"
     puts "=" * 60
-    
+
     # First message
     messages = [] of Crig::Completion::Message
     messages << Crig::Completion::Message.user("What's 15 + 27?")
-    
+
     stream3 = calculator_agent.stream_chat("Now multiply that by 3", messages).send
     puts "\nStreaming chat response:"
     puts "=" * 60

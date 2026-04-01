@@ -169,7 +169,7 @@ begin
     # Run examples
     puts "5. Running example queries:"
     puts "=" * 60
-    
+
     Crig::Examples::DeepSeekNomicRag.example_prompts.each_with_index do |prompt, i|
       puts "\nExample #{i + 1}: #{prompt}"
       puts "-" * 40

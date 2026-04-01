@@ -5,25 +5,25 @@ module Crig::Examples::DeepSeekNomicPdfAgent
   struct Document
     include JSON::Serializable
     include Crig::Embeddings::Embed
-    
+
     getter id : String
     getter content : String
-    
+
     def initialize(@id : String, @content : String)
     end
-    
+
     def embed(embedder : Crig::Embeddings::TextEmbedder) : Nil
       embedder.embed(@content)
     end
   end
-  
+
   # Load PDF and chunk it
   def self.load_and_chunk_pdf(pdf_path : String, chunk_size : Int32 = 2000) : Array(String)
     chunks = [] of String
-    
+
     # Load PDF using Rig's PDF loader
     loader = Crig::Loaders::PdfFileLoader.with_glob(pdf_path)
-    
+
     loader.read.each do |result|
       case result
       when String
@@ -36,7 +36,7 @@ module Crig::Examples::DeepSeekNomicPdfAgent
           end
           current_chunk += word + " "
         end
-        
+
         # Add the last chunk if not empty
         if !current_chunk.empty?
           chunks << current_chunk.strip
@@ -45,14 +45,14 @@ module Crig::Examples::DeepSeekNomicPdfAgent
         STDERR.puts "Error loading PDF: #{result.message}"
       end
     end
-    
+
     if chunks.empty?
       raise "No content found in PDF file: #{pdf_path}"
     end
-    
+
     chunks
   end
-  
+
   # Build vector store from PDF chunks
   def self.build_pdf_store(
     pdf_chunks : Array(String),
@@ -62,24 +62,24 @@ module Crig::Examples::DeepSeekNomicPdfAgent
     documents = pdf_chunks.map_with_index do |chunk, i|
       Document.new(id: "pdf_chunk_#{i}", content: chunk)
     end
-    
+
     # Handle empty case (shouldn't happen due to earlier check, but helps compiler)
     if documents.empty?
       raise "No documents to embed"
     end
-    
+
     # Use .documents() method - most ergonomic API
     # The compiler now knows documents is not empty
     builder = Crig::Embeddings.builder(embedding_model).documents(documents)
-    
+
     # builder is definitely EmbeddingsBuilder now, not EmbeddingsBuilderInitializer
     embeddings_result = builder.build
-    
+
     # Create vector store and index
     store = Crig::VectorStore::InMemoryVectorStore(Document).from_documents(embeddings_result)
     store.index(embedding_model)
   end
-  
+
   # Build RAG agent with dynamic context
   def self.build_rag_agent(
     client : Crig::Providers::DeepSeek::Client,
@@ -97,18 +97,18 @@ module Crig::Examples::DeepSeekNomicPdfAgent
       .temperature(0.3)  # Lower temperature for factual responses
       .build
   end
-  
+
   # Simple interactive chat loop
   def self.interactive_chat(agent : Crig::Agent(M)) forall M
     puts "\n📚 PDF Chat Assistant (type 'quit' or 'exit' to end)"
     puts "=" * 60
-    
+
     loop do
       print "\nYou: "
       user_input = gets.try(&.chomp)
-      
+
       break if user_input.nil?
-      
+
       case user_input.downcase
       when "quit", "exit", "q"
         puts "Goodbye!"
@@ -118,7 +118,7 @@ module Crig::Examples::DeepSeekNomicPdfAgent
       else
         print "Assistant: "
         STDOUT.flush
-        
+
         begin
           response = agent.prompt(user_input).send
           puts response
@@ -136,7 +136,7 @@ end
 begin
   # Check if DEEPSEEK_API_KEY is set
   deepseek_api_key = ENV["DEEPSEEK_API_KEY"]?
-  
+
   if deepseek_api_key
     puts "Setting up PDF RAG agent with DeepSeek + Nomic:"
     puts "  - Embeddings: nomic-embed-text (Ollama, free/local)"
@@ -144,25 +144,25 @@ begin
     puts "  - PDF: DeepSeek R1 research paper"
     puts "  - Cost: ~$0.12 per 1M tokens (vs $2.63 for OpenAI)"
     puts ""
-    
+
     # Create Ollama client for embeddings (free/local)
     puts "1. Setting up Ollama for embeddings..."
     ollama_client = Crig::Providers::Ollama::Client.new
     embedding_model = ollama_client.embedding_model("nomic-embed-text")
     puts "   ✓ Using nomic-embed-text (768 dimensions)"
-    
+
     # Load and chunk PDF
     puts "2. Loading and chunking PDF document..."
     pdf_path = "vendor/rig/rig/rig-core/examples/documents/deepseek_r1.pdf"
-    
+
     unless File.exists?(pdf_path)
       puts "   ⚠️  PDF not found at: #{pdf_path}"
       puts "   Downloading sample PDF..."
-      
+
       # Try to create documents directory
       documents_dir = "examples/documents"
       Dir.mkdir_p(documents_dir)
-      
+
       # Provide instructions for getting the PDF
       puts "   Please download the DeepSeek R1 paper:"
       puts "   https://github.com/0xPlaygrounds/rig/raw/main/rig-core/examples/documents/deepseek_r1.pdf"
@@ -171,21 +171,21 @@ begin
       puts "   Then run this example again."
       exit 1
     end
-    
+
     pdf_chunks = Crig::Examples::DeepSeekNomicPdfAgent.load_and_chunk_pdf(pdf_path)
     puts "   ✓ Loaded #{pdf_chunks.size} chunks from PDF"
-    
+
     # Build vector index
     puts "3. Creating vector index from PDF chunks..."
     index = Crig::Examples::DeepSeekNomicPdfAgent.build_pdf_store(pdf_chunks, embedding_model)
     puts "   ✓ Vector index created with #{pdf_chunks.size} document chunks"
-    
+
     # Create DeepSeek client for completions
     puts "4. Setting up DeepSeek for completions..."
     deepseek_client = Crig::Providers::DeepSeek::Client.new(deepseek_api_key)
     agent = Crig::Examples::DeepSeekNomicPdfAgent.build_rag_agent(deepseek_client, index)
     puts "   ✓ DeepSeek RAG agent ready"
-    
+
     # Show example questions
     puts ""
     puts "5. Example questions you can ask:"
@@ -195,10 +195,10 @@ begin
     puts "   • What evaluation methods were used?"
     puts "   • What are the main findings?"
     puts ""
-    
+
     # Start interactive chat
     Crig::Examples::DeepSeekNomicPdfAgent.interactive_chat(agent)
-    
+
     puts ""
     puts "Summary: This PDF RAG pipeline uses:"
     puts "1. Free local embeddings (Ollama nomic-embed-text)"

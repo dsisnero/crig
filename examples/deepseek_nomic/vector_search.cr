@@ -102,13 +102,13 @@ module Crig::Examples::DeepSeekNomicVectorSearch
   ) : Array(Tuple(Float64, String, WordDefinition)) forall M
     # Create embedding for query
     query_embedding = model.embed_text(query)
-    
+
     # Search for similar documents
     request = Crig::VectorSearchRequest.new(
       query: query,
       samples: n.to_u64
     )
-    
+
     index.top_n(request, WordDefinition)
   end
 
@@ -164,20 +164,20 @@ begin
   puts ""
   puts "4. Running vector similarity searches:"
   puts "=" * 60
-  
+
   Crig::Examples::DeepSeekNomicVectorSearch.example_queries.each do |query|
     puts "\nQuery: \"#{query}\""
     puts "-" * 40
-    
+
     results = Crig::Examples::DeepSeekNomicVectorSearch.search_similar(index, query, embedding_model)
-    
+
     if results.empty?
       puts "No similar documents found."
     else
       puts "Top #{results.size} similar documents:"
       puts Crig::Examples::DeepSeekNomicVectorSearch.format_results(results)
     end
-    
+
     puts "-" * 40
   end
 
@@ -185,28 +185,28 @@ begin
   puts ""
   puts "Advanced example: Hybrid search with DeepSeek"
   puts "=" * 60
-  
+
   # Check if we have DeepSeek API key for hybrid example
   deepseek_api_key = ENV["DEEPSEEK_API_KEY"]?
-  
+
   if deepseek_api_key
     puts "\n5. Hybrid example: Vector search + LLM summarization"
     puts "   Using DeepSeek to summarize search results"
     puts "-" * 40
-    
+
     # Create DeepSeek client
     deepseek_client = Crig::Providers::DeepSeek::Client.new(deepseek_api_key)
     agent = deepseek_client.agent(Crig::Providers::DeepSeek::DEEPSEEK_CHAT)
       .preamble("You are a research assistant. Summarize the search results concisely.")
       .temperature(0.3)
       .build
-    
+
     # Search for "future technology"
     query = "future technology"
     puts "Query: \"#{query}\""
-    
+
     results = Crig::Examples::DeepSeekNomicVectorSearch.search_similar(index, query, embedding_model, 2)
-    
+
     if results.empty?
       puts "No results to summarize."
     else
@@ -216,9 +216,9 @@ begin
         "Topic: #{doc.word}\n" +
         "Content: #{doc.definitions.join(' ')}"
       end.join("\n\n")
-      
+
       prompt = "Based on these search results about '#{query}', provide a brief summary:\n\n#{context}"
-      
+
       puts "\nSearch results found. Generating summary with DeepSeek..."
       summary = agent.prompt(prompt).send
       puts "\nSummary: #{summary}"

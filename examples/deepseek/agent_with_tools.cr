@@ -205,11 +205,11 @@ begin
     puts ""
     puts "4. Running example calculations:"
     puts "=" * 60
-    
+
     Crig::Examples::DeepSeekAgentWithTools.example_prompts.each_with_index do |prompt, i|
       puts "\nExample #{i + 1}: #{prompt}"
       puts "-" * 40
-      
+
       begin
         result = Crig::Examples::DeepSeekAgentWithTools.run_prompt(agent, prompt)
         puts "Result: #{result}"
@@ -218,7 +218,7 @@ begin
       rescue ex
         puts "Error: #{ex.message}"
       end
-      
+
       puts "-" * 40
       sleep(1.second)  # Rate limiting
     end
@@ -228,13 +228,13 @@ begin
     puts "5. Complex example: Multi-step calculation"
     puts "   Prompt: \"Calculate (15 + 5) * 3, then divide the result by 4\""
     puts "=" * 60
-    
+
     complex_result = Crig::Examples::DeepSeekAgentWithTools.run_prompt(
       agent,
       "Calculate (15 + 5) * 3, then divide the result by 4"
     )
     puts "Result: #{complex_result}"
-    
+
     puts "=" * 60
     puts ""
     puts "Summary: DeepSeek provides tool-calling capabilities at ~10x lower cost"
