@@ -4,12 +4,12 @@ module Crig
       abstract def embedding_model(model : String) : M
       abstract def embedding_model_with_ndims(model : String, ndims : Int32) : M
 
-      def embeddings(type : D.class, model : String) : Crig::EmbeddingsBuilder(M, D) forall D
-        Crig::EmbeddingsBuilder(M, D).new(embedding_model(model))
+      def embeddings(type : D.class, model : String) : Crig::Embeddings::EmbeddingsBuilderInitializer(M) forall D
+        Crig::Embeddings::EmbeddingsBuilderInitializer(M).new(embedding_model(model))
       end
 
-      def embeddings_with_ndims(type : D.class, model : String, ndims : Int32) : Crig::EmbeddingsBuilder(M, D) forall D
-        Crig::EmbeddingsBuilder(M, D).new(embedding_model_with_ndims(model, ndims))
+      def embeddings_with_ndims(type : D.class, model : String, ndims : Int32) : Crig::Embeddings::EmbeddingsBuilderInitializer(M) forall D
+        Crig::Embeddings::EmbeddingsBuilderInitializer(M).new(embedding_model_with_ndims(model, ndims))
       end
     end
 

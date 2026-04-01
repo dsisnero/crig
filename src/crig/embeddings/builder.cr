@@ -1,24 +1,63 @@
 module Crig
   module Embeddings
+    # Initializer for creating embeddings builders.
+    # Returned by `Crig::Embeddings.builder(model)` to allow type inference.
+    struct EmbeddingsBuilderInitializer(M)
+      getter model : M
+
+      def initialize(@model : M)
+      end
+
+      # Add a document to be embedded.
+      # The document can be a String or any type that implements the `Embed` interface.
+      # Returns an `EmbeddingsBuilder` with the inferred document type.
+      def document(document : T) : EmbeddingsBuilder(M, T) forall T
+        texts = Crig::Embeddings.to_texts(document)
+        array = Array({T, Array(String)}).new(1)
+        array << {document, texts}
+        EmbeddingsBuilder(M, T).new(@model, array)
+      end
+
+      # Add multiple documents to be embedded.
+      # Returns an `EmbeddingsBuilder` with the inferred document type.
+      def documents(documents : Enumerable(T)) : EmbeddingsBuilder(M, T) forall T
+        builder = nil
+        documents.each do |document|
+          if builder.nil?
+            builder = document(document)
+          else
+            builder = builder.document(document)
+          end
+        end
+        builder || raise ArgumentError.new("documents cannot be empty")
+      end
+    end
+
+    # A builder for creating embeddings from documents.
+    # Start with `Crig::Embeddings.builder(model)` or `EmbeddingsBuilder.new(model)` then add documents.
+    # The document type `T` is inferred from the first document added.
     struct EmbeddingsBuilder(M, T)
       getter model : M
       getter documents : Array({T, Array(String)})
 
+      # Create a new embeddings builder with the given model.
+      # The document type `T` will be inferred when you add the first document.
+      def self.new(model : M) : EmbeddingsBuilderInitializer(M) forall M
+        EmbeddingsBuilderInitializer(M).new(model)
+      end
+
       def initialize(@model : M, @documents : Array({T, Array(String)}) = [] of {T, Array(String)})
       end
 
-      def self.new(model : M) forall M
-        allocate.tap do |value|
-          value.initialize(model)
-        end
-      end
-
-      def document(document : T) : self forall T
-        texts = Crig::Embeddings.to_texts(document.as(Embed))
+      # Add a document to be embedded.
+      # The document can be a String or any type that implements the `Embed` interface.
+      def document(document : T) : self
+        texts = Crig::Embeddings.to_texts(document)
         self.class.new(@model, @documents + [{document, texts}])
       end
 
-      def documents(documents : Enumerable(T)) : self forall T
+      # Add multiple documents to be embedded.
+      def documents(documents : Enumerable(T)) : self
         documents.reduce(self) { |builder, document| builder.document(document) }
       end
 

@@ -5,8 +5,6 @@ require "./vector_store/lsh"
 
 module Crig
   module VectorStore
-    alias TopNResults = Array(Tuple(Float64, String, JSON::Any))
-
     struct IndexStrategy
       enum Kind
         BruteForce
@@ -178,6 +176,7 @@ module Crig
   alias VectorSearchRequestBuilder = VectorStore::VectorSearchRequestBuilder(VectorStore::Filter(JSON::Any))
   alias VectorStoreOutput = VectorStore::VectorStoreOutput
   alias VectorStoreError = VectorStore::VectorStoreError
+  alias VectorStoreIndex = VectorStore::VectorStoreIndex
   alias Filter = VectorStore::Filter(JSON::Any)
   alias FilterError = VectorStore::FilterError
 end

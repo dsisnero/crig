@@ -1,8 +1,18 @@
 module Crig
   module VectorStore
     record SearchResult(D), score : Float64, id : String, document : D, embedding_document : String
+    alias TopNResults = Array(Tuple(Float64, String, JSON::Any))
+
+    # Interface for vector store indices
+    # Types implementing this interface can be used with Agent.dynamic_context
+    module VectorStoreIndex(M, D)
+      # Returns the top N most similar documents as (score, id, JSON::Any) tuples
+      abstract def top_n_results(request : Crig::VectorSearchRequest) : TopNResults
+    end
 
     struct InMemoryVectorIndex(M, D)
+      include VectorStoreIndex(M, D)
+
       getter model : M
       getter store : InMemoryVectorStore(D)
 
