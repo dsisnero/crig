@@ -85,6 +85,8 @@ module Crig
       end
     end
 
+    # In-memory vector store with the same builder-oriented workflow as upstream:
+    # accumulate documents, choose an index strategy, then build the store.
     struct InMemoryVectorStore(D)
       getter embeddings : Hash(String, Tuple(D, Crig::OneOrMany(Crig::Embeddings::Embedding)))
       getter index_strategy : IndexStrategy
@@ -98,6 +100,7 @@ module Crig
         initialize_lsh_index
       end
 
+      # Create a fluent builder for an in-memory vector store.
       def self.builder : InMemoryVectorStoreBuilder(D)
         InMemoryVectorStoreBuilder(D).new
       end

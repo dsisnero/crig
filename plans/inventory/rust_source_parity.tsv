@@ -633,8 +633,10 @@ src/providers/azure.rs::struct::Usage	ported	Crystal struct exists
 src/providers/azure.rs::type::Client	ported	Crystal type exists
 src/providers/azure.rs::type::ClientBuilder	ported	Crystal type exists
 src/providers/cohere/client.rs::enum::ApiResponse	ported	Crystal enum exists
+src/providers/cohere/client.rs::func::embeddings	ported	Crystal func exists
 src/providers/cohere/client.rs::func::embedding_model	ported	Crystal func exists
 src/providers/cohere/client.rs::func::embedding_model_with_ndims	ported	Crystal func exists
+src/providers/cohere/client.rs::func::embeddings_with_ndims	ported	Crystal func exists
 src/providers/cohere/client.rs::struct::ApiErrorResponse	ported	Crystal struct exists
 src/providers/cohere/client.rs::struct::CohereBuilder	ported	Crystal struct exists
 src/providers/cohere/client.rs::struct::CohereExt	ported	Crystal struct exists

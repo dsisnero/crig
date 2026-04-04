@@ -332,6 +332,9 @@ module Crig
     end
   end
 
+  # ToolSet is the runtime collection used by agents and tool servers.
+  # It mirrors Rig's builder-first toolset API and keeps both static and
+  # embedding-backed tools under one interface.
   struct ToolSet
     getter tools : Hash(String, Crig::ToolType)
 
@@ -348,6 +351,7 @@ module Crig
       from_tools(tools)
     end
 
+    # Create a fluent ToolSetBuilder, matching Rig's `ToolSet::builder()`.
     def self.builder : Crig::ToolSetBuilder
       Crig::ToolSetBuilder.new
     end
@@ -407,14 +411,18 @@ module Crig
     end
   end
 
+  # Builder for ToolSet. This is the ergonomic path used when composing mixed
+  # static and embedding-backed tools before handing them to an agent or tool server.
   struct ToolSetBuilder
     def initialize(@tools : Array(Crig::ToolType) = [] of Crig::ToolType)
     end
 
+    # Add a standard executable tool.
     def static_tool(tool : Crig::ToolDyn) : self
       self.class.new(@tools + [Crig::ToolType.simple(tool)])
     end
 
+    # Add an embedding-backed tool that can later participate in tool schema retrieval.
     def dynamic_tool(tool : T) : self forall T
       self.class.new(@tools + [Crig::ToolType.embedding(tool)])
     end

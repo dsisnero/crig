@@ -14,21 +14,28 @@ module Crig
       end
     end
 
+    # Shared client mixin for completion-capable providers.
+    # This is the ergonomic entry point used throughout the repo:
+    # choose a model, then branch into an agent or extractor builder.
     module CompletionClient(M)
       abstract def completion_model(model : String) : M
 
+      # Build an agent directly from a provider client and model identifier.
       def agent(model : String) : Crig::AgentBuilder(M)
         Crig::AgentBuilder(M).new(completion_model(model))
       end
 
+      # Build a structured extractor directly from a provider client and model identifier.
       def extractor(type : T.class, model : String) : Crig::ExtractorBuilder(M, T) forall T
         Crig::ExtractorBuilder(M, T).new(completion_model(model))
       end
     end
 
+    # Dynamic completion client surface used by the dyn-client builder.
     module CompletionClientDyn
       abstract def completion_model(model : String) : Crig::Completion::CompletionModelDyn
 
+      # Dynamic clients still expose the same builder-first agent entry point.
       def agent(model : String) : Crig::AgentBuilder(Crig::Client::CompletionModelHandle)
         Crig::AgentBuilder(Crig::Client::CompletionModelHandle).new(
           Crig::Client::CompletionModelHandle.new(completion_model(model))
@@ -60,6 +67,7 @@ module Crig
         @inner.stream(request)
       end
 
+      # Preserve the normal request-builder workflow for dynamically typed models.
       def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
         prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
         @inner.completion_request(prompt_message)

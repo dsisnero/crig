@@ -847,8 +847,10 @@ src/providers/azure.rs::struct::Usage	struct	ported	src/crig/providers/azure.cr	
 src/providers/azure.rs::type::Client	type	ported	src/crig/providers/azure.cr,spec/crig_spec.cr	Ported as a concrete `Crig::Providers::Azure::Client` struct preserving the Azure auth, builder, and runtime behavior; the remaining difference is alias shape only.
 src/providers/azure.rs::type::ClientBuilder	type	ported	src/crig/providers/azure.cr,spec/crig_spec.cr	Ported as a concrete `Crig::Providers::Azure::ClientBuilder` struct preserving the Azure builder behavior; the remaining difference is alias shape only.
 src/providers/cohere/client.rs::enum::ApiResponse	enum	ported	-	ported in `src/crig/providers/cohere/client.cr`
+src/providers/cohere/client.rs::func::embeddings	func	ported	src/crig/providers/cohere/client.cr,spec/crig_spec.cr	Ported as Cohere-specific embeddings builder helpers that preserve the upstream `input_type` argument while returning the standard Crystal embeddings builder initializer.
 src/providers/cohere/client.rs::func::embedding_model	func	ported	-	ported in `src/crig/providers/cohere/client.cr`
 src/providers/cohere/client.rs::func::embedding_model_with_ndims	func	ported	-	ported in `src/crig/providers/cohere/client.cr`
+src/providers/cohere/client.rs::func::embeddings_with_ndims	func	ported	src/crig/providers/cohere/client.cr,spec/crig_spec.cr	Ported as Cohere-specific dimensional embeddings builder helpers that preserve the upstream `input_type` and explicit-dimension entry point.
 src/providers/cohere/client.rs::struct::ApiErrorResponse	struct	ported	-	ported in `src/crig/providers/cohere/client.cr`
 src/providers/cohere/client.rs::struct::CohereBuilder	struct	ported	-	ported in `src/crig/providers/cohere/client.cr`
 src/providers/cohere/client.rs::struct::CohereExt	struct	ported	-	ported in `src/crig/providers/cohere/client.cr`

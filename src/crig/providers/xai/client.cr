@@ -56,6 +56,10 @@ module Crig
           new(input, XAI_BASE_URL)
         end
 
+        def self.from_val(input : Crig::BearerAuth) : self
+          new(input, XAI_BASE_URL)
+        end
+
         def completion_model(model : String) : Crig::Providers::XAI::CompletionModel
           Crig::Providers::XAI::CompletionModel.new(self, model)
         end

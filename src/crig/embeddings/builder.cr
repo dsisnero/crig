@@ -1,7 +1,7 @@
 module Crig
   module Embeddings
-    # Initializer for creating embeddings builders.
-    # Returned by `Crig::Embeddings.builder(model)` to allow type inference.
+    # Initializer returned by client/model embedding helpers before the first
+    # document fixes the builder's document type.
     struct EmbeddingsBuilderInitializer(M)
       getter model : M
 
@@ -20,6 +20,7 @@ module Crig
         raise error.is_a?(Crig::Embeddings::EmbedError) ? error : Crig::Embeddings::EmbedError.new(error)
       end
 
+      # Convenience helper matching Rig's common `{id, text}` document workflow.
       def simple_document(id : String, text : String) : EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)
         document(Crig::Embeddings::SimpleDocument.new(id, text))
       end
@@ -38,6 +39,7 @@ module Crig
         builder || raise ArgumentError.new("documents cannot be empty")
       end
 
+      # Batch convenience helper for the builder-first simple-document path.
       def all_simple_documents(documents : Enumerable(Tuple(String, String))) : EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)
         builder = nil
         documents.each do |id, text|
@@ -51,15 +53,13 @@ module Crig
       end
     end
 
-    # A builder for creating embeddings from documents.
-    # Start with `Crig::Embeddings.builder(model)` or `EmbeddingsBuilder.new(model)` then add documents.
-    # The document type `T` is inferred from the first document added.
+    # Builder for embedding jobs. This is the primary ergonomic surface used by
+    # `client.embeddings(...)` and `client.embeddings_with_ndims(...)`.
     struct EmbeddingsBuilder(M, T)
       getter model : M
       getter documents : Array({T, Array(String)})
 
-      # Create a new embeddings builder with the given model.
-      # The document type `T` will be inferred when you add the first document.
+      # Start a builder directly from a model when you are not going through a client helper.
       def self.new(model : M) : EmbeddingsBuilderInitializer(M) forall M
         EmbeddingsBuilderInitializer(M).new(model)
       end
@@ -76,6 +76,7 @@ module Crig
         raise error.is_a?(Crig::Embeddings::EmbedError) ? error : Crig::Embeddings::EmbedError.new(error)
       end
 
+      # Convenience helper for the common `{id, text}` embedding case.
       def simple_document(id : String, text : String) : self
         {% if T == Crig::Embeddings::SimpleDocument %}
           document(Crig::Embeddings::SimpleDocument.new(id, text))
@@ -89,6 +90,7 @@ module Crig
         documents.reduce(self) { |builder, document| builder.document(document) }
       end
 
+      # Batch convenience helper for the common `{id, text}` embedding case.
       def all_simple_documents(documents : Enumerable(Tuple(String, String))) : self
         {% if T == Crig::Embeddings::SimpleDocument %}
           documents.reduce(self) { |builder, (id, text)| builder.simple_document(id, text) }
@@ -97,6 +99,8 @@ module Crig
         {% end %}
       end
 
+      # Execute embedding requests in model-sized batches and return the
+      # resulting embeddings grouped back by original document.
       def build : Array({T, Crig::OneOrMany(Embedding)})
         docs = @documents.map(&.[0])
         grouped_texts = @documents.map(&.[1])

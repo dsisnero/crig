@@ -371,6 +371,10 @@ module Crig
     end
   end
 
+  # Builder for the core agent runtime.
+  # AgentBuilder is the main ergonomic surface for composing preambles, context,
+  # tools, dynamic retrieval, output schemas, and generation parameters before
+  # producing a concrete Agent.
   struct AgentBuilder(M)
     getter model : M
     getter name_value : String?
@@ -428,6 +432,7 @@ module Crig
       self.class.new(@model, @name_value, @description_value, "#{current}\n#{doc}", @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Add static context that will be normalized into request documents.
     def context(doc : String) : self
       document = Crig::Completion::Request::Document.new(
         "static_doc_#{@static_context_value.size}",
@@ -436,6 +441,7 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value + [document], @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Register a dynamic context source queried at prompt time.
     def dynamic_context(sample : Int32, dynamic_context) : self
       resolver = ->(request : Crig::VectorSearchRequest) do
         dynamic_context.top_n_results(request)
@@ -444,10 +450,12 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value + [source], @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Add a tool definition directly without an executable runtime implementation.
     def tool(tool : Crig::Completion::ToolDefinition) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value + [tool], @dynamic_tools_value, nil, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Add an executable tool and route it through the shared tool server runtime.
     def tool(tool : Crig::ToolDyn) : self
       handle = tool_server_handle_for_builder
       handle.add_tool(tool)
@@ -470,6 +478,7 @@ module Crig
       )
     end
 
+    # Add a nested agent as a callable tool.
     def tool(tool : Crig::Agent(T)) : self forall T
       adapter = Crig::AgentToolAdapter(T).new(tool)
       handle = tool_server_handle_for_builder
@@ -556,6 +565,7 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Register a dynamic tool source queried from vector search at prompt time.
     def dynamic_tools(sample : Int32, dynamic_tools, tools : Array(Crig::Completion::ToolDefinition)) : self
       resolver = ->(request : Crig::VectorSearchRequest) do
         dynamic_tools.top_n_results(request)
@@ -597,6 +607,7 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, output_schema)
     end
 
+    # Build a JSON schema from a Crystal type for structured output requests.
     def output_schema(type : T.class) : self forall T
       _ = type
       output_schema(Crig::OutputSchemaBuilder(T).build)

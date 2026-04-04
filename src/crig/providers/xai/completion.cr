@@ -146,6 +146,14 @@ module Crig
           new(client, model)
         end
 
+        def self.with_model(client : Client, model : String) : self
+          new(client, model)
+        end
+
+        def with_model(model : String) : self
+          self.class.new(@client, model)
+        end
+
         def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
           Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt).model(@model)
         end

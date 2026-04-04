@@ -10924,6 +10924,33 @@ describe Crig::Providers::XAI::Client do
     client.base_url.should eq(Crig::Providers::XAI::XAI_BASE_URL)
   end
 
+  it "supports xai helper constructors and agent builders" do
+    auth_client = Crig::Providers::XAI::Client.from_val(Crig::BearerAuth.new("dummy-key"))
+    auth_client.api_key.token.should eq("dummy-key")
+
+    agent = auth_client.agent(Crig::Providers::XAI::GROK_3_MINI)
+      .name("assistant")
+      .build
+    agent.model.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
+
+    request = auth_client.completion_model(Crig::Providers::XAI::GROK_3)
+      .completion_request("hello")
+      .build
+    request.model.should eq(Crig::Providers::XAI::GROK_3)
+  end
+
+  it "supports xai completion-model with_model helpers" do
+    client = Crig::Providers::XAI::Client.new("dummy-key")
+
+    class_level = Crig::Providers::XAI::CompletionModel.with_model(client, Crig::Providers::XAI::GROK_3)
+    class_level.client.should eq(client)
+    class_level.model.should eq(Crig::Providers::XAI::GROK_3)
+
+    instance_level = class_level.with_model(Crig::Providers::XAI::GROK_3_MINI)
+    instance_level.client.should eq(client)
+    instance_level.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
+  end
+
   it "posts xai responses requests and parses the returned response" do
     server = FakeOpenAIChatServer.new do |_request|
       {
@@ -12577,6 +12604,22 @@ describe Crig::Providers::Cohere::Client do
     custom = client.embedding_model_with_ndims("custom", "search_query", 777)
     custom.ndims.should eq(777)
     custom.input_type.should eq("search_query")
+  end
+
+  it "builds cohere embeddings builders with input_type-specific helpers" do
+    client = Crig::Providers::Cohere::Client.new("dummy-key")
+
+    builder = client.embeddings(Crig::SimpleDocument, Crig::Providers::Cohere::EMBED_ENGLISH_V3, "search_document")
+      .simple_document("doc0", "Hello, world!")
+    builder.model.input_type.should eq("search_document")
+    builder.model.ndims.should eq(1024)
+    builder.documents.map(&.[0].id).should eq(["doc0"])
+
+    custom = client.embeddings_with_ndims("custom-model", "search_query", 333)
+      .simple_document("doc1", "Goodbye, world!")
+    custom.model.input_type.should eq("search_query")
+    custom.model.ndims.should eq(333)
+    custom.documents.map(&.[0].id).should eq(["doc1"])
   end
 
   it "posts cohere embedding requests and parses responses" do

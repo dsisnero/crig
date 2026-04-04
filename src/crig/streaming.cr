@@ -278,6 +278,9 @@ module Crig
     end
   end
 
+  # Stateful wrapper around provider streaming output.
+  # Providers emit raw choices; this class assembles them into assistant content,
+  # tracks the final response, and exposes pause/resume/cancel controls.
   class StreamingCompletionResponse(R)
     getter chunks : Array(String)
     getter choice : Crig::OneOrMany(Crig::Completion::AssistantContent)
@@ -319,16 +322,19 @@ module Crig
       @choice = choice || Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(""))
     end
 
+    # Build a streaming response from plain text chunks.
     def self.stream(chunks : Array(String), response : R? = nil) : self
       new(chunks, response)
     end
 
+    # Build a streaming response from pre-parsed provider streaming choices.
     def self.stream(raw_choices : Array(RawStreamingChoice(R))) : self
       new([] of String).tap do |response|
         response.load_raw_choices(raw_choices)
       end
     end
 
+    # Build a streaming response from a channel-backed source.
     def self.stream(source_channel : Channel(Crig::Concurrency::Result(RawStreamingChoice(R)))) : self
       new([] of String).tap do |response|
         response.load_stream_channel(source_channel)
@@ -617,6 +623,7 @@ module Crig
     end
   end
 
+  # Consume a stream to completion while writing visible text chunks to an IO.
   def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(R), io : IO = STDOUT) : R forall R
     final_response = nil.as(R?)
 

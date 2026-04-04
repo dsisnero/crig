@@ -168,6 +168,8 @@ module Crig
       end
     end
 
+    # Request payload for vector search backends.
+    # Use `VectorSearchRequest.builder` for the fluent builder-style API.
     struct VectorSearchRequest(F)
       getter query : String
       getter samples : UInt64
@@ -184,6 +186,7 @@ module Crig
       )
       end
 
+      # Create a fluent vector-search request builder.
       def self.builder : VectorSearchRequestBuilder(F)
         VectorSearchRequestBuilder(F).new
       end
@@ -211,6 +214,8 @@ module Crig
       end
     end
 
+    # Builder for vector search requests. This is the standard way retrieval and
+    # tool-server code construct top-N search operations.
     struct VectorSearchRequestBuilder(F)
       getter query_value : String?
       getter samples_value : UInt64?
