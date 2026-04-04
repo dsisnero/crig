@@ -108,26 +108,29 @@ module Crig::Examples::AgentOrchestrator
     task_results_json = results.to_json
     judge_agent.extract(task_results_json)
   end
-end
 
-# Main executable code
-begin
-  # Create OpenAI client
-  client = Crig::Providers::OpenAI::Client.from_env
+  # Main executable code
+  # Main executable code - only run when file is executed directly
+  if PROGRAM_NAME == __FILE__
+    begin
+      # Create OpenAI client
+      client = Crig::Providers::OpenAI::Client.from_env
 
-  classify_agent = Crig::Examples::AgentOrchestrator.build_classify_agent(client)
-  content_agent = Crig::Examples::AgentOrchestrator.build_content_agent(client)
-  judge_agent = Crig::Examples::AgentOrchestrator.build_judge_agent(client)
+      classify_agent = Crig::Examples::AgentOrchestrator.build_classify_agent(client)
+      content_agent = Crig::Examples::AgentOrchestrator.build_content_agent(client)
+      judge_agent = Crig::Examples::AgentOrchestrator.build_judge_agent(client)
 
-  task_prompt = "
+      task_prompt = "
       Write a product description for a new eco-friendly water bottle.
       The target_audience is environmentally conscious millennials and key product features are: plastic-free, insulated, lifetime warranty
     "
 
-  result = Crig::Examples::AgentOrchestrator.run_orchestration(classify_agent, content_agent, judge_agent, task_prompt)
+      result = Crig::Examples::AgentOrchestrator.run_orchestration(classify_agent, content_agent, judge_agent, task_prompt)
 
-  puts "Results: #{result}"
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  exit 1
+      puts "Results: #{result}"
+    rescue ex
+      STDERR.puts "Error: #{ex.message}"
+      exit 1
+    end
+  end
 end

@@ -22,4 +22,3 @@ module Crig::Examples::DeepSeek::MultiTurnAgent
   def self.run_prompt(agent : Crig::Agent(M), prompt : String, max_turns : Int32 = 20) : String forall M
     agent.prompt(prompt).max_turns(max_turns).send
   end
-end

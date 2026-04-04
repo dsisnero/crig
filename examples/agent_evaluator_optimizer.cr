@@ -88,21 +88,24 @@ All operations should be O(1).
 
     response
   end
-end
 
-# Main executable code - always run for examples
-begin
-  # Create OpenAI client
-  client = Crig::Providers::OpenAI::Client.from_env
-  completions_client = client.completions_api
+  # Main executable code - always run for examples
+  # Main executable code - only run when file is executed directly
+  if PROGRAM_NAME == __FILE__
+    begin
+      # Create OpenAI client
+      client = Crig::Providers::OpenAI::Client.from_env
+      completions_client = client.completions_api
 
-  generator_agent = Crig::Examples::AgentEvaluatorOptimizer.build_generator_agent(completions_client)
-  evaluator_agent = Crig::Examples::AgentEvaluatorOptimizer.build_evaluator_agent(client)
+      generator_agent = Crig::Examples::AgentEvaluatorOptimizer.build_generator_agent(completions_client)
+      evaluator_agent = Crig::Examples::AgentEvaluatorOptimizer.build_evaluator_agent(client)
 
-  response = Crig::Examples::AgentEvaluatorOptimizer.run_evaluation_loop(generator_agent, evaluator_agent)
+      response = Crig::Examples::AgentEvaluatorOptimizer.run_evaluation_loop(generator_agent, evaluator_agent)
 
-  puts "Response: #{response}"
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  exit 1
+      puts "Response: #{response}"
+    rescue ex
+      STDERR.puts "Error: #{ex.message}"
+      exit 1
+    end
+  end
 end

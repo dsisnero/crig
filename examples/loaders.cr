@@ -5,6 +5,6 @@ module Crig::Examples::Loaders
     Crig::Loaders::FileLoader(String)
       .with_glob(pattern)
       .read
-      .to_aend
+      .to_a
   end
 end

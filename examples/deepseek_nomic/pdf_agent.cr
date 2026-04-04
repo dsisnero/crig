@@ -130,12 +130,11 @@ module Crig::Examples::DeepSeekNomicPdfAgent
       end
     end
   end
-end
-
-# Main executable code - always run for examples
-begin
-  # Check if DEEPSEEK_API_KEY is set
-  deepseek_api_key = ENV["DEEPSEEK_API_KEY"]?
+# Main executable code - only run when file is executed directly
+if PROGRAM_NAME == __FILE__
+  begin
+    # Check if DEEPSEEK_API_KEY is set
+    deepseek_api_key = ENV["DEEPSEEK_API_KEY"]?
 
   if deepseek_api_key
     puts "Setting up PDF RAG agent with DeepSeek + Nomic:"
@@ -246,8 +245,8 @@ rescue ex : Crig::Completion::CompletionError
   STDERR.puts "2. API quota exceeded"
   STDERR.puts "3. Network connectivity issues"
   exit 1
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  STDERR.puts ex.backtrace.join("\n") if ENV["CRYSTAL_DEBUG"]?
-  exit 1
-end
+  rescue ex
+    STDERR.puts "Error: #{ex.message}"
+    STDERR.puts ex.backtrace.join("\n") if ENV["CRYSTAL_DEBUG"]?
+    exit 1
+  end

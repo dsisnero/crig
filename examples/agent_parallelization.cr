@@ -81,24 +81,27 @@ module Crig::Examples::AgentParallelization
     # Run the pipeline
     pipeline.call(statement)
   end
-end
 
-# Main executable code
-begin
-  # Create OpenAI client
-  client = Crig::Providers::OpenAI::Client.from_env
+  # Main executable code
+  # Main executable code - only run when file is executed directly
+  if PROGRAM_NAME == __FILE__
+    begin
+      # Create OpenAI client
+      client = Crig::Providers::OpenAI::Client.from_env
 
-  manipulation_agent = Crig::Examples::AgentParallelization.build_manipulation_agent(client)
-  depression_agent = Crig::Examples::AgentParallelization.build_depression_agent(client)
-  intelligent_agent = Crig::Examples::AgentParallelization.build_intelligent_agent(client)
+      manipulation_agent = Crig::Examples::AgentParallelization.build_manipulation_agent(client)
+      depression_agent = Crig::Examples::AgentParallelization.build_depression_agent(client)
+      intelligent_agent = Crig::Examples::AgentParallelization.build_intelligent_agent(client)
 
-  statement = "I hate swimming. The water always gets in my eyes."
-  result = Crig::Examples::AgentParallelization.run_parallel_pipeline(
-    manipulation_agent, depression_agent, intelligent_agent, statement
-  )
+      statement = "I hate swimming. The water always gets in my eyes."
+      result = Crig::Examples::AgentParallelization.run_parallel_pipeline(
+        manipulation_agent, depression_agent, intelligent_agent, statement
+      )
 
-  puts "Pipeline run: #{result}"
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  exit 1
+      puts "Pipeline run: #{result}"
+    rescue ex
+      STDERR.puts "Error: #{ex.message}"
+      exit 1
+    end
+  end
 end

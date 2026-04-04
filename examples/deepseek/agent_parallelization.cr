@@ -41,10 +41,10 @@ module Crig::Examples::DeepSeek::AgentParallelization
 
     pipeline.call(statement)
   end
-end
-
 # Main execution
-begin
+# Main executable code - only run when file is executed directly
+if PROGRAM_NAME == __FILE__
+  begin
   client = Crig::Providers::DeepSeek::Client.from_env
 
   # Build agents
@@ -66,4 +66,4 @@ begin
 rescue ex
   STDERR.puts "Error: #{ex.message}"
   exit 1
-end
+  end

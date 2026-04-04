@@ -41,8 +41,6 @@ module Crig::Examples::DeepSeek::AgentPromptChaining
   def self.run_prompt(chain, prompt : String = default_prompt)
     chain.call(prompt)
   end
-end
-
 client = Crig::Providers::DeepSeek::Client.from_env
 rng = Crig::Examples::DeepSeek::AgentPromptChaining.build_rng_agent(client)
 adder = Crig::Examples::DeepSeek::AgentPromptChaining.build_adder_agent(client)
@@ -52,4 +50,3 @@ if error = result.error
   puts "error: #{error}"
 else
   puts "result: #{result.value}"
-end

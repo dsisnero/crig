@@ -132,10 +132,10 @@ module Crig::Examples::DeepSeekNomicVectorSearch
       "science fiction concepts",
     ]
   end
-end
-
 # Main executable code - always run for examples
-begin
+# Main executable code - only run when file is executed directly
+if PROGRAM_NAME == __FILE__
+  begin
   puts "Setting up vector search with DeepSeek + Nomic:"
   puts "  - Embeddings: nomic-embed-text (Ollama, free/local)"
   puts "  - Search: Pure vector similarity (no LLM needed)"
@@ -260,4 +260,4 @@ rescue ex
   STDERR.puts "Error: #{ex.message}"
   STDERR.puts ex.backtrace.join("\n") if ENV["CRYSTAL_DEBUG"]?
   exit 1
-end
+  end

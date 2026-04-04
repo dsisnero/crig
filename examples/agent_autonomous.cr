@@ -46,18 +46,21 @@ module Crig::Examples::AgentAutonomous
 
     number
   end
-end
 
-# Main executable code - always run for examples
-begin
-  # Create OpenAI client
-  client = Crig::Providers::OpenAI::Client.from_env
-  extractor = Crig::Examples::AgentAutonomous.build_extractor(client)
+  # Main executable code - always run for examples
+  # Main executable code - only run when file is executed directly
+  if PROGRAM_NAME == __FILE__
+    begin
+      # Create OpenAI client
+      client = Crig::Providers::OpenAI::Client.from_env
+      extractor = Crig::Examples::AgentAutonomous.build_extractor(client)
 
-  number = Crig::Examples::AgentAutonomous.run_autonomous_loop(extractor)
+      number = Crig::Examples::AgentAutonomous.run_autonomous_loop(extractor)
 
-  puts "Finished with number: #{number}"
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  exit 1
+      puts "Finished with number: #{number}"
+    rescue ex
+      STDERR.puts "Error: #{ex.message}"
+      exit 1
+    end
+  end
 end

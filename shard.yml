@@ -13,6 +13,16 @@ dependencies:
     github: shardlab/discordcr
   pdfbox:
     github: dsisnero/pdfbox
+  crig-sqlite:
+    github: dsisnero/crig-sqlite
+  sqlite3:
+    github: dsisnero/crystal-sqlite3
+    branch: master
+  pg:
+    github: will/crystal-pg
+    commit: c16d54814405e2b9748d9bddc3d8ce0d41d2190f
+  crig-postgres:
+    github: dsisnero/crig-postgres
 
 development_dependencies:
   ameba:

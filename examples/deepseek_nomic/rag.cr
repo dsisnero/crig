@@ -129,20 +129,14 @@ module Crig::Examples::DeepSeekNomicRag
       "Are these real words or fictional?",
     ]
   end
-end
-
-# Main executable code - always run for examples
 begin
-  # Check if DEEPSEEK_API_KEY is set
-  deepseek_api_key = ENV["DEEPSEEK_API_KEY"]?
-
-  if deepseek_api_key
-    puts "Setting up hybrid RAG pipeline with DeepSeek + Nomic:"
-    puts "  - Embeddings: nomic-embed-text (Ollama, free/local)"
-    puts "  - Completions: DeepSeek Chat (cloud API, ~10x cheaper than OpenAI)"
-    puts "  - Documents: 3 word definitions with multiple meanings each"
-    puts "  - Cost: ~$0.12 per 1M tokens (vs $2.63 for OpenAI)"
-    puts ""
+  puts "Setting up RAG with DeepSeek + Nomic:"
+  puts "  - Embeddings: nomic-embed-text (Ollama, free/local)"
+  puts "  - Completions: DeepSeek (low-cost cloud)"
+  puts "  - Task: RAG for word definitions"
+  puts "  - Method: Dynamic context retrieval"
+  puts "  - Cost: ~$0.01 per query (embeddings free, DeepSeek cheap)"
+  puts ""
 
     # Create Ollama client for embeddings (free/local)
     puts "1. Setting up Ollama for embeddings..."
@@ -217,8 +211,8 @@ rescue ex : Crig::Completion::CompletionError
   STDERR.puts "2. API quota exceeded"
   STDERR.puts "3. Network connectivity issues"
   exit 1
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  STDERR.puts ex.backtrace.join("\n") if ENV["CRYSTAL_DEBUG"]?
-  exit 1
-end
+  rescue ex
+    STDERR.puts "Error: #{ex.message}"
+    STDERR.puts ex.backtrace.join("\n") if ENV["CRYSTAL_DEBUG"]?
+    exit 1
+  end

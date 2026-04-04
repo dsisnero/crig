@@ -171,10 +171,10 @@ module Crig::Examples::DeepSeekAgentWithTools
       "Calculate the average of 10, 20, and 30",
     ]
   end
-end
-
 # Main executable code - always run for examples
-begin
+# Main executable code - only run when file is executed directly
+if PROGRAM_NAME == __FILE__
+  begin
   # Check if DEEPSEEK_API_KEY is set
   deepseek_api_key = ENV["DEEPSEEK_API_KEY"]?
 
@@ -276,4 +276,4 @@ rescue ex
   STDERR.puts "Error: #{ex.message}"
   STDERR.puts ex.backtrace.join("\n") if ENV["CRYSTAL_DEBUG"]?
   exit 1
-end
+  end

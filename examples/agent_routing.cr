@@ -49,21 +49,24 @@ module Crig::Examples::AgentRouting
     # Run the pipeline
     chain.call(statement)
   end
-end
 
-# Main executable code
-begin
-  # Create OpenAI client
-  client = Crig::Providers::OpenAI::CompletionsClient.from_env
+  # Main executable code
+  # Main executable code - only run when file is executed directly
+  if PROGRAM_NAME == __FILE__
+    begin
+      # Create OpenAI client
+      client = Crig::Providers::OpenAI::CompletionsClient.from_env
 
-  animal_agent = Crig::Examples::AgentRouting.build_animal_agent(client)
-  default_agent = Crig::Examples::AgentRouting.build_default_agent(client)
+      animal_agent = Crig::Examples::AgentRouting.build_animal_agent(client)
+      default_agent = Crig::Examples::AgentRouting.build_default_agent(client)
 
-  statement = "Sheep can self-medicate"
-  result = Crig::Examples::AgentRouting.run_routing_pipeline(animal_agent, default_agent, statement)
+      statement = "Sheep can self-medicate"
+      result = Crig::Examples::AgentRouting.run_routing_pipeline(animal_agent, default_agent, statement)
 
-  puts "Pipeline result: #{result.unwrap}"
-rescue ex
-  STDERR.puts "Error: #{ex.message}"
-  exit 1
+      puts "Pipeline result: #{result.unwrap}"
+    rescue ex
+      STDERR.puts "Error: #{ex.message}"
+      exit 1
+    end
+  end
 end

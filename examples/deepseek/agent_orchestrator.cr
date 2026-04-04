@@ -108,10 +108,10 @@ module Crig::Examples::DeepSeek::AgentOrchestrator
     task_results_json = results.to_json
     judge_agent.extract(task_results_json)
   end
-end
-
 # Main executable code - always run for examples
-begin
+# Main executable code - only run when file is executed directly
+if PROGRAM_NAME == __FILE__
+  begin
   # Create DeepSeek client
   client = Crig::Providers::DeepSeek::Client.from_env
 
@@ -130,4 +130,4 @@ begin
 rescue ex
   STDERR.puts "Error: #{ex.message}"
   exit 1
-end
+  end
