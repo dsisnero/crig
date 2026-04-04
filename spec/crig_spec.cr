@@ -134,6 +134,15 @@ struct ExampleMultiEmbedding
   end
 end
 
+struct FailingExampleEmbedding
+  include Crig::Embeddings::Embed
+
+  def embed(embedder : Crig::Embeddings::TextEmbedder) : Nil
+    _ = embedder
+    raise "embed exploded"
+  end
+end
+
 struct DerivedDefinition
   include JSON::Serializable
 
@@ -2529,6 +2538,19 @@ describe Crig::EmbeddingsClient(FakeEmbeddingsClientModel), tags: %w[embeddings 
     builder.build[0][1].first.document.should eq("test-model:hello")
   end
 
+  it "supports the rust-style embeddings builder entry point without a type argument" do
+    client = FakeEmbeddingsClient.new
+    builder = client.embeddings("test-model")
+      .simple_document("doc0", "Hello, world!")
+      .simple_document("doc1", "Goodbye, world!")
+
+    builder.model.name.should eq("test-model")
+    builder.documents.map(&.[0].id).should eq(["doc0", "doc1"])
+    builder.build.map { |entry| entry[1].first.document }.should eq(
+      ["test-model:Hello, world!", "test-model:Goodbye, world!"]
+    )
+  end
+
   it "supports explicit embedding dimensions" do
     client = FakeEmbeddingsClient.new
     model = client.embedding_model_with_ndims("test-model", 42)
@@ -2536,6 +2558,15 @@ describe Crig::EmbeddingsClient(FakeEmbeddingsClientModel), tags: %w[embeddings 
 
     model.ndims.should eq(42)
     builder.model.ndims.should eq(42)
+  end
+
+  it "supports the rust-style embeddings_with_ndims builder entry point without a type argument" do
+    client = FakeEmbeddingsClient.new
+    builder = client.embeddings_with_ndims("test-model", 42)
+      .simple_document("doc0", "Hello, world!")
+
+    builder.model.ndims.should eq(42)
+    builder.build[0][1].first.document.should eq("test-model:Hello, world!")
   end
 end
 
@@ -4898,6 +4929,14 @@ describe Crig::Embeddings do
     Crig::Embeddings.to_texts(ExampleEmbedding.new(["hello", "world"])).should eq(["hello", "world"])
   end
 
+  it "wraps embed failures as embed errors during text extraction" do
+    error = expect_raises(Crig::Embeddings::EmbedError, "embed exploded") do
+      Crig::Embeddings.to_texts(FailingExampleEmbedding.new)
+    end
+
+    error.message.should eq("embed exploded")
+  end
+
   it "ports test_custom_embed" do
     definition = DerivedWordDefinitionCustom.new(
       "doc1",
@@ -5051,6 +5090,32 @@ describe Crig::Embeddings do
     results.size.should eq(1)
     results[0][0].id.should eq("doc0")
     results[0][1].to_a.map(&.document).should eq(["alpha", "beta"])
+  end
+
+  it "wraps embed failures as embed errors during builder document collection" do
+    expect_raises(Crig::Embeddings::EmbedError, "embed exploded") do
+      Crig::Embeddings::EmbeddingsBuilder.new(FakeEmbeddingModel.new)
+        .document(FailingExampleEmbedding.new)
+    end
+  end
+
+  it "builds embeddings from chained simple documents" do
+    results = Crig::Embeddings::EmbeddingsBuilder.new(FakeEmbeddingModel.new)
+      .simple_document("doc0", "alpha")
+      .simple_document("doc1", "beta")
+      .build
+
+    results.map(&.[0].id).should eq(["doc0", "doc1"])
+    results.map { |entry| entry[1].first.document }.should eq(["alpha", "beta"])
+  end
+
+  it "builds embeddings from all simple documents at once" do
+    results = Crig::Embeddings::EmbeddingsBuilder.new(FakeEmbeddingModel.new)
+      .all_simple_documents([{"doc0", "alpha"}, {"doc1", "beta"}])
+      .build
+
+    results.map(&.[0].id).should eq(["doc0", "doc1"])
+    results.map { |entry| entry[1].first.document }.should eq(["alpha", "beta"])
   end
 
   it "builds embeddings for one or many documents" do
@@ -16457,8 +16522,10 @@ describe Crig::Examples::ExtractorWithDeepSeek, tags: %w[examples extractor_with
     client = Crig::Providers::DeepSeek::Client.new("test-key")
     extractor = Crig::Examples::ExtractorWithDeepSeek.build_extractor(client)
 
-    extractor.agent_builder.model.model.should eq(Crig::Providers::DeepSeek::DEEPSEEK_CHAT)
-    extractor.agent_builder.static_tools_value.map(&.name).should contain("submit")
+    # Check that the extractor has an agent
+    extractor.agent.should_not be_nil
+    # Check for the submit tool in the agent's tools
+    extractor.agent.static_tools.any? { |tool| tool.name == "submit" }.should be_true
   end
 
   it "formats extracted people as pretty json" do

@@ -16,6 +16,12 @@ module Crig
         array = Array({T, Array(String)}).new(1)
         array << {document, texts}
         EmbeddingsBuilder(M, T).new(@model, array)
+      rescue error : Exception
+        raise error.is_a?(Crig::Embeddings::EmbedError) ? error : Crig::Embeddings::EmbedError.new(error)
+      end
+
+      def simple_document(id : String, text : String) : EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)
+        document(Crig::Embeddings::SimpleDocument.new(id, text))
       end
 
       # Add multiple documents to be embedded.
@@ -27,6 +33,18 @@ module Crig
             builder = document(document)
           else
             builder = builder.document(document)
+          end
+        end
+        builder || raise ArgumentError.new("documents cannot be empty")
+      end
+
+      def all_simple_documents(documents : Enumerable(Tuple(String, String))) : EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)
+        builder = nil
+        documents.each do |id, text|
+          if builder.nil?
+            builder = simple_document(id, text)
+          else
+            builder = builder.simple_document(id, text)
           end
         end
         builder || raise ArgumentError.new("documents cannot be empty")
@@ -54,11 +72,29 @@ module Crig
       def document(document : T) : self
         texts = Crig::Embeddings.to_texts(document)
         self.class.new(@model, @documents + [{document, texts}])
+      rescue error : Exception
+        raise error.is_a?(Crig::Embeddings::EmbedError) ? error : Crig::Embeddings::EmbedError.new(error)
+      end
+
+      def simple_document(id : String, text : String) : self
+        {% if T == Crig::Embeddings::SimpleDocument %}
+          document(Crig::Embeddings::SimpleDocument.new(id, text))
+        {% else %}
+          {% raise "simple_document is only available for EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)" %}
+        {% end %}
       end
 
       # Add multiple documents to be embedded.
       def documents(documents : Enumerable(T)) : self
         documents.reduce(self) { |builder, document| builder.document(document) }
+      end
+
+      def all_simple_documents(documents : Enumerable(Tuple(String, String))) : self
+        {% if T == Crig::Embeddings::SimpleDocument %}
+          documents.reduce(self) { |builder, (id, text)| builder.simple_document(id, text) }
+        {% else %}
+          {% raise "all_simple_documents is only available for EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)" %}
+        {% end %}
       end
 
       def build : Array({T, Crig::OneOrMany(Embedding)})

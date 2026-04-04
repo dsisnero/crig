@@ -32,6 +32,10 @@ module Crig
       abstract def embed(embedder : TextEmbedder) : Nil
     end
 
+    private def self.wrap_embed_error(error : Exception) : EmbedError
+      error.is_a?(EmbedError) ? error : EmbedError.new(error)
+    end
+
     macro derive_embed(type)
       {% embed_methods = type.methods.select { |method| method.annotation(Crig::Embeddings::EmbedField) && method.args.empty? } %}
 
@@ -54,6 +58,8 @@ module Crig
 
     def self.append_embedded(embedder : TextEmbedder, item : Embed) : Nil
       item.embed(embedder)
+    rescue error : Exception
+      raise wrap_embed_error(error)
     end
 
     def self.append_embedded(embedder : TextEmbedder, item : String) : Nil
@@ -74,10 +80,14 @@ module Crig
 
     def self.append_embedded(embedder : TextEmbedder, item : Tuple) : Nil
       item.each { |entry| append_embedded(embedder, entry) }
+    rescue error : Exception
+      raise wrap_embed_error(error)
     end
 
     def self.append_embedded(embedder : TextEmbedder, item : Enumerable) : Nil
       item.each { |entry| append_embedded(embedder, entry) }
+    rescue error : Exception
+      raise wrap_embed_error(error)
     end
 
     def self.append_embedded(embedder : TextEmbedder, item : ToolSchema) : Nil
@@ -88,13 +98,15 @@ module Crig
       embedder = TextEmbedder.new
       item.embed(embedder)
       embedder.texts.dup
+    rescue error : Exception
+      raise wrap_embed_error(error)
     end
 
     def self.to_texts(item : String) : Array(String)
       [item]
     end
 
-    def self.to_texts(item : Number | Bool | Char) : Array(String)
+    def self.to_texts(item : Int32 | Int64 | Float32 | Float64 | Bool | Char) : Array(String)
       [item.to_s]
     end
 
@@ -112,14 +124,32 @@ module Crig
 
     def self.to_texts(items : Tuple) : Array(String)
       items.to_a.flat_map { |item| to_texts(item) }
+    rescue error : Exception
+      raise wrap_embed_error(error)
     end
 
     def self.to_texts(items : Enumerable) : Array(String)
       items.flat_map { |item| to_texts(item) }
+    rescue error : Exception
+      raise wrap_embed_error(error)
     end
 
     def self.to_texts(item : ToolSchema) : Array(String)
       item.embedding_docs.dup
+    end
+
+    struct SimpleDocument
+      include Crig::Embeddings::Embed
+
+      getter id : String
+      getter text : String
+
+      def initialize(@id : String, @text : String)
+      end
+
+      def embed(embedder : TextEmbedder) : Nil
+        embedder.embed(text)
+      end
     end
   end
 
@@ -131,6 +161,7 @@ module Crig
   alias EmbeddingModel = Embeddings::EmbeddingModel
   alias EmbeddingModelDyn = Embeddings::EmbeddingModelDyn
   alias EmbedField = Embeddings::EmbedField
+  alias SimpleDocument = Embeddings::SimpleDocument
   alias ImageEmbeddingModel = Embeddings::ImageEmbeddingModel
   alias TextEmbedder = Embeddings::TextEmbedder
   alias ToolSchema = Embeddings::ToolSchema
