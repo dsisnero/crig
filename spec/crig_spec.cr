@@ -7,14 +7,17 @@ require "../examples/agent_with_cohere"
 require "../examples/agent_with_galadriel"
 require "../examples/agent_with_grok"
 require "../examples/agent_with_groq"
+require "../examples/agent_with_huggingface"
 require "../examples/agent_with_hyperbolic"
 require "../examples/agent_with_moonshot"
 require "../examples/agent_with_ollama"
 require "../examples/agent_with_openrouter"
 require "../examples/agent_with_tools"
+require "../examples/agent_with_tools_otel"
 require "../examples/agent_with_default_max_turns"
 require "../examples/agent_with_context"
 require "../examples/agent_with_deepseek"
+require "../examples/agent_with_echochambers"
 require "../examples/agent_with_together"
 require "../examples/agent_with_loaders"
 require "../examples/agent_with_mira"
@@ -25,38 +28,81 @@ require "../examples/extractor_with_deepseek"
 require "../examples/gemini_agent"
 require "../examples/gemini_embeddings"
 require "../examples/gemini_extractor"
+require "../examples/gemini_deep_research"
+require "../examples/gemini_interactions_api"
 require "../examples/gemini_streaming_with_tools"
 require "../examples/gemini_structured_output"
+require "../examples/gemini_extractor_with_rag"
+require "../examples/gemini_video_understanding"
+require "../examples/multi_turn_streaming_gemini"
 require "../examples/groq_streaming_reasoning"
 require "../examples/hyperbolic_image_generation"
+require "../examples/hyperbolic_audio_generation"
 require "../examples/huggingface_image_generation"
+require "../examples/huggingface_subproviders"
 require "../examples/huggingface_streaming"
 require "../examples/image"
+require "../examples/image_ollama"
 require "../examples/loaders"
 require "../examples/multi_extract"
 require "../examples/multi_turn_agent"
 require "../examples/multi_turn_agent_extended"
+require "../examples/multi_turn_streaming"
 require "../examples/anthropic_plaintext_document"
 require "../examples/openai_image_generation"
 require "../examples/rag"
+require "../examples/rag_dynamic_tools"
 require "../examples/rmcp"
+require "../examples/request_hook"
+require "../examples/reqwest_middleware"
 require "../examples/simple_model"
+require "../examples/together_embeddings"
+require "../examples/together_streaming"
+require "../examples/together_streaming_with_tools"
+require "../examples/transcription"
 require "../examples/anthropic_agent"
 require "../examples/anthropic_structured_output"
 require "../examples/anthropic_streaming"
 require "../examples/anthropic_streaming_with_tools"
 require "../examples/anthropic_think_tool"
 require "../examples/anthropic_think_tool_with_other_tools"
+require "../examples/calculator_chatbot"
 require "../examples/cohere_streaming"
 require "../examples/cohere_streaming_with_tools"
+require "../examples/complex_agentic_loop_claude"
+require "../examples/custom_vector_store"
 require "../examples/deepseek_streaming"
+require "../examples/debate"
+require "../examples/discord_bot"
 require "../examples/gemini_streaming"
 require "../examples/vector_search"
+require "../examples/vector_search_cohere"
+require "../examples/vector_search_ollama"
+require "../examples/voyageai_embeddings"
 require "../examples/ollama_streaming"
+require "../examples/ollama_streaming_pause_control"
+require "../examples/ollama_streaming_with_tools"
 require "../examples/ollama_structured_output"
 require "../examples/openai_audio_generation"
+require "../examples/openai_agent_completions_api"
+require "../examples/openai_agent_completions_api_otel"
 require "../examples/openai_structured_output"
 require "../examples/openai_streaming"
+require "../examples/openai_streaming_with_tools"
+require "../examples/openai_streaming_with_tools_otel"
+require "../examples/openrouter_multimodal"
+require "../examples/openrouter_provider_selection"
+require "../examples/openrouter_streaming_with_tools"
+require "../examples/perplexity_agent"
+require "../examples/pdf_agent"
+require "../examples/reasoning_loop"
+require "../examples/reasoning_roundtrip_test"
+require "../examples/xai_streaming"
+require "../examples/mistral_embeddings"
+require "../examples/multi_agent"
+require "../examples/rag_ollama"
+require "../examples/rag_dynamic_tools_multi_turn"
+require "../examples/sentiment_classifier"
 
 def run_crig_probe(source : String) : JSON::Any
   probe_id = "#{Process.pid}_#{Time.utc.to_unix_ms}_#{Random.rand(1_000_000)}"
@@ -1675,6 +1721,99 @@ class FakeDeltaStreamingModel
   end
 
   def completion_request(prompt : Crig::Completion::Message) : Crig::Completion::Request::CompletionRequestBuilder
+    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
+  end
+end
+
+class FakeReasoningRoundtripModel
+  include Crig::Completion::CompletionModel
+
+  getter requests = [] of Crig::Completion::Request::CompletionRequest
+
+  def completion(request : Crig::Completion::Request::CompletionRequest)
+    @requests << request
+    Crig::Completion::CompletionResponse(String).new(
+      Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+        Crig::Completion::AssistantContent.text("unused")
+      ),
+      Crig::Completion::Usage.new,
+      "raw",
+    )
+  end
+
+  def stream(request : Crig::Completion::Request::CompletionRequest)
+    @requests << request
+    turn = @requests.size
+    raw_choices = if turn == 1
+                    [
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).reasoning_delta("rs_turn_1", "step"),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).reasoning_delta("rs_turn_1", " one"),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).message("First answer."),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).message_id("msg_turn_1"),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).final_response(
+                        Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 7))
+                      ),
+                    ]
+                  else
+                    [
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).reasoning(
+                        "rs_turn_2",
+                        Crig::Completion::ReasoningContent.summary("follow-up reasoning"),
+                      ),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).message("Second answer with context."),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).message_id("msg_turn_2"),
+                      Crig::RawStreamingChoice(Crig::FinalCompletionResponse).final_response(
+                        Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 9))
+                      ),
+                    ]
+                  end
+
+    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).stream_raw_choices(raw_choices)
+  end
+
+  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
+    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
+  end
+end
+
+class FakeReasoningLoopModel
+  include Crig::Completion::CompletionModel
+
+  getter requests = [] of Crig::Completion::Request::CompletionRequest
+
+  def completion(request : Crig::Completion::Request::CompletionRequest)
+    @requests << request
+    submit_tool = request.tools.find { |tool| tool.name == "submit" }
+    choice = if submit_tool
+               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+                 Crig::Completion::AssistantContent.tool_call(
+                   "tool_call_submit",
+                   "submit",
+                   JSON.parse(%({"steps":["Compute 15 + 25","Compute 100 - 50","Divide the products"]})),
+                 )
+               )
+             else
+               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+                 Crig::Completion::AssistantContent.text("computed result")
+               )
+             end
+
+    Crig::Completion::CompletionResponse(String).new(
+      choice,
+      Crig::Completion::Usage.new(output_tokens: 4),
+      "completion:reasoning-loop",
+    )
+  end
+
+  def stream(request : Crig::Completion::Request::CompletionRequest)
+    @requests << request
+    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).stream(
+      ["streamed"],
+      Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 1)),
+    )
+  end
+
+  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
     Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
   end
 end
@@ -8494,6 +8633,93 @@ describe Crig::ToolSetBuilder do
     toolset.contains("echo").should be_true
     toolset.contains("embedded-echo").should be_true
   end
+
+  it "keeps multiple embedding-backed tools addressable through the builder" do
+    result = run_crig_probe <<-'CRYSTAL'
+      require "./src/crig"
+
+      struct OperationArgs
+        include JSON::Serializable
+
+        getter x : Int32
+        getter y : Int32
+
+        def initialize(@x : Int32, @y : Int32)
+        end
+      end
+
+      module ArithmeticTool
+        def self.parameters(label : String) : JSON::Any
+          JSON.parse(%({"type":"object","properties":{"x":{"type":"number"},"y":{"type":"number"}},"description":"#{label}"}))
+        end
+      end
+
+      struct Add
+        include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
+        def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
+        def name : String; "add"; end
+        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("add", "Add x and y together", ArithmeticTool.parameters("add")); end
+        def call_typed(args : OperationArgs) : Int32; args.x + args.y; end
+        def embedding_docs : Array(String); ["Add x and y together"]; end
+        def typed_context : Nil; nil; end
+      end
+
+      struct Subtract
+        include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
+        def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
+        def name : String; "subtract"; end
+        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("subtract", "Subtract y from x", ArithmeticTool.parameters("subtract")); end
+        def call_typed(args : OperationArgs) : Int32; args.x - args.y; end
+        def embedding_docs : Array(String); ["Subtract y from x"]; end
+        def typed_context : Nil; nil; end
+      end
+
+      struct Multiply
+        include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
+        def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
+        def name : String; "multiply"; end
+        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("multiply", "Multiply x and y", ArithmeticTool.parameters("multiply")); end
+        def call_typed(args : OperationArgs) : Int32; args.x * args.y; end
+        def embedding_docs : Array(String); ["Multiply x and y"]; end
+        def typed_context : Nil; nil; end
+      end
+
+      struct Divide
+        include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
+        def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
+        def name : String; "divide"; end
+        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("divide", "Divide x by y", ArithmeticTool.parameters("divide")); end
+        def call_typed(args : OperationArgs) : Int32; args.x // args.y; end
+        def embedding_docs : Array(String); ["Divide x by y"]; end
+        def typed_context : Nil; nil; end
+      end
+
+      toolset = Crig::ToolSet.builder
+        .dynamic_tool(Add.new)
+        .dynamic_tool(Subtract.new)
+        .dynamic_tool(Multiply.new)
+        .dynamic_tool(Divide.new)
+        .build
+
+      puts(JSON.build do |json|
+        json.object do
+          json.field "names" do
+            json.array do
+              toolset.tools.keys.sort.each { |name| json.string(name) }
+            end
+          end
+          json.field "schemas" do
+            json.array do
+              toolset.schemas.map(&.name).sort.each { |name| json.string(name) }
+            end
+          end
+        end
+      end)
+    CRYSTAL
+
+    result["names"].as_a.map(&.as_s).should eq(%w[add divide multiply subtract])
+    result["schemas"].as_a.map(&.as_s).should eq(%w[add divide multiply subtract])
+  end
 end
 
 describe Crig::ToolType do
@@ -12037,8 +12263,19 @@ describe Crig::Providers::Anthropic::Client do
       .api_key("Foo")
       .build
 
-    client.http_client.should be(http_client)
+    client.http_client.as(HTTP::Client).should be(http_client)
     client.api_key.token.should eq("Foo")
+  end
+
+  it "accepts a custom HttpClientExt transport on the builder" do
+    http_client = Crig::HttpClient::MockStreamingClient.new(Bytes["{}".bytes[0]])
+    client = Crig::Providers::Anthropic::Client.builder
+      .http_client(http_client)
+      .api_key("Bar")
+      .build
+
+    client.http_client.should be_a(Crig::Providers::Anthropic::Client::WrappedTransport)
+    client.api_key.token.should eq("Bar")
   end
 
   it "emits anthropic auth and version headers from the built client" do
@@ -15407,6 +15644,27 @@ describe Crig::Examples::AgentWithTools, tags: %w[examples agent_with_tools] do
   end
 end
 
+describe Crig::Examples::AgentWithToolsOtel, tags: %w[examples agent_with_tools_otel] do
+  it "builds the upstream tools agent helper with telemetry span availability" do
+    client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
+    agent = Crig::Examples::AgentWithToolsOtel.build_agent(client)
+
+    agent.preamble.should eq(Crig::Examples::AgentWithTools::PREAMBLE)
+    agent.static_tools.map(&.name).sort.should eq(%w[add subtract])
+    Crig::Examples::AgentWithToolsOtel.current_span.is_disabled.should be_true
+  end
+
+  it "runs the upstream calculator prompt helper" do
+    model = FakeCompletionClientModel.new("gpt-4o")
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+      .tool(Crig::Examples::AgentWithTools::Adder.new)
+      .tool(Crig::Examples::AgentWithTools::Subtract.new)
+      .build
+
+    Crig::Examples::AgentWithToolsOtel.run_prompt(agent).should eq("completion:gpt-4o")
+  end
+end
+
 describe Crig::Examples::AgentWithAgentTool, tags: %w[examples agent_with_agent_tool] do
   it "builds the upstream nested calculator agent helper" do
     client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
@@ -15631,6 +15889,56 @@ describe Crig::Examples::OpenAIStreaming, tags: %w[examples openai_streaming] do
   end
 end
 
+describe Crig::Examples::OpenAIStreamingWithTools, tags: %w[examples openai_streaming_with_tools] do
+  it "builds the upstream openai streaming-with-tools agent helper" do
+    client = Crig::Providers::OpenAI::Client.new("test-key")
+    agent = Crig::Examples::OpenAIStreamingWithTools.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4O)
+    agent.preamble.should eq(Crig::Examples::OpenAIStreamingWithTools::PREAMBLE)
+    agent.max_tokens.should eq(1024_i64)
+    agent.static_tools.map(&.name).should eq(%w[add subtract])
+  end
+
+  it "streams openai tool prompts through a provided agent" do
+    model = FakeCompletionClientModel.new("gpt-4o")
+    response = Crig::Examples::OpenAIStreamingWithTools.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+        .tools(Crig::Examples::AgentWithTools.tools)
+        .build
+    )
+    final_response = Crig::Examples::OpenAIStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:gpt-4o")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OpenAIStreamingWithTools::PROMPT)
+  end
+end
+
+describe Crig::Examples::OpenAIStreamingWithToolsOtel, tags: %w[examples openai_streaming_with_tools_otel] do
+  it "builds the upstream streaming tools agent helper with telemetry span availability" do
+    client = Crig::Providers::OpenAI::Client.new("test-key")
+    agent = Crig::Examples::OpenAIStreamingWithToolsOtel.build_agent(client)
+
+    agent.name.should eq("Bob")
+    agent.preamble.should eq(Crig::Examples::OpenAIStreamingWithTools::PREAMBLE)
+    agent.static_tools.map(&.name).sort.should eq(%w[add subtract])
+    Crig::Examples::OpenAIStreamingWithToolsOtel.current_span.is_disabled.should be_true
+  end
+
+  it "streams the upstream tools prompt through the shared stdout helper" do
+    model = FakeCompletionClientModel.new("gpt-4o")
+    builder = Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+    Crig::Examples::AgentWithTools.tools.each do |tool|
+      builder = builder.tool(tool)
+    end
+    agent = builder.build
+    response = Crig::Examples::OpenAIStreamingWithToolsOtel.run_stream(agent)
+    final_response = Crig::Examples::OpenAIStreamingWithToolsOtel.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:gpt-4o")
+  end
+end
+
 describe Crig::Examples::OllamaStreaming, tags: %w[examples ollama_streaming] do
   it "builds the upstream ollama streaming client and agent helpers" do
     client = Crig::Examples::OllamaStreaming.build_client("http://127.0.0.1:11434")
@@ -15651,6 +15959,73 @@ describe Crig::Examples::OllamaStreaming, tags: %w[examples ollama_streaming] do
 
     final_response.response.should eq("chunk:llama3.2")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OllamaStreaming::PROMPT)
+  end
+end
+
+describe Crig::Examples::OllamaStreamingWithTools, tags: %w[examples ollama_streaming_with_tools] do
+  it "builds the upstream ollama streaming-with-tools agent helper" do
+    client = Crig::Examples::OllamaStreamingWithTools.build_client("http://127.0.0.1:11434")
+    agent = Crig::Examples::OllamaStreamingWithTools.build_agent(client)
+
+    client.base_url.should eq("http://127.0.0.1:11434")
+    agent.model.model.should eq(Crig::Examples::OllamaStreamingWithTools::MODEL)
+    agent.preamble.should eq(Crig::Examples::OllamaStreamingWithTools::PREAMBLE)
+    agent.max_tokens.should eq(1024_i64)
+    agent.static_tools.map(&.name).should eq(%w[add subtract])
+  end
+
+  it "streams ollama tool prompts through a provided agent" do
+    model = FakeCompletionClientModel.new("llama3.2")
+    response = Crig::Examples::OllamaStreamingWithTools.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+        .tools(Crig::Examples::AgentWithTools.tools)
+        .build
+    )
+    final_response = Crig::Examples::OllamaStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:llama3.2")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OllamaStreamingWithTools::PROMPT)
+  end
+end
+
+describe Crig::Examples::OllamaStreamingPauseControl, tags: %w[examples ollama_streaming_pause_control] do
+  it "builds the upstream ollama pause-control client and model helpers" do
+    client = Crig::Examples::OllamaStreamingPauseControl.build_client("http://127.0.0.1:11434")
+    model = Crig::Examples::OllamaStreamingPauseControl.build_model(client)
+
+    client.base_url.should eq("http://127.0.0.1:11434")
+    model.model.should eq(Crig::Examples::OllamaStreamingPauseControl::MODEL)
+  end
+
+  it "builds the upstream pause-control completion request helper" do
+    model = FakeCompletionClientModel.new("gemma3:4b")
+    request = Crig::Examples::OllamaStreamingPauseControl.build_request(model)
+
+    request.chat_history.last.rag_text.should eq(Crig::Examples::OllamaStreamingPauseControl::PROMPT)
+    request.preamble.should eq(Crig::Examples::OllamaStreamingPauseControl::PREAMBLE)
+    request.temperature.should eq(0.7)
+  end
+
+  it "processes streaming content with pause and resume control" do
+    stream = Crig::StreamingCompletionResponse(Crig::Completion::CompletionResponse(String)).stream(
+      [
+        Crig::RawStreamingChoice(Crig::Completion::CompletionResponse(String)).message("part-1"),
+        Crig::RawStreamingChoice(Crig::Completion::CompletionResponse(String)).message("part-2"),
+        Crig::RawStreamingChoice(Crig::Completion::CompletionResponse(String)).final_response(
+          Crig::Completion::CompletionResponse(String).new(
+            Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text("done")),
+            Crig::Completion::Usage.new(total_tokens: 12),
+            "raw",
+          )
+        ),
+      ]
+    )
+
+    stats = Crig::Examples::OllamaStreamingPauseControl.process_stream(stream, IO::Memory.new, pause_every: 1)
+
+    stats.text.should eq("part-1part-2")
+    stats.chunk_count.should eq(2)
+    stats.usage.not_nil!.total_tokens.should eq(12)
   end
 end
 
@@ -15917,6 +16292,27 @@ describe Crig::Examples::GeminiStreamingWithTools, tags: %w[examples gemini_stre
   end
 end
 
+describe Crig::Examples::MultiTurnStreamingGemini, tags: %w[examples multi_turn_streaming_gemini] do
+  it "builds the upstream gemini multi-turn streaming agent helper" do
+    client = Crig::Providers::Gemini::Client.new("test-key")
+    agent = Crig::Examples::MultiTurnStreamingGemini.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::Gemini::GEMINI_2_5_FLASH)
+    agent.preamble.should eq(Crig::Examples::MultiTurnStreamingGemini::PREAMBLE)
+    agent.static_tools.map(&.name).should eq(%w[add subtract multiply divide])
+  end
+
+  it "streams prompts through the gemini multi-turn helper" do
+    model = FakeCompletionClientModel.new("gemini-2.5-flash")
+    result = Crig::Examples::MultiTurnStreamingGemini.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    )
+    final_response = Crig::Examples::MultiTurnStreamingGemini.stream_to_stdout(result, IO::Memory.new)
+
+    final_response.response.should eq("chunk:gemini-2.5-flash")
+  end
+end
+
 describe Crig::Examples::GeminiAgent, tags: %w[examples gemini_agent] do
   it "builds the upstream gemini agent helper" do
     client = Crig::Providers::Gemini::Client.new("test-key")
@@ -15974,6 +16370,247 @@ describe Crig::Examples::GroqStreamingReasoning, tags: %w[examples groq_streamin
 
     final_response.response.should eq("chunk:deepseek-r1-distill")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::GroqStreamingReasoning::PROMPT)
+  end
+end
+
+describe Crig::Examples::OpenRouterStreamingWithTools, tags: %w[examples openrouter_streaming_with_tools] do
+  it "builds the upstream openrouter streaming-with-tools agent helper" do
+    client = Crig::Providers::OpenRouter::Client.new("test-key")
+    agent = Crig::Examples::OpenRouterStreamingWithTools.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::OpenRouter::GEMINI_FLASH_2_0)
+    agent.preamble.should eq(Crig::Examples::OpenRouterStreamingWithTools::PREAMBLE)
+    agent.max_tokens.should eq(1024_i64)
+    agent.static_tools.map(&.name).should eq(%w[add subtract])
+  end
+
+  it "streams openrouter tool prompts through a provided agent" do
+    model = FakeCompletionClientModel.new("google/gemini-2.0-flash-001")
+    response = Crig::Examples::OpenRouterStreamingWithTools.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+        .tools(Crig::Examples::AgentWithTools.tools)
+        .build
+    )
+    final_response = Crig::Examples::OpenRouterStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:google/gemini-2.0-flash-001")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OpenRouterStreamingWithTools::PROMPT)
+  end
+end
+
+describe Crig::Examples::OpenRouterMultimodal, tags: %w[examples openrouter_multimodal] do
+  it "builds the upstream openrouter multimodal agent helper" do
+    client = Crig::Providers::OpenRouter::Client.new("test-key")
+    agent = Crig::Examples::OpenRouterMultimodal.build_agent(
+      client,
+      "You are a helpful assistant that describes images in detail."
+    )
+
+    agent.model.model.should eq(Crig::Examples::OpenRouterMultimodal::VISION_MODEL)
+    agent.preamble.should eq("You are a helpful assistant that describes images in detail.")
+  end
+
+  it "builds the upstream image, pdf, and mixed multimodal messages" do
+    image = Crig::Examples::OpenRouterMultimodal.image_message
+    pdf = Crig::Examples::OpenRouterMultimodal.pdf_message
+    mixed = Crig::Examples::OpenRouterMultimodal.mixed_message
+
+    image.content.to_a.size.should eq(2)
+    image_image = image.content.to_a.last.as(Crig::Completion::UserContent).image.not_nil!
+    image_image.media_type.should eq(Crig::Completion::ImageMediaType::JPEG)
+    image_image.data.try_into_inner.should eq(Crig::Examples::OpenRouterMultimodal::IMAGE_URL)
+
+    pdf.content.to_a.size.should eq(2)
+    pdf_document = pdf.content.to_a.last.as(Crig::Completion::UserContent).document.not_nil!
+    pdf_document.media_type.should eq(Crig::Completion::DocumentMediaType::PDF)
+    pdf_document.data.try_into_inner.should eq(Crig::Examples::OpenRouterMultimodal::PDF_URL)
+
+    mixed.content.to_a.size.should eq(4)
+    mixed_image = mixed.content.to_a[2].as(Crig::Completion::UserContent).image.not_nil!
+    mixed_image.media_type.should eq(Crig::Completion::ImageMediaType::PNG)
+  end
+
+  it "prompts a provided agent with multimodal messages" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("openrouter-vision")).build
+
+    Crig::Examples::OpenRouterMultimodal.run_prompt(agent, Crig::Examples::OpenRouterMultimodal.image_message)
+      .should eq("completion:openrouter-vision")
+  end
+end
+
+describe Crig::Examples::OpenRouterProviderSelection, tags: %w[examples openrouter_provider_selection] do
+  it "builds the upstream provider preference helpers" do
+    Crig::Examples::OpenRouterProviderSelection.order_preferences.to_json_value["provider"]["order"].as_a.map(&.as_s)
+      .should eq(["DeepInfra", "DeepSeek", "Chutes"])
+    Crig::Examples::OpenRouterProviderSelection.allowlist_preferences.to_json_value["provider"]["only"].as_a.map(&.as_s)
+      .should eq(["DeepInfra", "AtlasCloud"])
+    Crig::Examples::OpenRouterProviderSelection.blocklist_preferences.to_json_value["provider"]["ignore"].as_a.map(&.as_s)
+      .should eq(["Google Vertex"])
+    Crig::Examples::OpenRouterProviderSelection.latency_preferences.to_json_value["provider"]["sort"].as_s.should eq("latency")
+    Crig::Examples::OpenRouterProviderSelection.price_with_throughput_preferences
+      .to_json_value["provider"]["sort"].as_s.should eq("price")
+    Crig::Examples::OpenRouterProviderSelection.require_parameters_preferences
+      .to_json_value["provider"]["require_parameters"].as_bool.should be_true
+    Crig::Examples::OpenRouterProviderSelection.zdr_preferences.to_json_value["provider"]["zdr"].as_bool.should be_true
+    Crig::Examples::OpenRouterProviderSelection.quantization_preferences
+      .to_json_value["provider"]["quantizations"].as_a.map(&.as_s).should eq(["fp8"])
+    max_price = Crig::Examples::OpenRouterProviderSelection.max_price_preferences.to_json_value["provider"]["max_price"]
+    max_price["prompt"].as_f.should eq(0.30)
+    max_price["completion"].as_f.should eq(0.50)
+  end
+
+  it "builds the combined routing params and agent helper" do
+    client = Crig::Providers::OpenRouter::Client.new("test-key")
+    params = Crig::Examples::OpenRouterProviderSelection.combined_params
+    agent = Crig::Examples::OpenRouterProviderSelection.build_agent(client, params)
+
+    agent.model.model.should eq(Crig::Examples::OpenRouterProviderSelection::DEEPSEEK_V3_2)
+    agent.additional_params.should eq(params)
+  end
+
+  it "runs the provider-selection prompt through a provided agent" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-v3.2")).build
+
+    Crig::Examples::OpenRouterProviderSelection.run_prompt(agent, "Say hello in one sentence.")
+      .should eq("completion:deepseek-v3.2")
+  end
+end
+
+describe Crig::Examples::ReasoningLoop, tags: %w[examples reasoning_loop] do
+  it "builds the upstream anthropic reasoning loop helper" do
+    client = Crig::Providers::Anthropic::Client.new("test-key")
+    agent = Crig::Examples::ReasoningLoop.build_agent(client)
+
+    agent.chain_of_thought_extractor.agent.preamble.not_nil!.includes?(Crig::Examples::ReasoningLoop::CHAIN_OF_THOUGHT_PROMPT.strip).should be_true
+    agent.executor.preamble.should eq(Crig::Examples::ReasoningLoop::EXECUTOR_PREAMBLE)
+    agent.executor.static_tools.map(&.name).should eq(%w[add subtract multiply divide])
+  end
+
+  it "extracts steps and runs the executor with history" do
+    model = FakeReasoningLoopModel.new
+    reasoning_agent = Crig::Examples::ReasoningLoop::ReasoningAgent(FakeReasoningLoopModel).new(
+      Crig::ExtractorBuilder(FakeReasoningLoopModel, Crig::Examples::ReasoningLoop::ChainOfThoughtSteps)
+        .new(model)
+        .build,
+      Crig::AgentBuilder(FakeReasoningLoopModel).new(model)
+        .tools(Crig::Examples::AgentWithDefaultMaxTurns::TOOLS)
+        .build,
+    )
+
+    result = Crig::Examples::ReasoningLoop.run_prompt(reasoning_agent)
+
+    result.should eq("computed result")
+    model.requests.first.tools.map(&.name).should contain("submit")
+    model.requests.last.chat_history.first.rag_text.should eq(Crig::Examples::ReasoningLoop::PROMPT)
+    model.requests.last.chat_history.last.content.to_a.first.as(Crig::Completion::UserContent).text.not_nil!.text.should contain("Step 1: Compute 15 + 25")
+  end
+end
+
+describe Crig::Examples::ReasoningRoundtripTest, tags: %w[examples reasoning_roundtrip_test] do
+  it "builds the provider helpers with reasoning params" do
+    anthropic = Crig::Examples::ReasoningRoundtripTest.build_anthropic(Crig::Providers::Anthropic::Client.new("test-key"))
+    gemini = Crig::Examples::ReasoningRoundtripTest.build_gemini(Crig::Providers::Gemini::Client.new("test-key"))
+    openai = Crig::Examples::ReasoningRoundtripTest.build_openai(Crig::Providers::OpenAI::Client.new("test-key"))
+    openrouter = Crig::Examples::ReasoningRoundtripTest.build_openrouter(Crig::Providers::OpenRouter::Client.new("test-key"))
+
+    anthropic.additional_params.not_nil!["thinking"]["budget_tokens"].as_i.should eq(2048)
+    gemini.additional_params.not_nil!["generationConfig"]["thinkingConfig"]["includeThoughts"].as_bool.should be_true
+    openai.additional_params.not_nil!["reasoning"]["effort"].as_s.should eq("medium")
+    openrouter.additional_params.not_nil!["include_reasoning"].as_bool.should be_true
+  end
+
+  it "round-trips reasoning content into turn two history" do
+    model = FakeReasoningRoundtripModel.new
+    agent = Crig::Examples::ReasoningRoundtripTest::TestAgent(FakeReasoningRoundtripModel).new(
+      model,
+      Crig::Examples::ReasoningRoundtripTest::PREAMBLE,
+      JSON.parse(%({"reasoning":{"effort":"medium"}})),
+    )
+
+    turn_1, turn_2 = Crig::Examples::ReasoningRoundtripTest.run_test(agent)
+
+    turn_1.reasoning_count.should eq(1)
+    turn_1.reasoning_delta_count.should eq(2)
+    turn_1.streamed_text.should eq("First answer.")
+    turn_1.message_id.should eq("msg_turn_1")
+    turn_2.streamed_text.should eq("Second answer with context.")
+
+    second_request = model.requests[1]
+    second_request.chat_history.size.should eq(3)
+    assistant_message = second_request.chat_history.to_a[1]
+    assistant_message.id.should eq("msg_turn_1")
+    assistant_items = assistant_message.content.to_a.select(Crig::Completion::AssistantContent)
+    assistant_items.any?(&.kind.reasoning?).should be_true
+    assistant_items.any? { |item| item.text.try(&.text) == "First answer." }.should be_true
+  end
+end
+
+describe Crig::Examples::TogetherStreaming, tags: %w[examples together_streaming] do
+  it "builds the upstream together streaming agent helper" do
+    client = Crig::Providers::Together::Client.new("test-key")
+    agent = Crig::Examples::TogetherStreaming.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::Together::LLAMA_3_8B_CHAT_HF)
+    agent.preamble.should eq(Crig::Examples::TogetherStreaming::PREAMBLE)
+    agent.temperature.should eq(0.5)
+  end
+
+  it "streams together prompts through a provided agent" do
+    model = FakeCompletionClientModel.new("meta-llama/Llama-3-8b-chat-hf")
+    response = Crig::Examples::TogetherStreaming.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    )
+    final_response = Crig::Examples::TogetherStreaming.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:meta-llama/Llama-3-8b-chat-hf")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::TogetherStreaming::PROMPT)
+  end
+end
+
+describe Crig::Examples::TogetherStreamingWithTools, tags: %w[examples together_streaming_with_tools] do
+  it "builds the upstream together streaming-with-tools agent helper" do
+    client = Crig::Providers::Together::Client.new("test-key")
+    agent = Crig::Examples::TogetherStreamingWithTools.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::Together::LLAMA_2_70B_CHAT_TOGETHER)
+    agent.preamble.should eq(Crig::Examples::TogetherStreamingWithTools::PREAMBLE)
+    agent.max_tokens.should eq(1024_i64)
+    agent.static_tools.map(&.name).should eq(%w[add subtract])
+  end
+
+  it "streams together tool prompts through a provided agent" do
+    model = FakeCompletionClientModel.new("togethercomputer/llama-2-70b-chat")
+    response = Crig::Examples::TogetherStreamingWithTools.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+        .tools(Crig::Examples::AgentWithTools.tools)
+        .build
+    )
+    final_response = Crig::Examples::TogetherStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:togethercomputer/llama-2-70b-chat")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::TogetherStreamingWithTools::PROMPT)
+  end
+end
+
+describe Crig::Examples::XAIStreaming, tags: %w[examples xai_streaming] do
+  it "builds the upstream xai streaming agent helper" do
+    client = Crig::Providers::XAI::Client.new("test-key")
+    agent = Crig::Examples::XAIStreaming.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
+    agent.preamble.should eq(Crig::Examples::XAIStreaming::PREAMBLE)
+    agent.temperature.should eq(0.5)
+  end
+
+  it "streams xai prompts through a provided agent" do
+    model = FakeCompletionClientModel.new("grok-3-mini")
+    response = Crig::Examples::XAIStreaming.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    )
+    final_response = Crig::Examples::XAIStreaming.stream_to_stdout(response, IO::Memory.new)
+
+    final_response.response.should eq("chunk:grok-3-mini")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::XAIStreaming::PROMPT)
   end
 end
 
@@ -16043,6 +16680,32 @@ describe Crig::Examples::HuggingFaceStreaming, tags: %w[examples huggingface_str
   end
 end
 
+describe Crig::Examples::HuggingFaceSubproviders, tags: %w[examples huggingface_subproviders] do
+  it "builds builder-based huggingface clients for the upstream subproviders" do
+    models = Crig::Examples::HuggingFaceSubproviders::MODELS
+
+    clients = models.map do |model, subprovider|
+      {model, Crig::Examples::HuggingFaceSubproviders.build_client("test-key", subprovider)}
+    end
+
+    clients.map(&.[1].subprovider.to_s).should eq(
+      ["together", "hf-inference/models", "sambanova", "fireworks-ai", "nebius"]
+    )
+  end
+
+  it "builds the upstream partial and tools agent helpers" do
+    model_name, subprovider = Crig::Examples::HuggingFaceSubproviders::MODELS.first
+    client = Crig::Examples::HuggingFaceSubproviders.build_client("test-key", subprovider)
+    builder = Crig::Examples::HuggingFaceSubproviders.build_partial_agent(client, model_name)
+    agent = Crig::Examples::HuggingFaceSubproviders.build_tools_agent(client, model_name)
+
+    builder.model.model.should eq(model_name)
+    agent.model.model.should eq(model_name)
+    agent.preamble.should eq(Crig::Examples::HuggingFaceSubproviders::PREAMBLE)
+    agent.static_tools.map(&.name).sort.should eq(%w[add subtract])
+  end
+end
+
 describe Crig::Examples::GeminiEmbeddings, tags: %w[examples gemini_embeddings] do
   it "builds the upstream gemini embeddings builder helper" do
     client = Crig::Providers::Gemini::Client.new("test-key")
@@ -16061,6 +16724,231 @@ describe Crig::Examples::GeminiEmbeddings, tags: %w[examples gemini_embeddings] 
       [
         "gemini-embedding-001:Hello, world!",
         "gemini-embedding-001:Goodbye, world!",
+      ]
+    )
+  end
+end
+
+describe Crig::Examples::GeminiExtractorWithRag, tags: %w[examples gemini_extractor_with_rag] do
+  it "builds the upstream gemini rag extractor helper" do
+    http_server = HTTP::Server.new do |context|
+      context.response.status_code = 200
+      context.response.content_type = "application/json"
+      context.response.print(%({
+        "embeddings":[
+          {"values":[0.1,0.2,0.3]},
+          {"values":[0.2,0.3,0.4]},
+          {"values":[0.3,0.4,0.5]},
+          {"values":[0.4,0.5,0.6]},
+          {"values":[0.5,0.6,0.7]},
+          {"values":[0.6,0.7,0.8]},
+          {"values":[0.7,0.8,0.9]},
+          {"values":[0.8,0.9,1.0]},
+          {"values":[0.9,1.0,1.1]}
+        ]
+      }))
+    end
+    address = http_server.bind_tcp("127.0.0.1", 0)
+    spawn { http_server.listen }
+
+    client = Crig::Providers::Gemini::Client.new("test-key", "http://127.0.0.1:#{address.port}")
+    extractor = Crig::Examples::GeminiExtractorWithRag.build_extractor(client)
+
+    extractor.agent.model.model.should eq(Crig::Providers::Gemini::GEMINI_2_5_FLASH)
+    extractor.agent.dynamic_context.size.should eq(1)
+    extractor.agent.preamble.not_nil!.includes?(Crig::Examples::GeminiExtractorWithRag::PREAMBLE.strip).should be_true
+
+    http_server.close
+  end
+
+  it "builds a rag index from embedded questionnaire documents" do
+    index = Crig::Examples::GeminiExtractorWithRag.build_index(FakeEmbeddingsClientModel.new("embedding-001", 3))
+    request = Crig::VectorSearchRequest.builder.query("technical skills").samples(1_u64).build
+
+    index.top_n_results(request).should_not be_empty
+  end
+end
+
+describe Crig::Examples::GeminiVideoUnderstanding, tags: %w[examples gemini_video_understanding] do
+  it "builds the upstream gemini video-understanding agent helper" do
+    client = Crig::Providers::Gemini::Client.new("test-key")
+    agent = Crig::Examples::GeminiVideoUnderstanding.build_agent(client)
+
+    agent.model.model.should eq(Crig::Examples::GeminiVideoUnderstanding::MODEL)
+    agent.preamble.should eq(Crig::Examples::GeminiVideoUnderstanding::PREAMBLE)
+    agent.additional_params.not_nil!["generationConfig"]["topK"].as_i.should eq(1)
+  end
+
+  it "builds the upstream video prompt payload" do
+    message = Crig::Examples::GeminiVideoUnderstanding.video_prompt
+
+    message.role.user?.should be_true
+    message.content.to_a.size.should eq(2)
+    message.content.to_a.first.as(Crig::Completion::UserContent).text.not_nil!.text.should eq(
+      Crig::Examples::GeminiVideoUnderstanding::PROMPT
+    )
+    video = message.content.to_a.last.as(Crig::Completion::UserContent).video.not_nil!
+    video.data.kind.url?.should be_true
+    video.data.try_into_inner.should eq(Crig::Examples::GeminiVideoUnderstanding::VIDEO_URL)
+  end
+
+  it "prompts a provided agent with video content" do
+    model = FakeCompletionClientModel.new("gemini-video")
+    response = Crig::Examples::GeminiVideoUnderstanding.run_prompt(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    )
+
+    response.should eq("completion:gemini-video")
+  end
+end
+
+describe Crig::Examples::GeminiInteractionsAPI, tags: %w[examples gemini_interactions_api] do
+  it "builds the upstream gemini interactions client and model helpers" do
+    client = Crig::Examples::GeminiInteractionsAPI.build_client("test-key")
+    model = Crig::Examples::GeminiInteractionsAPI.build_model(client)
+
+    client.base_url.should eq(Crig::Providers::Gemini::GEMINI_API_BASE_URL)
+    model.model.should eq(Crig::Examples::GeminiInteractionsAPI::BASIC_MODEL)
+  end
+
+  it "builds basic, follow-up, search, url, code, and tool requests" do
+    model = Crig::Examples::GeminiInteractionsAPI.build_model(
+      Crig::Providers::Gemini::InteractionsClient.new("test-key")
+    )
+
+    basic = Crig::Examples::GeminiInteractionsAPI.basic_request(model)
+    follow = Crig::Examples::GeminiInteractionsAPI.follow_request(model, "interaction-123")
+    search = Crig::Examples::GeminiInteractionsAPI.search_request(model)
+    url = Crig::Examples::GeminiInteractionsAPI.url_request(model)
+    code = Crig::Examples::GeminiInteractionsAPI.code_request(model)
+    tool = Crig::Examples::GeminiInteractionsAPI.tool_request(model)
+
+    basic.additional_params.not_nil!["store"].as_bool.should be_true
+    follow.additional_params.not_nil!["previous_interaction_id"].as_s.should eq("interaction-123")
+    search.additional_params.not_nil!["tools"].as_a.first["type"].as_s.should eq("google_search")
+    url.additional_params.not_nil!["tools"].as_a.first["type"].as_s.should eq("url_context")
+    code.additional_params.not_nil!["tools"].as_a.first["type"].as_s.should eq("code_execution")
+    tool.tools.not_nil!.first.name.should eq("add")
+    tool.tool_choice.not_nil!.kind.required?.should be_true
+  end
+
+  it "extracts text and tool calls from interaction completion choices" do
+    choice = Crig::OneOrMany(Crig::Completion::AssistantContent).many([
+      Crig::Completion::AssistantContent.text("Hello"),
+      Crig::Completion::AssistantContent.tool_call("call-1", "add", JSON.parse(%({"x":7,"y":11}))),
+    ])
+
+    Crig::Examples::GeminiInteractionsAPI.extract_text(choice).should eq("Hello")
+    Crig::Examples::GeminiInteractionsAPI.first_tool_call(choice).not_nil!.function.name.should eq("add")
+  end
+end
+
+describe Crig::Examples::GeminiDeepResearch, tags: %w[examples gemini_deep_research] do
+  it "builds the upstream deep research params and request helpers" do
+    client = Crig::Examples::GeminiDeepResearch.build_client("test-key")
+    model = Crig::Examples::GeminiDeepResearch.build_model(client)
+    params = Crig::Examples::GeminiDeepResearch.deep_research_params
+    request = Crig::Examples::GeminiDeepResearch.build_request(model)
+
+    params.agent.should eq(Crig::Examples::GeminiDeepResearch::DEEP_RESEARCH_AGENT)
+    params.background.should be_true
+    params.store.should be_true
+    params.agent_config.not_nil!.kind.deep_research?.should be_true
+    request.additional_params.not_nil!["agent"].as_s.should eq(Crig::Examples::GeminiDeepResearch::DEEP_RESEARCH_AGENT)
+  end
+
+  it "extracts text and tracks stream state across interaction events" do
+    outputs = [
+      Crig::Providers::Gemini::Interactions::Content.text(
+        Crig::Providers::Gemini::Interactions::TextContent.new("Hello")
+      ),
+    ]
+    state = Crig::Examples::GeminiDeepResearch::StreamState.new
+    start_event = Crig::Providers::Gemini::Interactions::Streaming::InteractionSseEvent.from_json(%({
+      "event_type":"interaction.start",
+      "interaction":{"id":"interaction-1","outputs":[]},
+      "event_id":"event-1"
+    }))
+    delta_event = Crig::Providers::Gemini::Interactions::Streaming::InteractionSseEvent.from_json(%({
+      "event_type":"content.delta",
+      "index":0,
+      "delta":{"type":"text","text":"Hello"},
+      "event_id":"event-2"
+    }))
+    complete_event = Crig::Providers::Gemini::Interactions::Streaming::InteractionSseEvent.from_json(%({
+      "event_type":"interaction.complete",
+      "interaction":{"id":"interaction-1","outputs":[{"type":"text","text":"Hello"}]},
+      "event_id":"event-3"
+    }))
+
+    Crig::Examples::GeminiDeepResearch.extract_text(outputs).should eq("Hello")
+    state = Crig::Examples::GeminiDeepResearch.handle_stream_event(state, start_event)
+    state.interaction_id.should eq("interaction-1")
+    state = Crig::Examples::GeminiDeepResearch.handle_stream_event(state, delta_event)
+    state.saw_text.should be_true
+    state = Crig::Examples::GeminiDeepResearch.handle_stream_event(state, complete_event)
+    state.is_complete.should be_true
+    state.last_event_id.should eq("event-3")
+  end
+end
+
+describe Crig::Examples::TogetherEmbeddings, tags: %w[examples together_embeddings] do
+  it "builds the upstream together embeddings builder helper" do
+    client = Crig::Providers::Together::Client.new("test-key")
+    builder = Crig::Examples::TogetherEmbeddings.build_embeddings(client)
+
+    builder.model.model.should eq(Crig::Examples::TogetherEmbeddings::MODEL)
+    builder.documents.size.should eq(2)
+    builder.documents.map { |entry| entry[0].message }.should eq(["Hello, world!", "Goodbye, world!"])
+  end
+
+  it "embeds the upstream together documents through a provided embeddings client" do
+    builder = Crig::Examples::TogetherEmbeddings.build_embeddings(FakeEmbeddingsClient.new)
+    results = builder.build
+
+    results.map { |entry| entry[1].first.document }.should eq(
+      [
+        "#{Crig::Examples::TogetherEmbeddings::MODEL}:Hello, world!",
+        "#{Crig::Examples::TogetherEmbeddings::MODEL}:Goodbye, world!",
+      ]
+    )
+  end
+end
+
+describe Crig::Examples::MistralEmbeddings, tags: %w[examples mistral_embeddings] do
+  it "builds the upstream mistral embeddings payloads" do
+    model = FakeEmbeddingsClientModel.new("mistral-embed", 3)
+    results = Crig::Examples::MistralEmbeddings.build_embeddings(model)
+
+    results.map { |entry| entry[0].word }.should eq(%w[flurbo glarb-glarb linglingdong])
+  end
+
+  it "searches the upstream mistral embedding-backed store" do
+    model = FakeEmbeddingsClientModel.new(Crig::Examples::MistralEmbeddings::MODEL, 3)
+    results = Crig::Examples::MistralEmbeddings.search(model)
+
+    results.should_not be_empty
+  end
+end
+
+describe Crig::Examples::VoyageAIEmbeddings, tags: %w[examples voyageai_embeddings] do
+  it "builds the upstream voyageai embeddings builder helper" do
+    client = Crig::Providers::VoyageAI::Client.new("test-key")
+    builder = Crig::Examples::VoyageAIEmbeddings.build_embeddings(client)
+
+    builder.model.model.should eq(Crig::Examples::VoyageAIEmbeddings::MODEL)
+    builder.documents.size.should eq(2)
+    builder.documents.map { |entry| entry[0].message }.should eq(["Hello, world!", "Goodbye, world!"])
+  end
+
+  it "embeds the upstream voyageai documents through a provided embeddings client" do
+    builder = Crig::Examples::VoyageAIEmbeddings.build_embeddings(FakeEmbeddingsClient.new)
+    results = builder.build
+
+    results.map { |entry| entry[1].first.document }.should eq(
+      [
+        "#{Crig::Examples::VoyageAIEmbeddings::MODEL}:Hello, world!",
+        "#{Crig::Examples::VoyageAIEmbeddings::MODEL}:Goodbye, world!",
       ]
     )
   end
@@ -16178,6 +17066,41 @@ describe Crig::Examples::OpenAIAudioGeneration, tags: %w[examples openai_audio_g
   end
 end
 
+describe Crig::Examples::Transcription, tags: %w[examples transcription] do
+  it "builds the upstream provider-specific transcription helpers" do
+    openai = Crig::Examples::Transcription.whisper_model(Crig::Providers::OpenAI::Client.new("test-key"))
+    gemini = Crig::Examples::Transcription.gemini_model(Crig::Providers::Gemini::Client.new("test-key"))
+    azure = Crig::Examples::Transcription.azure_model(
+      Crig::Providers::Azure::Client.new(
+        Crig::Providers::Azure::AzureOpenAIAuth.api_key("test-key"),
+        "https://example.invalid",
+        "2024-06-01"
+      )
+    )
+    groq = Crig::Examples::Transcription.groq_model(Crig::Providers::Groq::Client.new("test-key"))
+    huggingface = Crig::Examples::Transcription.huggingface_model(Crig::Providers::HuggingFace::Client.new("test-key"))
+    mistral = Crig::Examples::Transcription.mistral_model(Crig::Providers::Mistral::Client.new("test-key"))
+
+    openai.model.should eq(Crig::Providers::OpenAI::WHISPER_1)
+    gemini.model.should eq(Crig::Providers::Gemini::GEMINI_2_0_FLASH)
+    azure.model.should eq("whisper")
+    groq.model.should eq(Crig::Providers::Groq::WHISPER_LARGE_V3)
+    huggingface.model.should eq("whisper-large-v3")
+    mistral.model.should eq(Crig::Providers::Mistral::VOXTRAL_MINI)
+  end
+
+  it "transcribes a file through a provided transcription model" do
+    path = "#{Dir.current}/tmp_transcription_fixture.txt"
+    File.write(path, "audio-bytes")
+    begin
+      text = Crig::Examples::Transcription.transcribe(FakeTranscriptionClientModel.new("whisper-1"), path)
+      text.should eq("text:whisper-1")
+    ensure
+      File.delete(path) if File.exists?(path)
+    end
+  end
+end
+
 describe Crig::Examples::OpenAIImageGeneration, tags: %w[examples openai_image_generation] do
   it "builds the upstream openai image generation model helper" do
     client = Crig::Providers::OpenAI::Client.new("test-key")
@@ -16223,6 +17146,100 @@ describe Crig::Examples::OpenAIStructuredOutput, tags: %w[examples openai_struct
 
     forecast.city.should eq("New York")
     forecast.current.wind.direction.should eq("NW")
+  end
+end
+
+describe Crig::Examples::OpenAIAgentCompletionsAPI, tags: %w[examples openai_agent_completions_api] do
+  it "builds the upstream openai completions-api agent helper" do
+    client = Crig::Providers::OpenAI::Client.new("test-key")
+    agent = Crig::Examples::OpenAIAgentCompletionsAPI.build_agent(client)
+
+    agent.preamble.should eq(Crig::Examples::OpenAIAgentCompletionsAPI::PREAMBLE)
+    agent.model.should be_a(Crig::Providers::OpenAI::CompletionModel)
+  end
+
+  it "runs the completions-api prompt through a provided agent" do
+    response = Crig::Examples::OpenAIAgentCompletionsAPI.run_prompt(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
+    )
+
+    response.should eq("completion:gpt-4o")
+  end
+end
+
+describe Crig::Examples::OpenAIAgentCompletionsApiOtel, tags: %w[examples openai_agent_completions_api_otel] do
+  it "builds the upstream completions-api agent helper with telemetry span availability" do
+    client = Crig::Providers::OpenAI::Client.new("test-key")
+    agent = Crig::Examples::OpenAIAgentCompletionsApiOtel.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4O)
+    agent.preamble.should eq(Crig::Examples::OpenAIAgentCompletionsApiOtel::PREAMBLE)
+    Crig::Examples::OpenAIAgentCompletionsApiOtel.current_span.is_disabled.should be_true
+  end
+end
+
+describe Crig::Examples::RequestHook, tags: %w[examples request_hook] do
+  it "builds the upstream deepseek request-hook agent helper" do
+    client = Crig::Providers::DeepSeek::Client.new("test-key")
+    agent = Crig::Examples::RequestHook.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::DeepSeek::DEEPSEEK_CHAT)
+    agent.static_tools.map(&.name).should eq(["calculator"])
+  end
+
+  it "records completion hook events for prompt requests" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat"))
+      .tool(Crig::Examples::RequestHook::CalculatorTool.new)
+      .build
+    hook = Crig::Examples::RequestHook::SessionIdHook.new("abc123")
+
+    response = Crig::Examples::RequestHook.run_prompt(agent, hook, "Entertain me!")
+
+    response.should eq("completion:deepseek-chat")
+    hook.events.any?(&.includes?("[Session abc123] Sending prompt: Entertain me!")).should be_true
+    hook.events.any?(&.includes?("[Session abc123] Received response: completion:deepseek-chat")).should be_true
+  end
+
+  it "records streaming hook events for stream requests" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat"))
+      .tool(Crig::Examples::RequestHook::CalculatorTool.new)
+      .build
+    hook = Crig::Examples::RequestHook::SessionIdHook.new("abc123")
+
+    stream = Crig::Examples::RequestHook.run_stream(agent, hook, "Entertain me!")
+    final = stream.response
+
+    final.not_nil!.response.should eq("chunk:deepseek-chat")
+    hook.events.any?(&.includes?("[Session abc123] Sending prompt: Entertain me!")).should be_true
+    hook.events.any?(&.includes?("Text delta: 'chunk:deepseek-chat'")).should be_true
+  end
+
+  it "builds the calculator tool definition and arithmetic behavior" do
+    tool = Crig::Examples::RequestHook::CalculatorTool.new
+    definition = tool.definition("")
+
+    definition.name.should eq("calculator")
+    tool.call_typed(Crig::Examples::RequestHook::CalculatorArgs.new("multiply", 6, 7)).should eq(42)
+  end
+end
+
+describe Crig::Examples::ReqwestMiddleware, tags: %w[examples reqwest_middleware] do
+  it "builds the upstream retrying transport helper" do
+    inner = Crig::HttpClient::MockStreamingClient.new
+    client = Crig::Examples::ReqwestMiddleware.build_http_client(inner)
+
+    client.inner.should be_a(Crig::HttpClient::MockStreamingClient)
+    client.policy.should be_a(Crig::HttpClient::ExponentialBackoff)
+  end
+
+  it "builds the upstream anthropic client and agent with a middleware-style transport" do
+    transport = Crig::Examples::ReqwestMiddleware.build_http_client
+    client = Crig::Examples::ReqwestMiddleware.build_client("anthropic-key", transport, "https://example.test")
+    agent = Crig::Examples::ReqwestMiddleware.build_agent(client)
+
+    client.http_client.should be_a(Crig::Providers::Anthropic::Client::WrappedTransport)
+    agent.model.model.should eq(Crig::Examples::ReqwestMiddleware::MODEL)
+    agent.preamble.should eq(Crig::Examples::ReqwestMiddleware::PREAMBLE)
   end
 end
 
@@ -16274,6 +17291,33 @@ describe Crig::Examples::HyperbolicImageGeneration, tags: %w[examples hyperbolic
   end
 end
 
+describe Crig::Examples::HyperbolicAudioGeneration, tags: %w[examples hyperbolic_audio_generation] do
+  it "builds the upstream hyperbolic audio generation model helper" do
+    client = Crig::Providers::Hyperbolic::Client.new("test-key")
+    model = Crig::Examples::HyperbolicAudioGeneration.build_model(client)
+
+    model.language.should eq(Crig::Examples::HyperbolicAudioGeneration::DEFAULT_LANG)
+  end
+
+  it "builds and sends the upstream hyperbolic audio generation request helper" do
+    model = FakeAudioGenerationClientModel.new("EN")
+    response = Crig::Examples::HyperbolicAudioGeneration.generate(model)
+
+    response.audio.should eq(Bytes[7_u8, 8_u8])
+    model.last_request.not_nil!.text.should eq(Crig::Examples::HyperbolicAudioGeneration::DEFAULT_TEXT)
+    model.last_request.not_nil!.voice.should eq(Crig::Examples::HyperbolicAudioGeneration::DEFAULT_VOICE)
+  end
+
+  it "writes generated audio bytes to an io" do
+    io = IO::Memory.new
+    response = Crig::AudioGenerationResponse(String).new(Bytes[1_u8, 2_u8, 3_u8], "raw-audio")
+
+    Crig::Examples::HyperbolicAudioGeneration.write_audio(response, io)
+
+    io.to_slice.should eq(Bytes[1_u8, 2_u8, 3_u8])
+  end
+end
+
 describe Crig::Examples::Image, tags: %w[examples image] do
   it "builds the upstream anthropic image agent helper" do
     client = Crig::Providers::Anthropic::Client.new("test-key")
@@ -16302,6 +17346,35 @@ describe Crig::Examples::Image, tags: %w[examples image] do
     response.should eq("completion:claude-image")
     content = model.last_request.not_nil!.chat_history.last.content.first
     content.as(Crig::Completion::UserContent).image.not_nil!.media_type.should eq(Crig::Completion::ImageMediaType::JPEG)
+  end
+end
+
+describe Crig::Examples::ImageOllama, tags: %w[examples image_ollama] do
+  it "builds the upstream ollama image agent helper" do
+    client = Crig::Providers::Ollama::Client.new(Crig::Nothing.new, "http://127.0.0.1:11434")
+    agent = Crig::Examples::ImageOllama.build_agent(client)
+
+    agent.model.model.should eq(Crig::Examples::ImageOllama::MODEL)
+    agent.preamble.should eq(Crig::Examples::ImageOllama::PREAMBLE)
+    agent.temperature.should eq(0.5)
+  end
+
+  it "builds a jpeg image prompt from bytes" do
+    image = Crig::Examples::ImageOllama.image_from_bytes(Bytes[1_u8, 2_u8, 3_u8])
+
+    image.media_type.should eq(Crig::Completion::ImageMediaType::JPEG)
+    image.data.kind.base64?.should be_true
+    image.data.try_into_inner.should eq(Base64.strict_encode(Bytes[1_u8, 2_u8, 3_u8]))
+  end
+
+  it "prompts a provided agent with image content" do
+    model = FakeCompletionClientModel.new("llava")
+    response = Crig::Examples::ImageOllama.prompt_image(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model).build,
+      Crig::Examples::ImageOllama.image_from_bytes(Bytes[1_u8, 2_u8, 3_u8])
+    )
+
+    response.should eq("completion:llava")
   end
 end
 
@@ -16376,6 +17449,132 @@ describe Crig::Examples::AgentWithCohere, tags: %w[examples agent_with_cohere] d
   end
 end
 
+describe Crig::Examples::AgentWithHuggingFace, tags: %w[examples agent_with_huggingface] do
+  it "builds the upstream huggingface partial and basic agent helpers" do
+    client = Crig::Providers::HuggingFace::Client.new("test-key")
+    builder = Crig::Examples::AgentWithHuggingFace.build_partial_agent(client)
+    agent = Crig::Examples::AgentWithHuggingFace.build_basic_agent(client)
+
+    builder.model.model.should eq(Crig::Examples::AgentWithHuggingFace::MODEL)
+    agent.model.model.should eq(Crig::Examples::AgentWithHuggingFace::MODEL)
+    agent.preamble.should eq(Crig::Examples::AgentWithHuggingFace::BASIC_PREAMBLE)
+  end
+
+  it "builds the upstream huggingface tools agent helper" do
+    client = Crig::Providers::HuggingFace::Client.new("test-key")
+    agent = Crig::Examples::AgentWithHuggingFace.build_tools_agent(client)
+
+    agent.preamble.should eq(Crig::Examples::AgentWithHuggingFace::TOOLS_PREAMBLE)
+    agent.max_tokens.should eq(1024_i64)
+    agent.static_tools.map(&.name).should eq(%w[add subtract])
+  end
+
+  it "loads upstream rust examples for the huggingface loader helper" do
+    loaded = Crig::Examples::AgentWithHuggingFace.load_examples("vendor/rig/rig/rig-core/examples/agent.rs")
+    entry = loaded.first.as(Tuple(String, String))
+
+    loaded.size.should eq(1)
+    entry[1].includes?("comedian").should be_true
+  end
+
+  it "builds the upstream huggingface context agent helper and prompts through a provided agent" do
+    client = Crig::Providers::HuggingFace::Client.new("test-key")
+    context_agent = Crig::Examples::AgentWithHuggingFace.build_context_agent(client)
+    prompt_agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-r1")).build
+
+    context_agent.static_context.size.should eq(3)
+    Crig::Examples::AgentWithHuggingFace.run_prompt(prompt_agent, "Entertain me!").should eq("completion:deepseek-r1")
+  end
+end
+
+describe Crig::Examples::AgentWithEchochambers, tags: %w[examples agent_with_echochambers] do
+  it "builds the upstream echochambers agent and chatbot helpers" do
+    client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
+    agent = Crig::Examples::AgentWithEchochambers.build_agent(client, "echo-key")
+    chatbot = Crig::Examples::AgentWithEchochambers.build_chatbot(agent)
+
+    agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4O)
+    agent.preamble.not_nil!.should contain("EchoChambers rooms")
+    agent.static_tools.map(&.name).sort.should eq(
+      %w[get_agent_metrics get_history get_metrics_history get_room_metrics send_message]
+    )
+    typeof(chatbot).to_s.should contain("Crig::Integrations::ChatBot")
+  end
+
+  it "keeps the upstream tool definitions and sender shape" do
+    send_message = Crig::Examples::AgentWithEchochambers::SendMessage.new("echo-key")
+    definition = send_message.definition("")
+    payload = send_message.call_typed(
+      Crig::Examples::AgentWithEchochambers::SendMessageArgs.new(
+        "Hello, world!",
+        "general",
+        Crig::Examples::AgentWithEchochambers::MessageSender.new("Rig_Assistant", "gpt-4")
+      )
+    )
+
+    definition.name.should eq("send_message")
+    payload["room_id"].as_s.should eq("general")
+    payload["sender"]["username"].as_s.should eq("Rig_Assistant")
+    payload["api_key_present"].as_bool.should be_true
+  end
+end
+
+describe Crig::Examples::MultiAgent, tags: %w[examples multi_agent] do
+  it "builds the translator agent and tool wrapper" do
+    model = FakeCompletionClientModel.new("deepseek-chat")
+    agent = Crig::Examples::MultiAgent.build_translator_agent(model)
+    tool = Crig::Examples::MultiAgent::TranslatorTool(FakeCompletionClientModel).new(agent)
+
+    agent.preamble.should eq(Crig::Examples::MultiAgent::TRANSLATOR_PREAMBLE)
+    tool.name.should eq("translator")
+    tool.call_typed(Crig::Examples::MultiAgent::TranslatorArgs.new("Hola")).should eq("completion:deepseek-chat")
+  end
+
+  it "builds the multi-agent system and chatbot helper" do
+    model = FakeCompletionClientModel.new("deepseek-chat")
+    agent = Crig::Examples::MultiAgent.build_multi_agent_system(model)
+    chatbot = Crig::Examples::MultiAgent.build_chatbot(agent)
+
+    agent.preamble.should eq(Crig::Examples::MultiAgent::SYSTEM_PREAMBLE)
+    agent.static_tools.map(&.name).should eq(["translator"])
+    chatbot.should be_a(Crig::Integrations::ChatBot(Crig::Integrations::AgentImpl(FakeCompletionClientModel)))
+  end
+
+  it "runs the upstream multi-agent helper through a provided agent" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat")).build
+
+    Crig::Examples::MultiAgent.run_prompt(agent, "Hola").should eq("completion:deepseek-chat")
+  end
+end
+
+describe Crig::Examples::Debate, tags: %w[examples debate] do
+  it "builds the upstream openai-vs-cohere debate helper" do
+    openai_client = Crig::Providers::OpenAI::Client.new("test-key")
+    cohere_client = Crig::Providers::Cohere::Client.new("test-key")
+    debater = Crig::Examples::Debate.build_debater(openai_client, cohere_client)
+
+    debater.agent_a.model.model.should eq(Crig::Providers::OpenAI::GPT_4)
+    debater.agent_b.model.model.should eq(Crig::Providers::Cohere::COMMAND_R)
+    debater.agent_a.preamble.should eq(Crig::Examples::Debate::POSITION_A)
+    debater.agent_b.preamble.should eq(Crig::Examples::Debate::POSITION_B)
+  end
+
+  it "runs debate rounds through provided agents and threads responses between them" do
+    debater = Crig::Examples::Debate::Debater(FakeCompletionClientModel, FakeCompletionClientModel).new(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4")).build,
+      Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("command-r")).build,
+    )
+
+    exchanges = Crig::Examples::Debate.run_rounds(debater, 2)
+
+    exchanges.size.should eq(2)
+    exchanges.first.prompt_a.should eq("Plead your case!")
+    exchanges.first.response_a.should eq("completion:gpt-4")
+    exchanges.first.response_b.should eq("completion:command-r")
+    exchanges.last.prompt_a.should eq("completion:command-r")
+  end
+end
+
 describe Crig::Examples::MultiTurnAgent, tags: %w[examples multi_turn_agent] do
   it "builds the upstream anthropic multi-turn arithmetic agent helper" do
     client = Crig::Providers::Anthropic::Client.new("test-key")
@@ -16417,6 +17616,27 @@ describe Crig::Examples::MultiTurnAgentExtended, tags: %w[examples multi_turn_ag
     )
 
     response.output.should eq("completion:claude-3-5-sonnet")
+  end
+end
+
+describe Crig::Examples::MultiTurnStreaming, tags: %w[examples multi_turn_streaming] do
+  it "builds the upstream anthropic multi-turn streaming agent helper" do
+    client = Crig::Providers::Anthropic::Client.new("test-key")
+    agent = Crig::Examples::MultiTurnStreaming.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::Anthropic::CLAUDE_3_5_SONNET)
+    agent.preamble.should eq(Crig::Examples::MultiTurnStreaming::PREAMBLE)
+    agent.static_tools.map(&.name).should eq(%w[add subtract multiply divide])
+  end
+
+  it "streams prompts through the multi-turn helper" do
+    model = FakeCompletionClientModel.new("claude-3-5-sonnet")
+    result = Crig::Examples::MultiTurnStreaming.run_stream(
+      Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    )
+    final_response = Crig::Examples::MultiTurnStreaming.stream_to_stdout(result, IO::Memory.new)
+
+    final_response.response.should eq("chunk:claude-3-5-sonnet")
   end
 end
 
@@ -16647,6 +17867,447 @@ describe Crig::Examples::VectorSearch, tags: %w[examples vector_search] do
     results[0][1].should eq("doc0")
     results[0][2].should eq("flurbo")
     id_results.should eq([{results[0][0], "doc0"}])
+  end
+end
+
+describe Crig::Examples::RagDynamicTools, tags: %w[examples rag_dynamic_tools] do
+  it "builds the upstream dynamic toolset and schemas" do
+    toolset = Crig::Examples::RagDynamicTools.toolset
+
+    toolset.contains("add").should be_true
+    toolset.contains("subtract").should be_true
+    toolset.schemas.map(&.name).sort.should eq(%w[add subtract])
+  end
+
+  it "builds a dynamic tool index from embedded tool schemas" do
+    model = FakeEmbeddingsClientModel.new("text-embedding-ada-002", 3)
+    index = Crig::Examples::RagDynamicTools.build_index(model)
+    request = Crig::VectorSearchRequest.builder.query("subtract values").samples(1_u64).build
+
+    index.top_n_results(request).should_not be_empty
+  end
+
+  it "builds the upstream rag dynamic-tools agent helper" do
+    server = FakeOpenAIEmbeddingServer.new do |_request|
+      {
+        content_type: "application/json",
+        body:         %({
+          "object":"list",
+          "data":[
+            {"object":"embedding","embedding":[0.1,0.2,0.3],"index":0},
+            {"object":"embedding","embedding":[0.3,0.2,0.1],"index":1}
+          ],
+          "model":"text-embedding-ada-002",
+          "usage":{"prompt_tokens":2,"total_tokens":2}
+        }),
+      }
+    end
+    http_server = server.http_server
+    address = http_server.bind_tcp("127.0.0.1", 0)
+    spawn { http_server.listen }
+
+    client = Crig::Providers::OpenAI::Client.new("test-key", "http://127.0.0.1:#{address.port}/v1")
+    agent = Crig::Examples::RagDynamicTools.build_agent(client)
+
+    agent.preamble.should eq("You are a calculator here to help the user perform arithmetic operations.")
+    agent.dynamic_tools.size.should eq(1)
+    server.requests.first["model"].as_s.should eq(Crig::Providers::OpenAI::TEXT_EMBEDDING_ADA_002)
+
+    http_server.close
+  end
+
+  it "accepts the upstream ToolSet-shaped dynamic_tools builder path" do
+    model = FakeEmbeddingsClientModel.new("text-embedding-ada-002", 3)
+    index = Crig::Examples::RagDynamicTools.build_index(model)
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4"))
+      .dynamic_tools(1, index, Crig::Examples::RagDynamicTools.toolset)
+      .build
+
+    agent.dynamic_tools.size.should eq(1)
+    agent.dynamic_tools.first.tools.map(&.name).sort.should eq(%w[add subtract])
+  end
+end
+
+describe Crig::Examples::RagDynamicToolsMultiTurn, tags: %w[examples rag_dynamic_tools_multi_turn] do
+  it "builds the upstream multi-turn dynamic tool rag agent helper" do
+    result = run_crig_probe <<-'CRYSTAL'
+      require "./src/crig"
+      require "./examples/rag_dynamic_tools_multi_turn"
+
+      class FakeOpenAIEmbeddingServer
+        getter requests = [] of JSON::Any
+
+        def http_server : HTTP::Server
+          HTTP::Server.new do |context|
+            body = context.request.body.try(&.gets_to_end) || ""
+            @requests << JSON.parse(body)
+            context.response.content_type = "application/json"
+            context.response.print(%({
+              "object":"list",
+              "data":[
+                {"object":"embedding","embedding":[0.1,0.2,0.3],"index":0},
+                {"object":"embedding","embedding":[0.3,0.2,0.1],"index":1}
+              ],
+              "model":"text-embedding-ada-002",
+              "usage":{"prompt_tokens":2,"total_tokens":2}
+            }))
+          end
+        end
+      end
+
+      server = FakeOpenAIEmbeddingServer.new
+      http_server = server.http_server
+      address = http_server.bind_tcp("127.0.0.1", 0)
+      spawn { http_server.listen }
+
+      client = Crig::Providers::OpenAI::Client.new("test-key", "http://127.0.0.1:#{address.port}/v1")
+      agent = Crig::Examples::RagDynamicToolsMultiTurn.build_agent(client)
+      dynamic_source = agent.dynamic_tools.first
+
+      puts(JSON.build do |json|
+        json.object do
+          json.field "model", agent.model.model
+          json.field "preamble", agent.preamble
+          json.field "sample", dynamic_source.sample
+          json.field "tool_count", dynamic_source.tools.size
+          json.field "embedding_model", server.requests.first["model"].as_s
+        end
+      end)
+
+      http_server.close
+    CRYSTAL
+
+    result["model"].as_s.should eq(Crig::Providers::OpenAI::GPT_4)
+    result["preamble"].as_s.should eq(Crig::Examples::RagDynamicToolsMultiTurn::PREAMBLE)
+    result["sample"].as_i.should eq(2)
+    result["tool_count"].as_i.should eq(2)
+    result["embedding_model"].as_s.should eq(Crig::Providers::OpenAI::TEXT_EMBEDDING_ADA_002)
+  end
+
+  it "runs the multi-turn dynamic tool helper through a provided agent" do
+    model = FakeCompletionClientModel.new("rag-dynamic-tools-multi-turn")
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+
+    Crig::Examples::RagDynamicToolsMultiTurn.run_prompt(agent).should eq("completion:rag-dynamic-tools-multi-turn")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::RagDynamicToolsMultiTurn::PROMPT)
+  end
+end
+
+describe Crig::Examples::CalculatorChatbot, tags: %w[examples calculator_chatbot] do
+  it "builds the upstream calculator rag agent helper" do
+    result = run_crig_probe <<-'CRYSTAL'
+      require "./src/crig"
+      require "./examples/calculator_chatbot"
+
+      class FakeOpenAIEmbeddingServer
+        getter requests = [] of JSON::Any
+
+        def http_server : HTTP::Server
+          HTTP::Server.new do |context|
+            body = context.request.body.try(&.gets_to_end) || ""
+            @requests << JSON.parse(body)
+            context.response.content_type = "application/json"
+            context.response.print(%({
+              "object":"list",
+              "data":[
+                {"object":"embedding","embedding":[0.1,0.2,0.3],"index":0},
+                {"object":"embedding","embedding":[0.3,0.2,0.1],"index":1},
+                {"object":"embedding","embedding":[0.2,0.1,0.3],"index":2},
+                {"object":"embedding","embedding":[0.4,0.1,0.2],"index":3}
+              ],
+              "model":"text-embedding-ada-002",
+              "usage":{"prompt_tokens":4,"total_tokens":4}
+            }))
+          end
+        end
+      end
+
+      server = FakeOpenAIEmbeddingServer.new
+      http_server = server.http_server
+      address = http_server.bind_tcp("127.0.0.1", 0)
+      spawn { http_server.listen }
+
+      client = Crig::Providers::OpenAI::Client.new("test-key", "http://127.0.0.1:#{address.port}/v1")
+      agent = Crig::Examples::CalculatorChatbot.build_agent(client)
+      chatbot = Crig::Examples::CalculatorChatbot.build_chatbot(agent)
+      dynamic_source = agent.dynamic_tools.first
+
+      puts(JSON.build do |json|
+        json.object do
+          json.field "preamble", agent.preamble
+          json.field "sample", dynamic_source.sample
+          json.field "tool_count", dynamic_source.tools.size
+          json.field "embedding_model", server.requests.first["model"].as_s
+          json.field "chatbot_class", typeof(chatbot).to_s
+        end
+      end)
+
+      http_server.close
+    CRYSTAL
+
+    result["preamble"].as_s.should eq(Crig::Examples::CalculatorChatbot::PREAMBLE)
+    result["sample"].as_i.should eq(2)
+    result["tool_count"].as_i.should eq(4)
+    result["embedding_model"].as_s.should eq(Crig::Providers::OpenAI::TEXT_EMBEDDING_ADA_002)
+    result["chatbot_class"].as_s.should contain("Crig::Integrations::ChatBot")
+  end
+
+  it "builds the upstream calculator chatbot wrapper for an agent" do
+    agent = Crig::AgentBuilder(FakeCliChatbotCompletionModel).new(FakeCliChatbotCompletionModel.new).build
+    chatbot = Crig::Examples::CalculatorChatbot.build_chatbot(agent)
+    input = IO::Memory.new("calculate 3 + 4\nexit\n")
+    output = IO::Memory.new
+
+    chatbot.run(input, output)
+
+    output.to_s.should contain("agent reply")
+  end
+end
+
+describe Crig::Examples::CustomVectorStore, tags: %w[examples custom_vector_store] do
+  it "builds the upstream custom vector store with embedded sample documents" do
+    model = FakeEmbeddingsClientModel.new("text-embedding-ada-002", 3)
+    store = Crig::Examples::CustomVectorStore.build_store(model)
+
+    store.key.should eq("test_vectors")
+    store.embedding_model.should eq(model)
+    store.top_n_results(Crig::Examples::CustomVectorStore.request).size.should eq(2)
+  end
+
+  it "returns typed documents and ids through the custom vector store search helpers" do
+    model = FakeEmbeddingsClientModel.new("text-embedding-ada-002", 3)
+    store = Crig::Examples::CustomVectorStore.build_store(model)
+
+    results = Crig::Examples::CustomVectorStore.search(store)
+    ids = Crig::Examples::CustomVectorStore.search_ids(store)
+
+    results.size.should eq(2)
+    ids.size.should eq(2)
+    results.first[2].title.should contain("Programming")
+  end
+end
+
+describe Crig::Examples::ComplexAgenticLoopClaude, tags: %w[examples complex_agentic_loop_claude] do
+  it "builds the upstream anthropic beta client and knowledge index helpers" do
+    client = Crig::Examples::ComplexAgenticLoopClaude.build_anthropic_client("test-key", "https://example.test")
+    index = Crig::Examples::ComplexAgenticLoopClaude.build_vector_index(FakeEmbeddingModel.new)
+
+    client.anthropic_betas.should eq([Crig::Examples::ComplexAgenticLoopClaude::ANTHROPIC_BETA])
+    Crig::Examples::ComplexAgenticLoopClaude.knowledge_entries.size.should eq(4)
+    index.top_n_results(Crig::VectorSearchRequest.builder.query("climate").samples(1_u64).build).should_not be_empty
+  end
+
+  it "builds the upstream specialist agents and orchestrator tool loop" do
+    client = Crig::Examples::ComplexAgenticLoopClaude.build_anthropic_client("test-key", "https://example.test")
+    index = Crig::Examples::ComplexAgenticLoopClaude.build_vector_index(FakeEmbeddingModel.new)
+    research = Crig::Examples::ComplexAgenticLoopClaude.build_research_agent(client)
+    analysis = Crig::Examples::ComplexAgenticLoopClaude.build_analysis_agent(client)
+    recommendation = Crig::Examples::ComplexAgenticLoopClaude.build_recommendation_agent(client)
+    orchestrator = Crig::Examples::ComplexAgenticLoopClaude.build_orchestrator_agent(client, index)
+
+    research.name.should eq("research_agent")
+    analysis.name.should eq("data_analysis_agent")
+    recommendation.name.should eq("recommendation_agent")
+    orchestrator.name.should eq("orchestrator_agent")
+    orchestrator.static_tools.map(&.name).should contain("think")
+    orchestrator.static_tools.map(&.name).should contain("search_vector_store")
+  end
+
+  it "runs the upstream multi-turn prompt helper through a provided agent" do
+    model = FakeCompletionClientModel.new("claude-3-7-sonnet")
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    history = [] of Crig::Completion::Message
+
+    Crig::Examples::ComplexAgenticLoopClaude.run_prompt(agent, history: history).should eq("completion:claude-3-7-sonnet")
+    model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::ComplexAgenticLoopClaude::QUERY)
+  end
+end
+
+describe Crig::Examples::DiscordBot, tags: %w[examples discord_bot] do
+  it "builds the upstream discord agent and bot helpers" do
+    client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
+    agent = Crig::Examples::DiscordBot.build_agent(client)
+    bot = Crig::Examples::DiscordBot.build_bot(agent, "discord-token")
+
+    agent.model.model.should eq(Crig::Examples::DiscordBot::MODEL)
+    agent.preamble.should eq(Crig::Examples::DiscordBot::PREAMBLE)
+    bot.token.should eq("discord-token")
+  end
+
+  it "builds the upstream discord bot helper from env" do
+    original = ENV["DISCORD_BOT_TOKEN"]?
+    ENV["DISCORD_BOT_TOKEN"] = "env-discord-token"
+
+    begin
+      client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
+      agent = Crig::Examples::DiscordBot.build_agent(client)
+
+      Crig::Examples::DiscordBot.build_bot_from_env(agent).token.should eq("env-discord-token")
+    ensure
+      if original
+        ENV["DISCORD_BOT_TOKEN"] = original
+      else
+        ENV.delete("DISCORD_BOT_TOKEN")
+      end
+    end
+  end
+end
+
+describe Crig::Examples::PdfAgent, tags: %w[examples pdf_agent] do
+  it "loads and chunks the upstream pdf fixture" do
+    chunks = Crig::Examples::PdfAgent.load_pdf("vendor/rig/rig/rig-core/tests/data/pages.pdf")
+
+    chunks.should_not be_empty
+    chunks.any? { |chunk| !chunk.empty? }.should be_true
+  end
+
+  it "builds the upstream ollama client helper" do
+    client = Crig::Examples::PdfAgent.build_client
+
+    client.base_url.should eq(Crig::Examples::PdfAgent::BASE_URL)
+  end
+
+  it "builds embeddings and a vector index from pdf chunks" do
+    chunks = ["first chunk", "second chunk"]
+    model = FakeEmbeddingsClientModel.new("bge-m3", 3)
+    embeddings = Crig::Examples::PdfAgent.build_embeddings(model, chunks)
+    index = Crig::Examples::PdfAgent.build_index(model, chunks)
+
+    embeddings.size.should eq(2)
+    embeddings.first[0].content.should eq("first chunk")
+    index.top_n_results(Crig::VectorSearchRequest.builder.query("first").samples(1_u64).build).should_not be_empty
+  end
+
+  it "builds the upstream rag agent and chatbot helpers" do
+    model = FakeEmbeddingsClientModel.new("bge-m3", 3)
+    index = Crig::Examples::PdfAgent.build_index(model, ["pdf chunk"])
+    client = Crig::Providers::Ollama::Client.new(Crig::Nothing.new, Crig::Examples::PdfAgent::BASE_URL)
+    agent = Crig::Examples::PdfAgent.build_agent(client, index)
+    chatbot = Crig::Examples::PdfAgent.build_chatbot(agent)
+
+    agent.model.model.should eq(Crig::Examples::PdfAgent::COMPLETION_MODEL)
+    agent.preamble.should eq(Crig::Examples::PdfAgent::PREAMBLE)
+    agent.dynamic_context.size.should eq(1)
+    typeof(chatbot).to_s.should contain("Crig::Integrations::ChatBot")
+  end
+end
+
+describe Crig::Examples::RagOllama, tags: %w[examples rag_ollama] do
+  it "builds the upstream ollama client helper" do
+    client = Crig::Examples::RagOllama.build_client
+
+    client.base_url.should eq(Crig::Examples::RagOllama::BASE_URL)
+  end
+
+  it "builds the upstream ollama rag store from embedded word definitions" do
+    store = Crig::Examples::RagOllama.build_store(FakeEmbeddingsClientModel.new("nomic-embed-text", 3))
+
+    store.len.should eq(3)
+    store.get_document("doc1", Crig::Examples::RagOllama::WordDefinition).not_nil!.word.should eq("glarb-glarb")
+  end
+
+  it "builds the upstream ollama rag agent helper" do
+    index = Crig::Examples::RagOllama.build_store(FakeEmbeddingsClientModel.new("nomic-embed-text", 3))
+      .index(FakeEmbeddingsClientModel.new("nomic-embed-text", 3))
+    client = Crig::Providers::Ollama::Client.new(Crig::Nothing.new, Crig::Examples::RagOllama::BASE_URL)
+    agent = Crig::Examples::RagOllama.build_agent(client, index)
+
+    agent.model.model.should eq(Crig::Examples::RagOllama::COMPLETION_MODEL)
+    agent.preamble.should eq(Crig::Examples::RagOllama::PREAMBLE)
+    agent.dynamic_context.size.should eq(1)
+  end
+
+  it "runs the upstream ollama rag prompt through a provided agent" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("qwen2.5:14b")).build
+
+    Crig::Examples::RagOllama.run_prompt(agent).should eq("completion:qwen2.5:14b")
+  end
+end
+
+describe Crig::Examples::SentimentClassifier, tags: %w[examples sentiment_classifier] do
+  it "builds the upstream openai sentiment extractor helper" do
+    client = Crig::Providers::OpenAI::Client.new("test-key")
+    extractor = Crig::Examples::SentimentClassifier.build_extractor(client)
+
+    extractor.agent.static_tools.any? { |tool| tool.name == "submit" }.should be_true
+  end
+
+  it "keeps the upstream sentiment model shape" do
+    sentiment = Crig::Examples::SentimentClassifier::DocumentSentiment.new(
+      Crig::Examples::SentimentClassifier::Sentiment::Positive
+    )
+
+    sentiment.sentiment.positive?.should be_true
+  end
+end
+
+describe Crig::Examples::VectorSearchCohere, tags: %w[examples vector_search_cohere] do
+  it "builds the upstream cohere vector search store helpers" do
+    document_model = FakeEmbeddingsClientModel.new("doc-model", 3)
+    search_model = FakeEmbeddingsClientModel.new("query-model", 3)
+    built_document_model, built_search_model, store = Crig::Examples::VectorSearchCohere.build_store(document_model, search_model)
+
+    built_document_model.should eq(document_model)
+    built_search_model.should eq(search_model)
+    store.len.should eq(3)
+  end
+
+  it "returns top-n word matches through the cohere vector search helper" do
+    document_model = FakeEmbeddingsClientModel.new("doc-model", 3)
+    search_model = FakeEmbeddingsClientModel.new("query-model", 3)
+    _, _, store = Crig::Examples::VectorSearchCohere.build_store(document_model, search_model)
+    request = Crig::VectorSearchRequest.builder.query("Which instrument is found in the Nebulon Mountain Ranges?").samples(1_u64).build
+
+    results = store.index(search_model).top_n(request, Crig::Examples::VectorSearch::WordDefinition).map { |score, id, doc| {score, id, doc.word} }
+
+    results.should_not be_empty
+    %w[flurbo glarb-glarb linglingdong].should contain(results.first[2])
+  end
+end
+
+describe Crig::Examples::VectorSearchOllama, tags: %w[examples vector_search_ollama] do
+  it "builds the upstream ollama client helper" do
+    client = Crig::Examples::VectorSearchOllama.build_client
+
+    client.base_url.should eq(Crig::Examples::VectorSearchOllama::BASE_URL)
+  end
+
+  it "builds the upstream ollama vector search store helpers" do
+    embedding_model, store = Crig::Examples::VectorSearchOllama.build_store(FakeEmbeddingsClientModel.new("nomic-embed-text", 3))
+
+    embedding_model.name.should eq("nomic-embed-text")
+    store.len.should eq(3)
+  end
+
+  it "returns word and id matches through the ollama vector search helper" do
+    embedding_model, store = Crig::Examples::VectorSearchOllama.build_store(FakeEmbeddingsClientModel.new("nomic-embed-text", 3))
+    request = Crig::VectorSearchRequest.builder.query(Crig::Examples::VectorSearch.default_query).samples(1_u64).build
+    index = store.index(embedding_model)
+
+    results = index.top_n(request, Crig::Examples::VectorSearch::WordDefinition).map { |score, id, doc| {score, id, doc.word} }
+    ids = index.top_n_ids(request)
+
+    results.should_not be_empty
+    ids.should_not be_empty
+  end
+end
+
+describe Crig::Examples::PerplexityAgent, tags: %w[examples perplexity_agent] do
+  it "builds the upstream perplexity agent helper" do
+    client = Crig::Providers::Perplexity::Client.new("test-key")
+    agent = Crig::Examples::PerplexityAgent.build_agent(client)
+
+    agent.model.model.should eq(Crig::Providers::Perplexity::SONAR)
+    agent.preamble.should eq(Crig::Examples::PerplexityAgent::PREAMBLE)
+    agent.temperature.should eq(0.5)
+    agent.additional_params.not_nil!["return_related_questions"].as_bool.should be_true
+    agent.additional_params.not_nil!["return_images"].as_bool.should be_true
+  end
+
+  it "runs the upstream perplexity prompt helper through a provided agent" do
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("sonar")).build
+
+    Crig::Examples::PerplexityAgent.run_prompt(agent).should eq("completion:sonar")
   end
 end
 

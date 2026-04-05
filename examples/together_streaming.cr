@@ -1,12 +1,12 @@
 require "../src/crig"
 
-module Crig::Examples::XAIStreaming
+module Crig::Examples::TogetherStreaming
   PREAMBLE = "Be precise and concise."
   PROMPT   = "When and where and what type is the next solar eclipse?"
 
   def self.build_agent(
-    client : Crig::Providers::XAI::Client,
-    model : String = Crig::Providers::XAI::GROK_3_MINI,
+    client : Crig::Providers::Together::Client,
+    model : String = Crig::Providers::Together::LLAMA_3_8B_CHAT_HF,
   )
     client.agent(model)
       .preamble(PREAMBLE)

@@ -12,11 +12,11 @@ examples/agent_with_cohere.rs::file::example	file	ported	examples/agent_with_coh
 examples/agent_with_context.rs::file::example	file	ported	examples/agent_with_context.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_deepseek.rs::file::example	file	ported	examples/agent_with_deepseek.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_default_max_turns.rs::file::example	file	ported	examples/agent_with_default_max_turns.cr	Crystal example file exists for this upstream example basename.
-examples/agent_with_echochambers.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/agent_with_echochambers.rs::file::example	file	ported	examples/agent_with_echochambers.cr,spec/crig_spec.cr	Ported the EchoChambers agent example with the upstream five-tool surface, OpenAI agent builder flow, and CLI chatbot helper coverage.
 examples/agent_with_galadriel.rs::file::example	file	ported	examples/agent_with_galadriel.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_grok.rs::file::example	file	ported	examples/agent_with_grok.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_groq.rs::file::example	file	ported	examples/agent_with_groq.cr	Crystal example file exists for this upstream example basename.
-examples/agent_with_huggingface.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/agent_with_huggingface.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/agent_with_huggingface.cr	Ported as helper-style Crystal example module covering partial/basic/tools/loaders/context HuggingFace agent workflows.
 examples/agent_with_hyperbolic.rs::file::example	file	ported	examples/agent_with_hyperbolic.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_loaders.rs::file::example	file	ported	examples/agent_with_loaders.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_mira.rs::file::example	file	ported	examples/agent_with_mira.cr	Crystal example file exists for this upstream example basename.
@@ -24,7 +24,7 @@ examples/agent_with_moonshot.rs::file::example	file	ported	examples/agent_with_m
 examples/agent_with_ollama.rs::file::example	file	ported	examples/agent_with_ollama.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_openrouter.rs::file::example	file	ported	examples/agent_with_openrouter.cr	Crystal example file exists for this upstream example basename.
 examples/agent_with_together.rs::file::example	file	ported	examples/agent_with_together.cr	Crystal example file exists for this upstream example basename.
-examples/agent_with_tools_otel.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/agent_with_tools_otel.rs::file::example	file	ported	examples/agent_with_tools_otel.cr,spec/crig_spec.cr	Ported the tools + OTel example as the same calculator agent builder flow with telemetry span availability and focused prompt coverage.
 examples/anthropic_agent.rs::file::example	file	ported	examples/anthropic_agent.cr	Crystal example file exists for this upstream example basename.
 examples/anthropic_plaintext_document.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream Anthropic plaintext-document helper layout.
 examples/anthropic_streaming.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream anthropic streaming helper layout.
@@ -32,81 +32,81 @@ examples/anthropic_streaming_with_tools.rs::file::example	file	ported	/Users/dom
 examples/anthropic_structured_output.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/anthropic_structured_output.cr	Crystal example ports the upstream anthropic structured output helper flow.
 examples/anthropic_think_tool.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/anthropic_think_tool.cr	Crystal example ports the upstream anthropic think-tool helper flow.
 examples/anthropic_think_tool_with_other_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/anthropic_think_tool_with_other_tools.cr	Crystal example ports the upstream anthropic think-tool-with-other-tools helper flow.
-examples/calculator_chatbot.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/calculator_chatbot.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/calculator_chatbot.cr	Ported as helper-style Crystal example module covering dynamic-tool RAG calculator agent construction and CLI chatbot builder composition.
 examples/chain.rs::file::example	file	ported	examples/chain.cr	Crystal example file exists for this upstream example basename.
 examples/cohere_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/cohere_streaming.cr	Crystal example ports the upstream cohere streaming helper flow.
 examples/cohere_streaming_with_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/cohere_streaming_with_tools.cr	Crystal example ports the upstream cohere streaming-with-tools helper flow.
-examples/complex_agentic_loop_claude.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/custom_vector_store.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/debate.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/complex_agentic_loop_claude.rs::file::example	file	ported	examples/complex_agentic_loop_claude.cr,spec/crig_spec.cr	Ported the complex Claude agentic-loop example with anthropic beta client construction, embedded knowledge base indexing, specialist agents as tools, think-tool orchestration, and multi-turn prompt helper coverage.
+examples/custom_vector_store.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/custom_vector_store.cr	Ported as helper-style Crystal example module demonstrating a custom vector store backend implementation over the public vector-search interfaces.
+examples/debate.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/debate.cr	Ported as helper-style Crystal example module covering OpenAI-vs-Cohere debater construction and round threading.
 examples/deepseek_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/deepseek_streaming.cr	Crystal example ports the upstream deepseek streaming helper flow.
-examples/discord_bot.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/discord_bot.rs::file::example	file	ported	examples/discord_bot.cr,spec/crig_spec.cr	Ported the Discord bot example with the upstream OpenAI agent builder flow, `into_discord_bot` helper, and env-token helper coverage.
 examples/enum_dispatch.rs::file::example	file	ported	examples/enum_dispatch.cr	Crystal example file exists for this upstream example basename.
 examples/extractor.rs::file::example	file	ported	examples/extractor.cr	Crystal example file exists for this upstream example basename.
 examples/extractor_with_deepseek.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream DeepSeek extractor helper layout.
 examples/gemini_agent.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_agent.cr	Crystal example ports the upstream gemini agent helper flow.
-examples/gemini_deep_research.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/gemini_deep_research.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_deep_research.cr	Ported as helper-style Crystal example module covering Gemini deep-research request params, stream state tracking, and request construction.
 examples/gemini_embeddings.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_embeddings.cr	Crystal example ports the upstream gemini embeddings helper flow.
 examples/gemini_extractor.rs::file::example	file	ported	examples/gemini_extractor.cr	Crystal example file exists for this upstream example basename.
-examples/gemini_extractor_with_rag.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/gemini_interactions_api.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/gemini_extractor_with_rag.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_extractor_with_rag.cr	Ported as helper-style Crystal example module covering Gemini embeddings-backed RAG extractor construction and questionnaire index building.
+examples/gemini_interactions_api.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_interactions_api.cr	Ported as helper-style Crystal example module covering Gemini Interactions API request builders, tool setup, and response helpers.
 examples/gemini_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_streaming.cr	Crystal example ports the upstream gemini streaming helper flow.
 examples/gemini_streaming_with_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_streaming_with_tools.cr	Crystal example ports the upstream gemini streaming-with-tools helper flow.
 examples/gemini_structured_output.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_structured_output.cr	Crystal example ports the upstream gemini structured output helper flow.
-examples/gemini_video_understanding.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/gemini_video_understanding.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_video_understanding.cr	Ported as helper-style Crystal example module covering Gemini video prompt construction and agent builder configuration.
 examples/groq_streaming_reasoning.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/groq_streaming_reasoning.cr	Crystal example ports the upstream groq reasoning streaming helper flow.
 examples/huggingface_image_generation.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/huggingface_image_generation.cr	Crystal example ports the upstream huggingface image generation helper flow.
 examples/huggingface_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/huggingface_streaming.cr	Crystal example ports the upstream huggingface streaming helper flow.
-examples/huggingface_subproviders.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/hyperbolic_audio_generation.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/huggingface_subproviders.rs::file::example	file	ported	examples/huggingface_subproviders.cr,spec/crig_spec.cr	Ported the Hugging Face subprovider example with the upstream model/subprovider matrix, builder-based client helper, partial-agent helper, and tools-agent helper coverage.
+examples/hyperbolic_audio_generation.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/hyperbolic_audio_generation.cr	Hyperbolic audio generation example helper and spec coverage added.
 examples/hyperbolic_image_generation.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream Hyperbolic image generation helper layout.
 examples/image.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream image prompt helper layout.
-examples/image_ollama.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/image_ollama.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/image_ollama.cr	Ollama image prompt example helper and spec coverage added.
 examples/loaders.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream file-loader helper layout.
-examples/mistral_embeddings.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/multi_agent.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/mistral_embeddings.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/mistral_embeddings.cr	Mistral embeddings/vector-search example helper and spec coverage added.
+examples/multi_agent.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/multi_agent.cr	Ported as helper-style Crystal example module with spec coverage for translator-agent, tool, chatbot, and prompt flows.
 examples/multi_extract.rs::file::example	file	ported	examples/multi_extract.cr	Crystal example file exists for this upstream example basename.
 examples/multi_turn_agent.rs::file::example	file	ported	examples/multi_turn_agent.cr	Crystal example file exists for this upstream example basename.
 examples/multi_turn_agent_extended.rs::file::example	file	ported	examples/multi_turn_agent_extended.cr	Crystal example file exists for this upstream example basename.
-examples/multi_turn_streaming.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/multi_turn_streaming_gemini.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/multi_turn_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/multi_turn_streaming.cr	Anthropic multi-turn streaming example helper and spec coverage added.
+examples/multi_turn_streaming_gemini.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/multi_turn_streaming_gemini.cr	Ported as helper-style Crystal example module covering Gemini multi-turn streaming with arithmetic tools.
 examples/ollama_streaming.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream ollama streaming helper layout.
-examples/ollama_streaming_pause_control.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/ollama_streaming_with_tools.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/ollama_streaming_pause_control.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/ollama_streaming_pause_control.cr	Ollama pause-control streaming example helper and spec coverage added.
+examples/ollama_streaming_with_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/ollama_streaming_with_tools.cr	Ollama streaming-with-tools example helper and spec coverage added.
 examples/ollama_structured_output.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/ollama_structured_output.cr	Crystal example ports the upstream ollama structured output helper flow.
-examples/openai_agent_completions_api.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/openai_agent_completions_api_otel.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/openai_agent_completions_api.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/openai_agent_completions_api.cr	Ported as helper-style Crystal example module covering the completions_api -> into_agent_builder flow.
+examples/openai_agent_completions_api_otel.rs::file::example	file	ported	examples/openai_agent_completions_api_otel.cr,spec/crig_spec.cr	Ported the OpenAI Completions API + OTel example with completions-model `into_agent_builder` flow and telemetry span availability coverage.
 examples/openai_audio_generation.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream OpenAI audio generation helper layout.
 examples/openai_image_generation.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream OpenAI image generation helper layout.
 examples/openai_streaming.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream OpenAI streaming helper layout.
-examples/openai_streaming_with_tools.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/openai_streaming_with_tools_otel.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/openai_streaming_with_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/openai_streaming_with_tools.cr	Streaming-with-tools OpenAI example helper and spec coverage added.
+examples/openai_streaming_with_tools_otel.rs::file::example	file	ported	examples/openai_streaming_with_tools_otel.cr,spec/crig_spec.cr	Ported the OpenAI streaming-with-tools + OTel example with the same agent builder flow, shared streaming stdout helper, and telemetry span availability coverage.
 examples/openai_structured_output.rs::file::example	file	ported	-	Crystal example and spec coverage now mirror the upstream OpenAI structured output helper layout.
-examples/openrouter_multimodal.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/openrouter_provider_selection.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/openrouter_streaming_with_tools.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/pdf_agent.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/perplexity_agent.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/openrouter_multimodal.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/openrouter_multimodal.cr	Ported as helper-style Crystal example module covering OpenRouter multimodal image, PDF, and mixed-content prompts.
+examples/openrouter_provider_selection.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/openrouter_provider_selection.cr	Ported as helper-style Crystal example module covering OpenRouter provider preference builders and combined routing params.
+examples/openrouter_streaming_with_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/openrouter_streaming_with_tools.cr	Streaming-with-tools OpenRouter example helper and spec coverage added.
+examples/pdf_agent.rs::file::example	file	ported	examples/pdf_agent.cr,spec/crig_spec.cr	Ported the upstream PDF RAG example with builder-first Ollama client, PDF chunk loading, embeddings/index construction, rag agent helper, and chatbot helper coverage.
+examples/perplexity_agent.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/perplexity_agent.cr	Ported as helper-style Crystal example module covering the Perplexity agent builder with additional_params and prompt helper.
 examples/rag.rs::file::example	file	ported	examples/rag.cr	Crystal example file exists for this upstream example basename.
-examples/rag_dynamic_tools.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/rag_dynamic_tools_multi_turn.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/rag_ollama.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/reasoning_loop.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/reasoning_roundtrip_test.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/request_hook.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/reqwest_middleware.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/rag_dynamic_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rag_dynamic_tools.cr	Ported with ToolSet-backed dynamic tool embeddings, vector index construction, and agent builder parity.
+examples/rag_dynamic_tools_multi_turn.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rag_dynamic_tools_multi_turn.cr	Ported as helper-style Crystal example module covering dynamic tool embeddings, vector index selection, and multi-turn prompt execution.
+examples/rag_ollama.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rag_ollama.cr	Ported as helper-style Crystal example module covering Ollama embeddings, vector store construction, RAG agent builder, and prompt helper.
+examples/reasoning_loop.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/reasoning_loop.cr	Ported as helper-style Crystal example module covering submit-tool reasoning-step extraction and arithmetic executor composition.
+examples/reasoning_roundtrip_test.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/reasoning_roundtrip_test.cr	Ported as helper-style Crystal example module covering provider reasoning params, streamed reasoning accumulation, assistant message ids, and turn-two reasoning roundtrip history.
+examples/request_hook.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/request_hook.cr	Ported as helper-style Crystal example module covering prompt and streaming hook callbacks plus calculator tool behavior.
+examples/reqwest_middleware.rs::file::example	file	ported	examples/reqwest_middleware.cr,spec/crig_spec.cr	Ported the middleware-enabled Anthropic example using a retrying `HttpClientExt` transport, builder injection, and agent helper coverage.
 examples/rmcp.rs::file::example	file	ported	examples/rmcp.cr	Crystal example file exists for this upstream example basename.
-examples/sentiment_classifier.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/sentiment_classifier.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/sentiment_classifier.cr	Ported as helper-style Crystal example module covering the OpenAI extractor builder and sentiment payload shape.
 examples/simple_model.rs::file::example	file	ported	examples/simple_model.cr	Crystal example file exists for this upstream example basename.
-examples/together_embeddings.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/together_streaming.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/together_streaming_with_tools.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/transcription.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/together_embeddings.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/together_embeddings.cr	Together embeddings example helper and spec coverage added.
+examples/together_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/together_streaming.cr	Together streaming example helper and spec coverage added.
+examples/together_streaming_with_tools.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/together_streaming_with_tools.cr	Together streaming-with-tools example helper and spec coverage added.
+examples/transcription.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/transcription.cr	Multi-provider transcription example helpers and spec coverage added.
 examples/vector_search.rs::file::example	file	ported	examples/vector_search.cr	Crystal example file exists for this upstream example basename.
-examples/vector_search_cohere.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/vector_search_ollama.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/voyageai_embeddings.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
-examples/xai_streaming.rs::file::example	file	missing	-	Upstream example file exists under vendor/rig/rig/rig-core/examples with no Crystal example file yet.
+examples/vector_search_cohere.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/vector_search_cohere.cr	Cohere vector-search example helper and spec coverage added.
+examples/vector_search_ollama.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/vector_search_ollama.cr	Ollama vector-search example helper and spec coverage added.
+examples/voyageai_embeddings.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/voyageai_embeddings.cr	VoyageAI embeddings example helper and spec coverage added.
+examples/xai_streaming.rs::file::example	file	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/xai_streaming.cr	xAI streaming example helper and spec coverage added.
 examples/enum_dispatch.rs::func::agent	func	ported	examples/enum_dispatch.cr,spec/crig_spec.cr	Provider-dispatched agent lookup is ported through `ProviderRegistry#agent`, returning an `Agents` wrapper that forwards prompt calls to the concrete built agent.
 examples/enum_dispatch.rs::func::new	func	ported	examples/enum_dispatch.cr,spec/crig_spec.cr	The example registry and agent wrapper construction are ported under `Crig::Examples::EnumDispatch`.
 examples/enum_dispatch.rs::method::ProviderRegistry.new	method	ported	examples/enum_dispatch.cr,spec/crig_spec.cr	`ProviderRegistry.new` is ported with injectable provider factories for specs and a default registry matching the Rust Anthropic/OpenAI mapping.

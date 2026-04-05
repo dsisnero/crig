@@ -1,7 +1,7 @@
 require "../src/crig"
 
-module Crig::Examples::TogetherEmbeddings
-  MODEL = Crig::Providers::Together::M2_BERT_80M_8K_RETRIEVAL
+module Crig::Examples::VoyageAIEmbeddings
+  MODEL = Crig::Providers::VoyageAI::VOYAGE_3_LARGE
 
   struct Greetings
     include Crig::Embeddings::Embed
@@ -17,9 +17,9 @@ module Crig::Examples::TogetherEmbeddings
   end
 
   def self.build_embeddings(
-    client : Crig::Providers::Together::Client,
+    client : Crig::Providers::VoyageAI::Client,
     model : String = MODEL,
-  ) : Crig::Embeddings::EmbeddingsBuilder(Crig::Providers::Together::EmbeddingModel, Greetings)
+  ) : Crig::Embeddings::EmbeddingsBuilder(Crig::Providers::VoyageAI::EmbeddingModel, Greetings)
     client.embeddings(Greetings, model)
       .document(Greetings.new("Hello, world!"))
       .document(Greetings.new("Goodbye, world!"))

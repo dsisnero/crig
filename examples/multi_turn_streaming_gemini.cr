@@ -1,22 +1,19 @@
 require "../src/crig"
 require "./agent_with_default_max_turns"
 
-module Crig::Examples::MultiTurnStreaming
-  PREAMBLE = Crig::Examples::AgentWithDefaultMaxTurns::PREAMBLE
+module Crig::Examples::MultiTurnStreamingGemini
+  PREAMBLE = "You are an calculator. You must use tools to get the user result"
   PROMPT   = "Calculate 2 * (3 + 5) / 9  = ?. Describe the result to me."
   TOOLS    = Crig::Examples::AgentWithDefaultMaxTurns::TOOLS
 
   def self.build_agent(
-    client : Crig::Providers::Anthropic::Client,
-    model : String = Crig::Providers::Anthropic::CLAUDE_3_5_SONNET,
-  ) : Crig::Agent(Crig::Providers::Anthropic::CompletionModel)
-    builder = client.agent(model)
-      .preamble(PREAMBLE)
-
+    client : Crig::Providers::Gemini::Client,
+    model : String = Crig::Providers::Gemini::GEMINI_2_5_FLASH,
+  ) : Crig::Agent(Crig::Providers::Gemini::CompletionModel)
+    builder = client.agent(model).preamble(PREAMBLE)
     TOOLS.each do |tool|
       builder = builder.tool(tool)
     end
-
     builder.build
   end
 
@@ -38,8 +35,7 @@ module Crig::Examples::MultiTurnStreaming
       end
     end
 
-    assistant_stream = Crig::StreamingCompletionResponse(Crig::FinalResponse).stream(raw_choices)
-    Crig.stream_to_stdout(assistant_stream, io)
+    Crig.stream_to_stdout(Crig::StreamingCompletionResponse(Crig::FinalResponse).stream(raw_choices), io)
     final_response
   end
 end

@@ -1,15 +1,15 @@
 # source_api_id	status	crystal_refs	notes
-examples/enum_dispatch.rs::func::agent	missing	-	baseline
-examples/enum_dispatch.rs::func::new	missing	-	baseline
-examples/enum_dispatch.rs::method::ProviderRegistry.new	missing	-	baseline
-examples/gemini_extractor.rs::struct::FooString	missing	-	baseline
-examples/multi_extract.rs::struct::Names	missing	-	baseline
-examples/multi_extract.rs::struct::Sentiment	missing	-	baseline
-examples/multi_extract.rs::struct::Topics	missing	-	baseline
-examples/rmcp.rs::func::new	missing	-	baseline
-examples/rmcp.rs::method::Counter.new	missing	-	baseline
-examples/rmcp.rs::struct::Counter	missing	-	baseline
-examples/rmcp.rs::struct::StructRequest	missing	-	baseline
+examples/enum_dispatch.rs::func::agent	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/enum_dispatch.cr	ProviderRegistry agent helper exists in the Crystal example.
+examples/enum_dispatch.rs::func::new	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/enum_dispatch.cr	ProviderRegistry constructor helper exists in the Crystal example.
+examples/enum_dispatch.rs::method::ProviderRegistry.new	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/enum_dispatch.cr	ProviderRegistry.new exists in the Crystal example.
+examples/gemini_extractor.rs::struct::FooString	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/gemini_extractor.cr	FooString payload struct exists in the Crystal example.
+examples/multi_extract.rs::struct::Names	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/multi_extract.cr	Names payload struct exists in the Crystal example.
+examples/multi_extract.rs::struct::Sentiment	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/multi_extract.cr	Sentiment payload struct exists in the Crystal example.
+examples/multi_extract.rs::struct::Topics	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/multi_extract.cr	Topics payload struct exists in the Crystal example.
+examples/rmcp.rs::func::new	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rmcp.cr	Example constructor/helper exists in the Crystal example.
+examples/rmcp.rs::method::Counter.new	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rmcp.cr	Counter.new exists in the Crystal example.
+examples/rmcp.rs::struct::Counter	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rmcp.cr	Counter struct exists in the Crystal example.
+examples/rmcp.rs::struct::StructRequest	ported	/Users/dominic/repos/github.com/dsisnero/crig/examples/rmcp.cr	StructRequest exists in the Crystal example.
 src/agent/builder.rs::func::additional_params	ported	Crystal func exists
 src/agent/builder.rs::func::append_preamble	ported	Crystal func exists
 src/agent/builder.rs::func::build	ported	Crystal func exists

@@ -348,26 +348,26 @@ src/providers/xai/streaming.rs::test::reasoning_done_item_emits_summary_then_enc
 src/tool/mod.rs::test::test_tool_deletion	ported	spec/crig_spec.cr	already covered
 src/vector_store/in_memory_store.rs::test::test_auto_ids	ported	spec/crig_spec.cr	already covered
 src/vector_store/in_memory_store.rs::test::test_multiple_embeddings	ported	spec/crig_spec.cr	already covered
-src/vector_store/in_memory_store.rs::test::test_single_embedding	missing	-	baseline
-tests/embed_macro.rs::test::test_custom_and_basic_embed	missing	-	baseline
-tests/embed_macro.rs::test::test_custom_embed	missing	-	baseline
-tests/embed_macro.rs::test::test_embed_vec_non_string	missing	-	baseline
-tests/embed_macro.rs::test::test_embed_vec_string	missing	-	baseline
-tests/embed_macro.rs::test::test_multiple_embed_tags	missing	-	baseline
-tests/embed_macro.rs::test::test_single_embed	missing	-	baseline
-tests/openai_response_schema.rs::test::test_array_items	missing	-	baseline
-tests/openai_response_schema.rs::test::test_enum_schemas	missing	-	baseline
-tests/openai_response_schema.rs::test::test_nested_objects	missing	-	baseline
-tests/openai_responses_input_item.rs::test::assistant_reasoning_encrypted_only_serializes_encrypted_content	missing	-	baseline
-tests/openai_responses_input_item.rs::test::assistant_reasoning_mixed_content_serializes_only_text_like_summaries	missing	-	baseline
-tests/openai_responses_input_item.rs::test::assistant_reasoning_redacted_only_serializes_as_encrypted_content	missing	-	baseline
-tests/openai_responses_input_item.rs::test::assistant_reasoning_without_id_returns_error	missing	-	baseline
-tests/openai_responses_input_item.rs::test::assistant_tool_call_without_call_id_returns_request_error	missing	-	baseline
-tests/openai_responses_input_item.rs::test::openai_empty_reasoning_content_roundtrips_to_request_item	missing	-	baseline
-tests/openai_responses_input_item.rs::test::openai_responses_invalid_additional_params_returns_error_without_panicking	missing	-	baseline
-tests/openai_responses_input_item.rs::test::openai_responses_reasoning_output_preserves_encrypted_content	missing	-	baseline
-tests/openai_responses_input_item.rs::test::openai_responses_reasoning_output_without_summary_is_not_dropped	missing	-	baseline
-tests/openai_responses_input_item.rs::test::openai_responses_request_auto_adds_reasoning_encrypted_include	missing	-	baseline
-tests/openai_responses_input_item.rs::test::openai_responses_request_reasoning_without_id_returns_error_without_panicking	missing	-	baseline
-tests/openai_responses_input_item.rs::test::test_input_item_serialization_avoids_duplicate_role	missing	-	baseline
-tests/openai_responses_input_item.rs::test::user_tool_result_without_call_id_returns_request_error	missing	-	baseline
+src/vector_store/in_memory_store.rs::test::test_single_embedding	ported	spec/crig_spec.cr	covered by the single-embedding ranking spec for InMemoryVectorStore.
+tests/embed_macro.rs::test::test_custom_and_basic_embed	ported	spec/crig_spec.cr	covered by the embeddings custom-and-basic embed spec.
+tests/embed_macro.rs::test::test_custom_embed	ported	spec/crig_spec.cr	covered by the embeddings custom embed spec.
+tests/embed_macro.rs::test::test_embed_vec_non_string	ported	spec/crig_spec.cr	covered by the embeddings non-string vector embed spec.
+tests/embed_macro.rs::test::test_embed_vec_string	ported	spec/crig_spec.cr	covered by the embeddings string vector embed spec.
+tests/embed_macro.rs::test::test_multiple_embed_tags	ported	spec/crig_spec.cr	covered by the embeddings multiple-tags spec.
+tests/embed_macro.rs::test::test_single_embed	ported	spec/crig_spec.cr	covered by the embeddings single embed spec.
+tests/openai_response_schema.rs::test::test_array_items	ported	spec/crig_spec.cr	covered by the OpenAI response-schema array item sanitization spec.
+tests/openai_response_schema.rs::test::test_enum_schemas	ported	spec/crig_spec.cr	covered by the OpenAI anyOf/enum schema sanitization spec.
+tests/openai_response_schema.rs::test::test_nested_objects	ported	spec/crig_spec.cr	covered by the OpenAI nested object schema sanitization spec.
+tests/openai_responses_input_item.rs::test::assistant_reasoning_encrypted_only_serializes_encrypted_content	ported	spec/crig_spec.cr	covered by the OpenAI encrypted-only reasoning serialization spec.
+tests/openai_responses_input_item.rs::test::assistant_reasoning_mixed_content_serializes_only_text_like_summaries	ported	spec/crig_spec.cr	covered by the OpenAI mixed reasoning serialization spec.
+tests/openai_responses_input_item.rs::test::assistant_reasoning_redacted_only_serializes_as_encrypted_content	ported	spec/crig_spec.cr	covered by the OpenAI redacted-only reasoning serialization spec.
+tests/openai_responses_input_item.rs::test::assistant_reasoning_without_id_returns_error	ported	spec/crig_spec.cr	covered by the OpenAI assistant reasoning missing-id error spec.
+tests/openai_responses_input_item.rs::test::assistant_tool_call_without_call_id_returns_request_error	ported	spec/crig_spec.cr	covered by the OpenAI assistant tool-call missing-call-id error spec.
+tests/openai_responses_input_item.rs::test::openai_empty_reasoning_content_roundtrips_to_request_item	ported	spec/crig_spec.cr	covered by the OpenAI empty reasoning roundtrip spec.
+tests/openai_responses_input_item.rs::test::openai_responses_invalid_additional_params_returns_error_without_panicking	ported	spec/crig_spec.cr	covered by the OpenAI invalid additional_params error spec.
+tests/openai_responses_input_item.rs::test::openai_responses_reasoning_output_preserves_encrypted_content	ported	spec/crig_spec.cr	covered by the OpenAI reasoning output encrypted-content preservation spec.
+tests/openai_responses_input_item.rs::test::openai_responses_reasoning_output_without_summary_is_not_dropped	ported	spec/crig_spec.cr	covered by the OpenAI reasoning output no-summary preservation spec.
+tests/openai_responses_input_item.rs::test::openai_responses_request_auto_adds_reasoning_encrypted_include	ported	spec/crig_spec.cr	covered by the OpenAI request encrypted-include auto-add spec.
+tests/openai_responses_input_item.rs::test::openai_responses_request_reasoning_without_id_returns_error_without_panicking	ported	spec/crig_spec.cr	covered by the OpenAI request reasoning missing-id error spec.
+tests/openai_responses_input_item.rs::test::test_input_item_serialization_avoids_duplicate_role	ported	spec/crig_spec.cr	covered by the OpenAI input-item role deduplication spec.
+tests/openai_responses_input_item.rs::test::user_tool_result_without_call_id_returns_request_error	ported	spec/crig_spec.cr	covered by the OpenAI user tool-result missing-call-id error spec.
