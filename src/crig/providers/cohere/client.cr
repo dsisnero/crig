@@ -103,32 +103,24 @@ module Crig
           EmbeddingModel.new(self, model, input_type, ndims)
         end
 
-        def embeddings(model : String, input_type : String) : Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel)
-          Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel).new(
-            embedding_model(model, input_type)
-          )
+        def embeddings(model : String, input_type : String) : Crig::Embeddings::EmptyEmbeddingsBuilder(EmbeddingModel)
+          Crig::Embeddings::EmbeddingsBuilder.new(embedding_model(model, input_type))
         end
 
-        def embeddings(type : D.class, model : String, input_type : String) : Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel) forall D
-          Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel).new(
-            embedding_model(model, input_type)
-          )
+        def embeddings(type : D.class, model : String, input_type : String) : Crig::Embeddings::EmptyEmbeddingsBuilder(EmbeddingModel) forall D
+          Crig::Embeddings::EmbeddingsBuilder.new(embedding_model(model, input_type))
         end
 
         def embedding_model_with_ndims(model : String, input_type : String, ndims : Int32)
           EmbeddingModel.new(self, model, input_type, ndims)
         end
 
-        def embeddings_with_ndims(model : String, input_type : String, ndims : Int32) : Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel)
-          Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel).new(
-            embedding_model_with_ndims(model, input_type, ndims)
-          )
+        def embeddings_with_ndims(model : String, input_type : String, ndims : Int32) : Crig::Embeddings::EmptyEmbeddingsBuilder(EmbeddingModel)
+          Crig::Embeddings::EmbeddingsBuilder.new(embedding_model_with_ndims(model, input_type, ndims))
         end
 
-        def embeddings_with_ndims(type : D.class, model : String, input_type : String, ndims : Int32) : Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel) forall D
-          Crig::Embeddings::EmbeddingsBuilderInitializer(EmbeddingModel).new(
-            embedding_model_with_ndims(model, input_type, ndims)
-          )
+        def embeddings_with_ndims(type : D.class, model : String, input_type : String, ndims : Int32) : Crig::Embeddings::EmptyEmbeddingsBuilder(EmbeddingModel) forall D
+          Crig::Embeddings::EmbeddingsBuilder.new(embedding_model_with_ndims(model, input_type, ndims))
         end
 
         def completion_model(model : String) : Crig::Providers::Cohere::CompletionModel

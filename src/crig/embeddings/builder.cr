@@ -1,8 +1,12 @@
 module Crig
   module Embeddings
-    # Initializer returned by client/model embedding helpers before the first
+    # Placeholder document type for an empty embeddings build.
+    struct NoDocument
+    end
+
+    # Empty builder returned by `EmbeddingsBuilder.new(model)` before the first
     # document fixes the builder's document type.
-    struct EmbeddingsBuilderInitializer(M)
+    struct EmptyEmbeddingsBuilder(M)
       getter model : M
 
       def initialize(@model : M)
@@ -10,7 +14,6 @@ module Crig
 
       # Add a document to be embedded.
       # The document can be a String or any type that implements the `Embed` interface.
-      # Returns an `EmbeddingsBuilder` with the inferred document type.
       def document(document : T) : EmbeddingsBuilder(M, T) forall T
         texts = Crig::Embeddings.to_texts(document)
         array = Array({T, Array(String)}).new(1)
@@ -26,30 +29,20 @@ module Crig
       end
 
       # Add multiple documents to be embedded.
-      # Returns an `EmbeddingsBuilder` with the inferred document type.
       def documents(documents : Enumerable(T)) : EmbeddingsBuilder(M, T) forall T
-        builder = nil
-        documents.each do |document|
-          if builder.nil?
-            builder = document(document)
-          else
-            builder = builder.document(document)
-          end
-        end
-        builder || raise ArgumentError.new("documents cannot be empty")
+        documents.reduce(EmbeddingsBuilder(M, T).empty(@model)) { |builder, document| builder.document(document) }
       end
 
       # Batch convenience helper for the builder-first simple-document path.
       def all_simple_documents(documents : Enumerable(Tuple(String, String))) : EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument)
-        builder = nil
-        documents.each do |id, text|
-          if builder.nil?
-            builder = simple_document(id, text)
-          else
-            builder = builder.simple_document(id, text)
-          end
+        documents.reduce(EmbeddingsBuilder(M, Crig::Embeddings::SimpleDocument).empty(@model)) do |builder, (id, text)|
+          builder.simple_document(id, text)
         end
-        builder || raise ArgumentError.new("documents cannot be empty")
+      end
+
+      # Build an empty embeddings set, matching Rust's empty-builder behavior.
+      def build : Array({Crig::Embeddings::NoDocument, Crig::OneOrMany(Embedding)})
+        [] of {Crig::Embeddings::NoDocument, Crig::OneOrMany(Embedding)}
       end
     end
 
@@ -60,8 +53,12 @@ module Crig
       getter documents : Array({T, Array(String)})
 
       # Start a builder directly from a model when you are not going through a client helper.
-      def self.new(model : M) : EmbeddingsBuilderInitializer(M) forall M
-        EmbeddingsBuilderInitializer(M).new(model)
+      def self.new(model : M) : EmptyEmbeddingsBuilder(M) forall M
+        EmptyEmbeddingsBuilder(M).new(model)
+      end
+
+      def self.empty(model : M) : self
+        new(model, [] of {T, Array(String)})
       end
 
       def initialize(@model : M, @documents : Array({T, Array(String)}) = [] of {T, Array(String)})

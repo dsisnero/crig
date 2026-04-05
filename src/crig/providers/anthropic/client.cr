@@ -36,14 +36,14 @@ module Crig
         getter base_url : String
         getter anthropic_version : String
         getter anthropic_betas : Array(String)
-        getter http_client : HTTP::Client?
+        getter http_client : HTTP::Client | Client::WrappedTransport | Nil
 
         def initialize(
           @api_key : String? = nil,
           @base_url : String = ANTHROPIC_API_BASE_URL,
           @anthropic_version : String = ANTHROPIC_VERSION_LATEST,
           @anthropic_betas : Array(String) = [] of String,
-          @http_client : HTTP::Client? = nil,
+          @http_client : HTTP::Client | Client::WrappedTransport | Nil = nil,
         )
         end
 
@@ -73,6 +73,10 @@ module Crig
           self.class.new(@api_key, @base_url, @anthropic_version, @anthropic_betas.dup, http_client)
         end
 
+        def http_client(http_client : Crig::HttpClient::HttpClientExt) : self
+          self.class.new(@api_key, @base_url, @anthropic_version, @anthropic_betas.dup, Client::WrappedTransport.wrap(http_client))
+        end
+
         def build : Client
           api_key = @api_key || raise "ANTHROPIC_API_KEY not set"
           Client.new(api_key, @base_url, @anthropic_version, @anthropic_betas, @http_client)
@@ -80,18 +84,55 @@ module Crig
       end
 
       struct Client
+        class WrappedTransport
+          def initialize(
+            @send_proc : Proc(HTTP::Request, Bytes, Crig::HttpClient::Result(Crig::HttpClient::Response(Crig::HttpClient::LazyBytes), Crig::HttpClient::Error)),
+            @send_multipart_proc : Proc(HTTP::Request, Crig::HttpClient::MultipartForm, Crig::HttpClient::Result(Crig::HttpClient::Response(Crig::HttpClient::LazyBytes), Crig::HttpClient::Error)),
+            @send_streaming_proc : Proc(HTTP::Request, Bytes, Crig::HttpClient::Result(Crig::HttpClient::StreamingResponse, Crig::HttpClient::Error)),
+          )
+          end
+
+          def self.wrap(http_client : H) forall H
+            new(
+              ->(req : HTTP::Request, body : Bytes) { http_client.send(req, body) },
+              ->(req : HTTP::Request, form : Crig::HttpClient::MultipartForm) { http_client.send_multipart(req, form) },
+              ->(req : HTTP::Request, body : Bytes) { http_client.send_streaming(req, body) },
+            )
+          end
+
+          def send(req : HTTP::Request, body : Bytes = Bytes.empty) : Crig::HttpClient::Result(Crig::HttpClient::Response(Crig::HttpClient::LazyBytes), Crig::HttpClient::Error)
+            @send_proc.call(req, body)
+          end
+
+          def send_multipart(req : HTTP::Request, form : Crig::HttpClient::MultipartForm) : Crig::HttpClient::Result(Crig::HttpClient::Response(Crig::HttpClient::LazyBytes), Crig::HttpClient::Error)
+            @send_multipart_proc.call(req, form)
+          end
+
+          def send_streaming(req : HTTP::Request, body : Bytes = Bytes.empty) : Crig::HttpClient::Result(Crig::HttpClient::StreamingResponse, Crig::HttpClient::Error)
+            @send_streaming_proc.call(req, body)
+          end
+        end
+
+        struct TransportResponse
+          getter status_code : Int32
+          getter body : String
+
+          def initialize(@status_code : Int32, @body : String)
+          end
+        end
+
         getter api_key : AnthropicKey
         getter base_url : String
         getter anthropic_version : String
         getter anthropic_betas : Array(String)
-        getter http_client : HTTP::Client?
+        getter http_client : HTTP::Client | WrappedTransport | Nil
 
         def initialize(
           @api_key : AnthropicKey,
           @base_url : String = ANTHROPIC_API_BASE_URL,
           @anthropic_version : String = ANTHROPIC_VERSION_LATEST,
           @anthropic_betas : Array(String) = [] of String,
-          @http_client : HTTP::Client? = nil,
+          @http_client : HTTP::Client | WrappedTransport | Nil = nil,
         )
         end
 
@@ -100,7 +141,7 @@ module Crig
           base_url : String = ANTHROPIC_API_BASE_URL,
           anthropic_version : String = ANTHROPIC_VERSION_LATEST,
           anthropic_betas : Array(String) = [] of String,
-          http_client : HTTP::Client? = nil,
+          http_client : HTTP::Client | WrappedTransport | Nil = nil,
         ) : self
           new(AnthropicKey.new(api_key), base_url, anthropic_version, anthropic_betas, http_client)
         end
@@ -131,10 +172,22 @@ module Crig
           headers
         end
 
-        def post_json(path : String, body : String, headers : Hash(String, String) = {} of String => String) : HTTP::Client::Response
+        def post_json(path : String, body : String, headers : Hash(String, String) = {} of String => String) : TransportResponse
           all_headers = default_headers
           headers.each { |key, value| all_headers[key] = value }
-          HTTP::Client.exec("POST", build_uri(path), headers: all_headers, body: body)
+
+          if http_client = @http_client
+            case http_client
+            when WrappedTransport
+              request = HTTP::Request.new("POST", build_uri(path), all_headers, body)
+              response = http_client.send(request, body.to_slice).unwrap
+              response_body = Crig::HttpClient.decode_text(response.body.receive.unwrap)
+              return TransportResponse.new(response.status_code, response_body)
+            end
+          end
+
+          response = HTTP::Client.exec("POST", build_uri(path), headers: all_headers, body: body)
+          TransportResponse.new(response.status_code, response.body)
         end
 
         def build_uri(path : String) : String

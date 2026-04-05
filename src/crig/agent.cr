@@ -574,6 +574,12 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value + [source], nil, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Register a dynamic tool source queried from vector search at prompt time
+    # using the same ToolSet-oriented surface as the upstream Rust builder.
+    def dynamic_tools(sample : Int32, dynamic_tools, toolset : Crig::ToolSet) : self
+      dynamic_tools(sample, dynamic_tools, toolset.get_tool_definitions)
+    end
+
     def tool_server_handle(handle : ToolServerHandle) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end

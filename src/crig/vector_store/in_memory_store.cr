@@ -11,6 +11,7 @@ module Crig
     end
 
     struct InMemoryVectorIndex(M, D)
+      include Crig::ToolDyn
       include VectorStoreIndex(M, D)
 
       getter model : M
@@ -70,9 +71,14 @@ module Crig
         top_n_ids(request)
       end
 
-      def definition : Crig::Completion::ToolDefinition
+      def name : String
+        "search_vector_store"
+      end
+
+      def definition(prompt : String = "") : Crig::Completion::ToolDefinition
+        _ = prompt
         Crig::Completion::ToolDefinition.new(
-          "search_vector_store",
+          name,
           "Retrieves the most relevant documents from a vector store based on a query.",
           JSON.parse(%({"type":"object","properties":{"query":{"type":"string","description":"The query string to search for relevant documents in the vector store."},"samples":{"type":"integer","description":"The maxinum number of samples / documents to retrieve.","default":5,"minimum":1},"threshold":{"type":"number","description":"Similarity search threshold. If present, any result with a distance less than this may be omitted from the final result."}},"required":["query","samples"]})),
         )
@@ -82,6 +88,13 @@ module Crig
         dynamic_top_n(request).map do |score, id, document|
           VectorStoreOutput.new(score, id, document)
         end
+      end
+
+      def call(args : String) : String
+        request = Crig::VectorSearchRequest.from_json(args)
+        call(request).to_json
+      rescue error : Exception
+        raise Crig::ToolError.json_error(error)
       end
     end
 

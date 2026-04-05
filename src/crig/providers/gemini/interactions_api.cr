@@ -1793,8 +1793,7 @@ module Crig
           end
 
           def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-            builder = Crig::Completion::Request::CompletionRequestBuilder.new
-            prompt.is_a?(String) ? builder.prompt(prompt) : builder.message(prompt)
+            Crig::Completion::Request::CompletionRequestBuilder.new(prompt)
           end
 
           def create_completion_request(request : Crig::Completion::Request::CompletionRequest, stream_override : Bool? = nil) : CreateInteractionRequest

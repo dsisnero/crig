@@ -247,6 +247,36 @@ module Crig
     abstract def call(args : String) : String
   end
 
+  struct EmbeddedToolBox(T)
+    include Crig::ToolDyn
+    include Crig::ToolEmbeddingDyn
+
+    getter tool : T
+
+    def initialize(@tool : T)
+    end
+
+    def name : String
+      @tool.name
+    end
+
+    def definition(prompt : String) : Crig::Completion::ToolDefinition
+      @tool.definition(prompt)
+    end
+
+    def call(args : String) : String
+      @tool.call(args)
+    end
+
+    def context : JSON::Any
+      @tool.context
+    end
+
+    def embedding_docs : Array(String)
+      @tool.embedding_docs
+    end
+  end
+
   struct ToolType
     enum Kind
       Simple
@@ -268,7 +298,8 @@ module Crig
     end
 
     def self.embedding(tool : T) : self forall T
-      new(Kind::Embedding, embedding_tool: tool.as(Crig::ToolDyn), embedding_schema_source: tool.as(Crig::ToolEmbeddingDyn))
+      boxed = Crig::EmbeddedToolBox(T).new(tool)
+      new(Kind::Embedding, embedding_tool: boxed, embedding_schema_source: boxed)
     end
 
     def name : String

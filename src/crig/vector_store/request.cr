@@ -108,6 +108,29 @@ module Crig
         self.class.new(Kind::Or, lhs: self, rhs: rhs)
       end
 
+      def self.from_json(payload : String | IO) : self
+        from_json_value(JSON.parse(payload))
+      end
+
+      def self.from_json_value(value : JSON::Any) : self
+        hash = value.as_h
+        kind = Kind.parse(hash["kind"].as_s)
+        key = hash["key"]?.try(&.as_s?)
+        parsed_value = hash["value"]?.try do |entry|
+          {% if V == JSON::Any %}
+            entry
+          {% elsif V == Nil %}
+            nil
+          {% else %}
+            V.from_json(entry.to_json)
+          {% end %}
+        end
+        lhs = hash["lhs"]?.try { |entry| from_json_value(entry) }
+        rhs = hash["rhs"]?.try { |entry| from_json_value(entry) }
+
+        new(kind, key: key, value: parsed_value, lhs: lhs, rhs: rhs)
+      end
+
       def satisfies(value : JSON::Any) : Bool
         case @kind
         when Kind::Eq
@@ -189,6 +212,35 @@ module Crig
       # Create a fluent vector-search request builder.
       def self.builder : VectorSearchRequestBuilder(F)
         VectorSearchRequestBuilder(F).new
+      end
+
+      def self.from_json(payload : String | IO) : self
+        from_json_value(JSON.parse(payload))
+      end
+
+      def self.from_json_value(value : JSON::Any) : self
+        hash = value.as_h
+        query = hash["query"].as_s
+        samples = hash["samples"].as_i64.to_u64
+        threshold = hash["threshold"]?.try { |entry| entry.raw.as(Float64 | Int64).to_f64 }
+        additional_params = hash["additional_params"]?
+        filter = hash["filter"]?.try do |entry|
+          {% if F == JSON::Any %}
+            entry
+          {% elsif F == Nil %}
+            nil
+          {% else %}
+            F.from_json(entry.to_json)
+          {% end %}
+        end
+
+        new(
+          query,
+          samples,
+          threshold: threshold,
+          additional_params: additional_params,
+          filter: filter,
+        )
       end
 
       def map_filter(& : F -> T) : VectorSearchRequest(T) forall T
