@@ -23,6 +23,8 @@ dependencies:
     commit: c16d54814405e2b9748d9bddc3d8ce0d41d2190f
   crig-postgres:
     github: dsisnero/crig-postgres
+  cml:
+    github: dsisnero/cml
 
 development_dependencies:
   ameba:

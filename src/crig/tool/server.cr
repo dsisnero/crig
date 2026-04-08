@@ -283,7 +283,7 @@ module Crig
 
       if query = text
         dynamic_tools = @lock.synchronize { @dynamic_tools.dup }
-        dynamic_tool_ids = dynamic_tools.flat_map do |sample, index|
+        dynamic_tool_ids = Crig::Concurrency.flat_map_ordered(dynamic_tools) do |sample, index|
           request = Crig::VectorSearchRequest.builder
             .query(query)
             .samples(sample.to_u64)

@@ -1569,6 +1569,61 @@ class FakeMultiTurnStreamingModel
   end
 end
 
+class FakeConcurrentToolTurnStreamingModel
+  include Crig::Completion::CompletionModel
+
+  getter turn_counter = 0
+
+  def completion(request : Crig::Completion::Request::CompletionRequest)
+    Crig::Completion::CompletionResponse(String).new(
+      Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text("unused")),
+      Crig::Completion::Usage.new,
+      "raw",
+    )
+  end
+
+  def stream(request : Crig::Completion::Request::CompletionRequest)
+    turn = @turn_counter
+    @turn_counter += 1
+
+    choice = if turn.zero?
+               Crig::OneOrMany(Crig::Completion::AssistantContent).many([
+                 Crig::Completion::AssistantContent.tool_call_with_call_id(
+                   "tool_call_1",
+                   "call_1",
+                   "tool_one",
+                   JSON.parse(%({"input":"one"})),
+                 ),
+                 Crig::Completion::AssistantContent.tool_call_with_call_id(
+                   "tool_call_2",
+                   "call_2",
+                   "tool_two",
+                   JSON.parse(%({"input":"two"})),
+                 ),
+               ])
+             else
+               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+                 Crig::Completion::AssistantContent.text("done")
+               )
+             end
+
+    usage = turn.zero? ? Crig::Completion::Usage.new(total_tokens: 4) : Crig::Completion::Usage.new(total_tokens: 6)
+    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).new(
+      turn.zero? ? [] of String : ["done"],
+      Crig::FinalCompletionResponse.new(usage),
+      choice: choice,
+    )
+  end
+
+  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
+    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
+  end
+
+  def completion_request(prompt : Crig::Completion::Message) : Crig::Completion::Request::CompletionRequestBuilder
+    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
+  end
+end
+
 class FakeMultiTurnPromptModel
   include Crig::Completion::CompletionModel
 
@@ -3475,6 +3530,73 @@ describe Crig::Agent(FakeCompletionClientModel), tags: %w[agent] do
     request.tools.map(&.name).should eq(["weather"])
   end
 
+  it "queries dynamic context sources concurrently" do
+    model = FakeCompletionClientModel.new("gpt-4o")
+    started = Atomic(Int32).new(0)
+
+    build_source = ->(id : String) do
+      Crig::DynamicContextSource.new(
+        1,
+        ->(request : Crig::VectorSearchRequest) do
+          request.query.should eq("retrieve Denver")
+          started.add(1)
+          deadline = Time.instant + 200.milliseconds
+          until started.get == 2
+            raise "dynamic context source did not overlap" if Time.instant >= deadline
+            Fiber.yield
+          end
+          [{1.0, id, JSON.parse(%("payload-#{id}"))}]
+        end
+      )
+    end
+
+    agent = Crig::Agent(FakeCompletionClientModel).new(
+      model,
+      dynamic_context: [build_source.call("doc-1"), build_source.call("doc-2")]
+    )
+
+    request = agent.completion("retrieve Denver").build
+
+    request.documents.map(&.id).should eq(["doc-1", "doc-2"])
+  end
+
+  it "queries dynamic tool sources concurrently" do
+    model = FakeCompletionClientModel.new("gpt-4o")
+    started = Atomic(Int32).new(0)
+
+    build_source = ->(tool_name : String) do
+      tool = Crig::Completion::ToolDefinition.new(
+        tool_name,
+        "Lookup #{tool_name}",
+        JSON.parse(%({"type":"object"})),
+      )
+
+      Crig::DynamicToolSource.new(
+        1,
+        [tool],
+        ->(request : Crig::VectorSearchRequest) do
+          request.query.should eq("lookup Denver")
+          started.add(1)
+          deadline = Time.instant + 200.milliseconds
+          until started.get == 2
+            raise "dynamic tool source did not overlap" if Time.instant >= deadline
+            Fiber.yield
+          end
+          [{1.0, "#{tool_name}-hit", JSON.parse(%("ok"))}]
+        end
+      )
+    end
+
+    agent = Crig::Agent(FakeCompletionClientModel).new(
+      model,
+      dynamic_tools: [build_source.call("weather"), build_source.call("calendar")]
+    )
+
+    request = agent.completion("lookup Denver").build
+
+    request.tools.map(&.name).should eq(["weather", "calendar"])
+  end
+
   it "falls back to the upstream unknown-agent name constant" do
     agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
 
@@ -4077,6 +4199,67 @@ describe Crig::StreamingPromptRequest(FakeMultiTurnStreamingModel) do
     error.prompt_error.should_not be_nil
     error.prompt_error.try(&.reason).should eq("stop-tool-result")
     error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("do tool work")])
+  end
+end
+
+describe Crig::StreamingPromptRequest(FakeConcurrentToolTurnStreamingModel) do
+  it "executes streamed tool calls concurrently within a turn" do
+    started = Atomic(Int32).new(0)
+    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(name : String, _args : String) do
+      started.add(1)
+      deadline = Time.instant + 200.milliseconds
+      until started.get == 2
+        raise "streamed tool call did not overlap" if Time.instant >= deadline
+        Fiber.yield
+      end
+      "#{name}-result"
+    end)
+
+    agent = Crig::AgentBuilder(FakeConcurrentToolTurnStreamingModel).new(FakeConcurrentToolTurnStreamingModel.new)
+      .tool_server_handle(handle)
+      .build
+
+    result = agent.stream_prompt("do tool work").multi_turn(2).send_items
+
+    tool_result_texts = result.items.compact_map do |item|
+      next unless user_item = item.user_item
+      next unless tool_result = user_item.tool_result
+      tool_result.content.first?.try(&.text).try(&.text)
+    end
+
+    tool_result_texts.should eq(["tool_one-result", "tool_two-result"])
+  end
+
+  it "sustains repeated multi-tool streaming turns under load" do
+    iterations = 25
+
+    iterations.times do
+      started = Atomic(Int32).new(0)
+      handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(name : String, _args : String) do
+        started.add(1)
+        deadline = Time.instant + 200.milliseconds
+        until started.get == 2
+          raise "streamed tool call did not overlap" if Time.instant >= deadline
+          Fiber.yield
+        end
+        "#{name}-result"
+      end)
+
+      agent = Crig::AgentBuilder(FakeConcurrentToolTurnStreamingModel).new(FakeConcurrentToolTurnStreamingModel.new)
+        .tool_server_handle(handle)
+        .build
+
+      result = agent.stream_prompt("do tool work").multi_turn(2).send_items
+
+      tool_result_texts = result.items.compact_map do |item|
+        next unless user_item = item.user_item
+        next unless tool_result = user_item.tool_result
+        tool_result.content.first?.try(&.text).try(&.text)
+      end
+
+      tool_result_texts.should eq(["tool_one-result", "tool_two-result"])
+      result.items.any? { |item| item.final_response.try(&.response) == "done" }.should be_true
+    end
   end
 end
 
@@ -6271,6 +6454,32 @@ describe Crig::Pipeline::Op do
     async_result = Crig::Pipeline.map(->(x : Int32) { x + 1 }).call_async(1).receive
 
     async_result.unwrap.should eq(2)
+  end
+
+  it "runs plain parallel ops concurrently" do
+    started = Atomic(Int32).new(0)
+
+    op1 = Crig::Pipeline.map(->(x : Int32) do
+      started.add(1)
+      deadline = Time.instant + 100.milliseconds
+      until started.get == 2
+        raise "parallel branch did not overlap" if Time.instant >= deadline
+        Fiber.yield
+      end
+      x + 1
+    end)
+
+    op2 = Crig::Pipeline.map(->(x : Int32) do
+      started.add(1)
+      deadline = Time.instant + 100.milliseconds
+      until started.get == 2
+        raise "parallel branch did not overlap" if Time.instant >= deadline
+        Fiber.yield
+      end
+      x * 2
+    end)
+
+    Crig::Pipeline.parallel(op1, op2).call(3).should eq({4, 6})
   end
 end
 
@@ -8760,6 +8969,46 @@ describe Crig::ToolServer do
     handle.get_tool_defs("find extra").map(&.name).sort.should eq(["default-named", "echo"])
   end
 
+  it "queries dynamic tool indexes concurrently when resolving definitions" do
+    started = Atomic(Int32).new(0)
+    dynamic_toolset = Crig::ToolSet.from_tools([EchoTool.new, DefaultNamedTool.new])
+
+    dynamic_a = {
+      1_i32,
+      ->(request : Crig::VectorSearchRequest) do
+        request.query.should eq("find extra")
+        started.add(1)
+        deadline = Time.instant + 200.milliseconds
+        until started.get == 2
+          raise "dynamic tool index did not overlap" if Time.instant >= deadline
+          Fiber.yield
+        end
+        [{1.0, "echo"}]
+      end,
+    }
+
+    dynamic_b = {
+      1_i32,
+      ->(request : Crig::VectorSearchRequest) do
+        request.query.should eq("find extra")
+        started.add(1)
+        deadline = Time.instant + 200.milliseconds
+        until started.get == 2
+          raise "dynamic tool index did not overlap" if Time.instant >= deadline
+          Fiber.yield
+        end
+        [{1.0, "default-named"}]
+      end,
+    }
+
+    server = Crig::ToolServer.new
+      .add_tools(dynamic_toolset)
+      .add_dynamic_tools([dynamic_a, dynamic_b])
+
+    handle = server.run
+    handle.get_tool_defs("find extra").map(&.name).sort.should eq(["default-named", "echo"])
+  end
+
   it "ignores missing dynamic tool implementations when building tool definitions" do
     server = Crig::ToolServer.new
       .tool(EchoTool.new)
@@ -8859,6 +9108,23 @@ describe Crig::ToolServer do
 
     collected.should eq([sleep_ms.to_s] * num_calls)
     elapsed.should be < (sleep_ms * 2).milliseconds
+  end
+
+  it "handles high concurrent call volume without loss" do
+    total_calls = 100
+    handle = Crig::ToolServer.new.tool(EchoTool.new).run
+    results = Channel(String).new(total_calls)
+
+    total_calls.times do |index|
+      spawn do
+        results.send(handle.call_tool("echo", %({"value":"#{index}"})))
+      end
+    end
+
+    collected = Array(String).new(total_calls) { results.receive }
+
+    collected.size.should eq(total_calls)
+    collected.map { |item| JSON.parse(item).as_s.to_i }.sort.should eq((0...total_calls).to_a)
   end
 end
 
@@ -17876,7 +18142,7 @@ describe Crig::Examples::RagDynamicTools, tags: %w[examples rag_dynamic_tools] d
 
     toolset.contains("add").should be_true
     toolset.contains("subtract").should be_true
-    toolset.schemas.map(&.name).sort.should eq(%w[add subtract])
+    toolset.get_tool_definitions.map(&.name).sort.should eq(%w[add subtract])
   end
 
   it "builds a dynamic tool index from embedded tool schemas" do

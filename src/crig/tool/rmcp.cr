@@ -7,6 +7,54 @@ module Crig
     end
   end
 
+  class McpClientDispatcher
+    alias ToolResult = MCP::Protocol::CallToolResult | MCP::Protocol::CompatibilityCallToolResult
+
+    record Request,
+      name : String,
+      arguments : Hash(String, JSON::Any),
+      compatibility : Bool,
+      reply : Channel(ToolResult | Exception)
+
+    @@dispatchers = {} of UInt64 => McpClientDispatcher
+    @@dispatchers_lock = Mutex.new
+
+    def self.for(client : MCP::Client::Client) : self
+      key = client.object_id
+      @@dispatchers_lock.synchronize do
+        @@dispatchers[key] ||= new(client)
+      end
+    end
+
+    def initialize(@client : MCP::Client::Client)
+      @inbox = Channel(Request).new
+
+      spawn do
+        loop do
+          request = @inbox.receive
+          begin
+            result = @client.call_tool(request.name, request.arguments, request.compatibility)
+            request.reply.send(result)
+          rescue ex : Exception
+            request.reply.send(ex)
+          end
+        end
+      end
+    end
+
+    def call_tool(
+      name : String,
+      arguments : Hash(String, JSON::Any),
+      compatibility : Bool = false,
+    ) : ToolResult
+      reply = Channel(ToolResult | Exception).new(1)
+      @inbox.send(Request.new(name, arguments, compatibility, reply))
+      result = reply.receive
+      raise result if result.is_a?(Exception)
+      result.as(ToolResult)
+    end
+  end
+
   struct McpTool
     include Crig::ToolDyn
 
@@ -37,7 +85,7 @@ module Crig
     end
 
     def call(args : String) : String
-      result = @client.call_tool(@mcp_definition.name, parse_arguments(args))
+      result = McpClientDispatcher.for(@client).call_tool(@mcp_definition.name, parse_arguments(args))
       tool_result = case result
                     when MCP::Protocol::CallToolResult, MCP::Protocol::CompatibilityCallToolResult
                       result

@@ -56,6 +56,26 @@ module Crig
 
       channel
     end
+
+    # Run an ordered fan-out over independent inputs and join the results.
+    # This preserves input ordering while allowing each branch to execute in
+    # its own Crystal fiber.
+    def self.map_ordered(items : Enumerable(A), &block : A -> T) : Array(T) forall A, T
+      inputs = items.to_a
+      return [] of T if inputs.empty?
+
+      channels = inputs.map do |item|
+        run { block.call(item) }
+      end
+
+      channels.map do |channel|
+        channel.receive.unwrap
+      end
+    end
+
+    def self.flat_map_ordered(items : Enumerable(A), &block : A -> Enumerable(T)) : Array(T) forall A, T
+      map_ordered(items) { |item| block.call(item).to_a }.flat_map(&.itself)
+    end
   end
 
   alias ConcurrencyResult = Concurrency::Result
