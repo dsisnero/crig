@@ -236,6 +236,7 @@ module Crig
       saw_tool_call = false
       tool_calls = [] of Crig::Completion::AssistantContent
       tool_results = [] of Tuple(String, String?, String)
+      pending_tool_calls = [] of Tuple(Crig::Completion::ToolCall, String)
       reasoning = [] of Crig::Completion::Reasoning
       turn_usage = Crig::Completion::Usage.new
       pending_reasoning_delta_text = ""
@@ -308,20 +309,7 @@ module Crig
               tool_call: tool_call,
             )
 
-            tool_result = execute_tool_call(tool_call, internal_call_id, history)
-            tool_results << {tool_call.id, tool_call.call_id, tool_result}
-            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_user_item(
-              Crig::StreamedUserContent.tool_result(
-                Crig::Completion::ToolResult.new(
-                  tool_call.id,
-                  Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
-                    Crig::Completion::ToolResultContent.text(tool_result)
-                  ),
-                  tool_call.call_id,
-                ),
-                internal_call_id,
-              )
-            )
+            pending_tool_calls << {tool_call, internal_call_id}
           end
         in .final?
           if final = item.final
@@ -349,6 +337,28 @@ module Crig
         assembled = Crig::Completion::Reasoning.new(pending_reasoning_delta_text)
         assembled = assembled.with_id(pending_reasoning_delta_id) if pending_reasoning_delta_id
         reasoning << assembled
+      end
+
+      unless pending_tool_calls.empty?
+        executed_tool_results = Crig::Concurrency.map_ordered(pending_tool_calls) do |tool_call, internal_call_id|
+          {tool_call, internal_call_id, execute_tool_call(tool_call, internal_call_id, history)}
+        end
+
+        executed_tool_results.each do |tool_call, internal_call_id, tool_result|
+          tool_results << {tool_call.id, tool_call.call_id, tool_result}
+          items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_user_item(
+            Crig::StreamedUserContent.tool_result(
+              Crig::Completion::ToolResult.new(
+                tool_call.id,
+                Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
+                  Crig::Completion::ToolResultContent.text(tool_result)
+                ),
+                tool_call.call_id,
+              ),
+              internal_call_id,
+            )
+          )
+        end
       end
 
       StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning, turn_usage)

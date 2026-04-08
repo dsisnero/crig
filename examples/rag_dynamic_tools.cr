@@ -13,13 +13,7 @@ module Crig::Examples::RagDynamicTools
   end
 
   struct Add
-    include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
-
-    def self.init(state, context : Nil) : self
-      _ = state
-      _ = context
-      new
-    end
+    include Crig::Tool(OperationArgs, Int32)
 
     def name : String
       "add"
@@ -37,24 +31,10 @@ module Crig::Examples::RagDynamicTools
     def call_typed(args : OperationArgs) : Int32
       args.x + args.y
     end
-
-    def embedding_docs : Array(String)
-      ["Add x and y together"]
-    end
-
-    def typed_context : Nil
-      nil
-    end
   end
 
   struct Subtract
-    include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
-
-    def self.init(state, context : Nil) : self
-      _ = state
-      _ = context
-      new
-    end
+    include Crig::Tool(OperationArgs, Int32)
 
     def name : String
       "subtract"
@@ -72,26 +52,33 @@ module Crig::Examples::RagDynamicTools
     def call_typed(args : OperationArgs) : Int32
       args.x - args.y
     end
+  end
 
-    def embedding_docs : Array(String)
-      ["Subtract y from x (i.e.: x - y)"]
-    end
+  def self.tools : Array(Crig::ToolDyn)
+    [Add.new.as(Crig::ToolDyn), Subtract.new.as(Crig::ToolDyn)]
+  end
 
-    def typed_context : Nil
-      nil
-    end
+  def self.tool_definitions : Array(Crig::Completion::ToolDefinition)
+    tools.map(&.definition(""))
+  end
+
+  def self.tool_schemas : Array(Crig::Embeddings::ToolSchema)
+    [
+      Crig::Embeddings::ToolSchema.new("add", JSON.parse("null"), ["Add x and y together"]),
+      Crig::Embeddings::ToolSchema.new("subtract", JSON.parse("null"), ["Subtract y from x (i.e.: x - y)"]),
+    ]
   end
 
   def self.toolset : Crig::ToolSet
     Crig::ToolSet.builder
-      .dynamic_tool(Add.new)
-      .dynamic_tool(Subtract.new)
+      .static_tool(Add.new)
+      .static_tool(Subtract.new)
       .build
   end
 
   def self.build_index(embedding_model : M) : Crig::InMemoryVectorIndex(M, Crig::Embeddings::ToolSchema) forall M
     embeddings = Crig::Embeddings::EmbeddingsBuilder(typeof(embedding_model), Crig::Embeddings::ToolSchema).new(embedding_model)
-      .documents(toolset.schemas)
+      .documents(tool_schemas)
       .build
     Crig::InMemoryVectorStore(Crig::Embeddings::ToolSchema)
       .from_documents_with_id_f(embeddings, &.name)
@@ -104,9 +91,11 @@ module Crig::Examples::RagDynamicTools
     embedding_model_name : String = Crig::Providers::OpenAI::TEXT_EMBEDDING_ADA_002,
   ) : Crig::Agent(Crig::Providers::OpenAI::ResponsesCompletionModel)
     embedding_model = client.embedding_model(embedding_model_name)
+    handle = tools.reduce(Crig::ToolServer.new) { |server, tool| server.tool(tool) }.run
     client.agent(completion_model)
       .preamble("You are a calculator here to help the user perform arithmetic operations.")
-      .dynamic_tools(1, build_index(embedding_model), toolset)
+      .tool_server_handle(handle)
+      .dynamic_tools(1, build_index(embedding_model), tool_definitions)
       .build
   end
 

@@ -1,5 +1,4 @@
 CRYSTAL_CACHE_DIR ?= $(PWD)/.crystal-cache
-
 install:
 	shards install
 
@@ -17,6 +16,12 @@ test:
 
 clean:
 	rm -rf .crystal-cache temp bin/examples
+
+bench-parallel:
+	CRYSTAL_CACHE_DIR=$(CRYSTAL_CACHE_DIR) crystal run --release -Dpreview_mt -Dexecution_context benchmarks/parallel_runtime_bench.cr
+
+bench-mcp-dispatch:
+	CRYSTAL_CACHE_DIR=$(CRYSTAL_CACHE_DIR) crystal run --release -Dpreview_mt -Dexecution_context benchmarks/mcp_dispatch_bench.cr
 
 # Find all source files that examples might depend on
 SRC_FILES := $(shell find src -name "*.cr")
@@ -46,4 +51,4 @@ build-examples:
 		$(MAKE) build-$$example; \
 	done
 
-.PHONY: install update format lint test clean build-examples
+.PHONY: install update format lint test clean build-examples bench-parallel bench-mcp-dispatch

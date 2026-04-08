@@ -326,7 +326,7 @@ module Crig
     end
 
     private def dynamic_context_documents(text : String) : Array(Crig::Completion::Request::Document)
-      @dynamic_context.flat_map do |source|
+      Crig::Concurrency.flat_map_ordered(@dynamic_context) do |source|
         request = Crig::VectorSearchRequest.new(text, source.sample.to_u64)
         source.search(request).map do |_, id, document|
           Crig::Completion::Request::Document.new(id, document.to_s)
@@ -337,11 +337,14 @@ module Crig
     private def dynamic_tool_definitions(text : String) : Array(Crig::Completion::ToolDefinition)
       tool_map = {} of String => Crig::Completion::ToolDefinition
 
-      @dynamic_tools.each do |source|
+      matches = Crig::Concurrency.map_ordered(@dynamic_tools) do |source|
         request = Crig::VectorSearchRequest.new(text, source.sample.to_u64)
-        next if source.search(request).empty?
+        source.search(request).empty? ? nil : source.tools
+      end
 
-        source.tools.each do |tool|
+      matches.each do |tools|
+        next unless tools
+        tools.each do |tool|
           tool_map[tool.name] = tool
         end
       end

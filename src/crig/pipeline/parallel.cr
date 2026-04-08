@@ -10,7 +10,32 @@ module Crig
       end
 
       def call(input : Input) : Tuple(Output1, Output2)
-        {@op1.call(input), @op2.call(input)}
+        left_channel = Channel(Output1 | Exception).new(1)
+        right_channel = Channel(Output2 | Exception).new(1)
+
+        spawn do
+          begin
+            left_channel.send(@op1.call(input))
+          rescue ex : Exception
+            left_channel.send(ex)
+          end
+        end
+
+        spawn do
+          begin
+            right_channel.send(@op2.call(input))
+          rescue ex : Exception
+            right_channel.send(ex)
+          end
+        end
+
+        left = left_channel.receive
+        right = right_channel.receive
+
+        raise left if left.is_a?(Exception)
+        raise right if right.is_a?(Exception)
+
+        {left.as(Output1), right.as(Output2)}
       end
     end
 
