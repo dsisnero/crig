@@ -1,6 +1,32 @@
 require "mcp"
 
 module Crig
+  class McpClientError < Exception
+    enum Kind
+      ConnectionError
+      ToolFetchError
+      ToolServerError
+    end
+
+    getter kind : Kind
+
+    def initialize(message : String, @kind : Kind = Kind::ConnectionError)
+      super(message)
+    end
+
+    def self.connection_error(message : String) : self
+      new("MCP connection error: #{message}", Kind::ConnectionError)
+    end
+
+    def self.tool_fetch_error(message : String) : self
+      new("Failed to fetch MCP tool list: #{message}", Kind::ToolFetchError)
+    end
+
+    def self.tool_server_error(message : String) : self
+      new("Tool server error: #{message}", Kind::ToolServerError)
+    end
+  end
+
   class McpToolError < Exception
     def initialize(message : String)
       super("MCP tool error: #{message}")
@@ -152,6 +178,36 @@ module Crig
       else
         raise "Unsupported resource type found: #{resource.class}"
       end
+    end
+  end
+
+  class McpClientHandler
+    getter client_info : MCP::Protocol::Implementation
+    getter tool_server_handle : Crig::ToolServerHandle
+
+    def initialize(@client_info : MCP::Protocol::Implementation, @tool_server_handle : Crig::ToolServerHandle)
+    end
+
+    def connect(transport : MCP::Shared::Transport) : MCP::Client::Client
+      client = MCP::Client::Client.new(@client_info)
+      client.connect(transport)
+
+      tools = client.list_tools
+      raise McpClientError.tool_fetch_error("No tool list returned") unless tools
+
+      tools.tools.each do |tool|
+        begin
+          @tool_server_handle.add_tool(McpTool.from_mcp_server(tool, client))
+        rescue ex
+          raise McpClientError.tool_server_error(ex.message || ex.class.name)
+        end
+      end
+
+      client
+    rescue ex : McpClientError
+      raise ex
+    rescue ex
+      raise McpClientError.connection_error(ex.message || ex.class.name)
     end
   end
 end

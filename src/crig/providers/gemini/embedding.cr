@@ -152,8 +152,17 @@ module Crig
         def initialize(@client : Client, @model : String, @ndims : Int32)
         end
 
+        def self.model_default_ndims(model : String) : Int32?
+          case model
+          when EMBEDDING_001
+            3072
+          when EMBEDDING_004
+            768
+          end
+        end
+
         def self.make(client : Client, model : String, dims : Int32?) : self
-          new(client, model, dims || 768)
+          new(client, model, dims || model_default_ndims(model) || 768)
         end
 
         def self.with_model(client : Client, model : String, dims : Int32?) : self

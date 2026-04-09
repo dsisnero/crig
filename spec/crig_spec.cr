@@ -2064,227 +2064,6 @@ class FakeRmcpExampleCompletionClient
   end
 end
 
-class FakeOpenAIChatServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      valid_path = {"/v1/chat/completions", "/chat/completions", "/v1/responses"}.includes?(context.request.path)
-      unless context.request.method == "POST" && valid_path
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeOpenAIEmbeddingServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      unless context.request.method == "POST" && context.request.path == "/v1/embeddings"
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeGeminiGenerateContentServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String, status_code: Int32?))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      valid_path = context.request.method == "POST" &&
-                   context.request.path.ends_with?(":generateContent")
-      unless valid_path
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.status_code = response[:status_code] || HTTP::Status::OK.code
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeOpenRouterChatServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      unless context.request.method == "POST" && context.request.path == "/api/v1/chat/completions"
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeOpenRouterEmbeddingServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      unless context.request.method == "POST" && context.request.path == "/api/v1/embeddings"
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeOpenAIImageGenerationServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String, status_code: Int32?))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      unless context.request.method == "POST" && context.request.path == "/v1/images/generations"
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.status_code = response[:status_code] || HTTP::Status::OK.code
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeOpenAITranscriptionServer
-  getter parts : Array(NamedTuple(name: String, body: String, filename: String?))
-
-  def initialize(&@handler : Array(NamedTuple(name: String, body: String, filename: String?)) -> NamedTuple(content_type: String, body: String, status_code: Int32?))
-    @parts = [] of NamedTuple(name: String, body: String, filename: String?)
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      unless context.request.method == "POST" && context.request.path == "/v1/audio/transcriptions"
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      request_parts = [] of NamedTuple(name: String, body: String, filename: String?)
-      HTTP::FormData.parse(context.request) do |part|
-        request_parts << {
-          name:     part.name || "",
-          body:     part.body.gets_to_end,
-          filename: part.filename,
-        }
-      end
-      @parts.concat(request_parts)
-
-      response = @handler.call(request_parts)
-      context.response.status_code = response[:status_code] || HTTP::Status::OK.code
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
-class FakeOpenAIAudioGenerationServer
-  getter requests : Array(JSON::Any)
-
-  def initialize(&@handler : JSON::Any -> NamedTuple(content_type: String, body: String, status_code: Int32?))
-    @requests = [] of JSON::Any
-  end
-
-  def http_server : HTTP::Server
-    HTTP::Server.new do |context|
-      unless context.request.method == "POST" && context.request.path == "/v1/audio/speech"
-        context.response.status_code = HTTP::Status::NOT_FOUND.code
-        context.response.print("Not Found")
-        next
-      end
-
-      body = context.request.body.try(&.gets_to_end) || ""
-      payload = JSON.parse(body)
-      @requests << payload
-
-      response = @handler.call(payload)
-      context.response.status_code = response[:status_code] || HTTP::Status::OK.code
-      context.response.content_type = response[:content_type]
-      context.response.print(response[:body])
-    end
-  end
-end
-
 class FakeAzureJsonServer
   getter requests : Array(JSON::Any)
   getter headers : Array(HTTP::Headers)
@@ -2546,16 +2325,6 @@ class FakeTranscriptionClient
 
   def transcription_model(model : String) : FakeTranscriptionClientModel
     FakeTranscriptionClientModel.new(model)
-  end
-end
-
-struct DummyStringifiedJSON
-  include JSON::Serializable
-
-  @[JSON::Field(converter: Crig::JSONUtils::StringifiedJSON)]
-  getter data : JSON::Any
-
-  def initialize(@data : JSON::Any)
   end
 end
 
@@ -6651,23 +6420,6 @@ describe Crig::JSONUtils do
   it "renders values to json strings" do
     Crig::JSONUtils.value_to_json_string(JSON.parse(%("hello"))).should eq("hello")
     Crig::JSONUtils.value_to_json_string(JSON.parse(%({"key":"value"}))).should eq(%({"key":"value"}))
-  end
-
-  it "serializes and deserializes stringified json" do
-    dummy = DummyStringifiedJSON.new(JSON.parse(%({"key":"value"})))
-    serialized = dummy.to_json
-    inner = %({"key":"value"})
-    payload = %({"data":#{inner.to_json}})
-    parsed = DummyStringifiedJSON.from_json(payload)
-
-    serialized.should eq(payload)
-    parsed.data["key"].as_s.should eq("value")
-  end
-
-  it "deserializes empty stringified json as an empty object" do
-    parsed = DummyStringifiedJSON.from_json(%({"data":""}))
-
-    parsed.data.as_h.should eq({} of String => JSON::Any)
   end
 end
 
@@ -11273,213 +11025,6 @@ describe Crig::Providers::Azure::Client do
   end
 end
 
-describe Crig::Providers::XAI::Message do
-  it "serializes redacted reasoning as encrypted content without leaking it into summary text" do
-    reasoning = Crig::Completion::Reasoning.new(
-      [
-        Crig::Completion::ReasoningContent.text("explain"),
-        Crig::Completion::ReasoningContent.redacted("opaque-redacted"),
-      ],
-      "rs_2"
-    )
-    message = Crig::Completion::Message.new(
-      Crig::Completion::Message::Role::Assistant,
-      Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
-        Crig::Completion::AssistantContent.new(Crig::Completion::AssistantContent::Kind::Reasoning, reasoning: reasoning)
-      ),
-      "assistant_2"
-    )
-
-    items = Crig::Providers::XAI::Message.from_completion_message(message)
-    items.size.should eq(1)
-    item = items.first
-    item.kind.should eq(Crig::Providers::XAI::Message::Kind::Reasoning)
-    item.summary.not_nil!.map(&.text).should eq(["explain"])
-    item.encrypted_content.should eq("opaque-redacted")
-  end
-
-  it "roundtrips empty reasoning content without error" do
-    reasoning = Crig::Completion::Reasoning.new([] of Crig::Completion::ReasoningContent, "rs_empty")
-    message = Crig::Completion::Message.new(
-      Crig::Completion::Message::Role::Assistant,
-      Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
-        Crig::Completion::AssistantContent.new(Crig::Completion::AssistantContent::Kind::Reasoning, reasoning: reasoning)
-      ),
-      "assistant_2b"
-    )
-
-    items = Crig::Providers::XAI::Message.from_completion_message(message)
-    items.size.should eq(1)
-    items.first.id.should eq("rs_empty")
-    items.first.summary.not_nil!.should be_empty
-    items.first.encrypted_content.should be_nil
-  end
-
-  it "returns an error when assistant reasoning has no id" do
-    message = Crig::Completion::Message.new(
-      Crig::Completion::Message::Role::Assistant,
-      Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
-        Crig::Completion::AssistantContent.reasoning("thinking")
-      ),
-      "assistant_no_reasoning_id"
-    )
-
-    expect_raises(Crig::Completion::CompletionError, /Assistant reasoning `id` is required/) do
-      Crig::Providers::XAI::Message.from_completion_message(message)
-    end
-  end
-
-  it "uses snake_case message type tags" do
-    function_call = Crig::Providers::XAI::Message.function_call("call_1", "tool_name", %({"arg":1}))
-    user_message = Crig::Providers::XAI::Message.user("hello")
-
-    function_call.to_json_value["type"].as_s.should eq("function_call")
-    user_message.to_json_value["type"].as_s.should eq("message")
-  end
-
-  it "returns an error when user tool results omit call_id" do
-    message = Crig::Completion::Message.tool_result("tool_1", "result payload")
-
-    expect_raises(Crig::Completion::CompletionError, /Tool result `call_id` is required/) do
-      Crig::Providers::XAI::Message.from_completion_message(message)
-    end
-  end
-
-  it "returns an error when assistant tool calls omit call_id" do
-    message = Crig::Completion::Message.new(
-      Crig::Completion::Message::Role::Assistant,
-      Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
-        Crig::Completion::AssistantContent.tool_call("tool_1", "my_tool", JSON.parse(%({"arg":"value"})))
-      ),
-      "assistant_3"
-    )
-
-    expect_raises(Crig::Completion::CompletionError, /Assistant tool call `call_id` is required/) do
-      Crig::Providers::XAI::Message.from_completion_message(message)
-    end
-  end
-end
-
-describe Crig::Providers::XAI::ApiResponse do
-  it "wraps success and error payloads with the typed helper" do
-    ok = Crig::Providers::XAI::ApiResponse(String).from_json_value(JSON.parse(%({"value":"ok"}))) do |value|
-      value["value"].as_s
-    end
-    err = Crig::Providers::XAI::ApiResponse(String).from_json_value(
-      JSON.parse(%({"error":"bad request","code":"invalid_request"}))
-    ) do |_value|
-      raise "should not be called"
-    end
-
-    ok.ok.should eq("ok")
-    ok.error.should be_nil
-    err.ok.should be_nil
-    err.error.not_nil!.message.should eq("Code `invalid_request`: bad request")
-  end
-end
-
-describe Crig::Providers::XAI::ContentItem do
-  it "serializes text, image, and file payloads" do
-    text = Crig::Providers::XAI::ContentItem.text("hello").to_json_value
-    image = Crig::Providers::XAI::ContentItem.image("https://example.com/cat.png", "high").to_json_value
-    file = Crig::Providers::XAI::ContentItem.file(file_url: "https://example.com/doc.pdf").to_json_value
-
-    text["type"].as_s.should eq("input_text")
-    text["text"].as_s.should eq("hello")
-    image["type"].as_s.should eq("input_image")
-    image["image_url"].as_s.should eq("https://example.com/cat.png")
-    image["detail"].as_s.should eq("high")
-    file["type"].as_s.should eq("input_file")
-    file["file_url"].as_s.should eq("https://example.com/doc.pdf")
-  end
-end
-
-describe Crig::Providers::XAI::Content do
-  it "serializes text and array multimodal content" do
-    text = Crig::Providers::XAI::Content.text("hello").to_json_value
-    array = Crig::Providers::XAI::Content.array([
-      Crig::Providers::XAI::ContentItem.text("hello"),
-      Crig::Providers::XAI::ContentItem.image("https://example.com/cat.png"),
-    ]).to_json_value
-
-    text.as_s.should eq("hello")
-    array.as_a.map { |entry| entry["type"].as_s }.should eq(["input_text", "input_image"])
-  end
-end
-
-describe Crig::Providers::XAI::Client do
-  it "supports xai client initialization from the builder" do
-    client = Crig::Providers::XAI::Client.builder
-      .api_key("dummy-key")
-      .build
-
-    client.base_url.should eq(Crig::Providers::XAI::XAI_BASE_URL)
-  end
-
-  it "supports xai helper constructors and agent builders" do
-    auth_client = Crig::Providers::XAI::Client.from_val(Crig::BearerAuth.new("dummy-key"))
-    auth_client.api_key.token.should eq("dummy-key")
-
-    agent = auth_client.agent(Crig::Providers::XAI::GROK_3_MINI)
-      .name("assistant")
-      .build
-    agent.model.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
-
-    request = auth_client.completion_model(Crig::Providers::XAI::GROK_3)
-      .completion_request("hello")
-      .build
-    request.model.should eq(Crig::Providers::XAI::GROK_3)
-  end
-
-  it "supports xai completion-model with_model helpers" do
-    client = Crig::Providers::XAI::Client.new("dummy-key")
-
-    class_level = Crig::Providers::XAI::CompletionModel.with_model(client, Crig::Providers::XAI::GROK_3)
-    class_level.client.should eq(client)
-    class_level.model.should eq(Crig::Providers::XAI::GROK_3)
-
-    instance_level = class_level.with_model(Crig::Providers::XAI::GROK_3_MINI)
-    instance_level.client.should eq(client)
-    instance_level.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
-  end
-
-  it "posts xai responses requests and parses the returned response" do
-    server = FakeOpenAIChatServer.new do |_request|
-      {
-        content_type: "application/json",
-        body:         %({
-          "id":"resp_xai",
-          "model":"grok-3",
-          "output":[
-            {
-              "type":"message",
-              "id":"msg_xai",
-              "role":"assistant",
-              "status":"completed",
-              "content":[{"type":"output_text","text":"xai answer"}]
-            }
-          ],
-          "usage":{"input_tokens":2,"output_tokens":1,"total_tokens":3}
-        }),
-      }
-    end
-    http_server = server.http_server
-    address = http_server.bind_tcp("127.0.0.1", 0)
-    spawn { http_server.listen }
-
-    client = Crig::Providers::XAI::Client.new("test-key", "http://127.0.0.1:#{address.port}")
-    response = client.completion_model(Crig::Providers::XAI::GROK_3)
-      .completion(Crig::Completion::Request::CompletionRequestBuilder.from_prompt("hello").build)
-
-    response.choice.first.text.not_nil!.text.should eq("xai answer")
-    posted = server.requests.first
-    posted["model"].as_s.should eq(Crig::Providers::XAI::GROK_3)
-    posted["input"].as_a.first["type"].as_s.should eq("message")
-
-    http_server.close
-  end
-end
-
 describe Crig::Providers::OpenRouter::Client do
   it "supports rust-shaped client initialization" do
     client = Crig::Providers::OpenRouter::Client.new("dummy-key")
@@ -12673,8 +12218,8 @@ describe Crig::Providers::Anthropic::Message do
       ),
     ]
     Crig::Providers::Anthropic.apply_cache_control(system, messages)
-    system.last.cache_control.should eq(Crig::Providers::Anthropic::CacheControl::Ephemeral)
-    messages.last.content.last.cache_control.should eq(Crig::Providers::Anthropic::CacheControl::Ephemeral)
+    system.last.cache_control.should eq(Crig::Providers::Anthropic::CacheControl.ephemeral)
+    messages.last.content.last.cache_control.should eq(Crig::Providers::Anthropic::CacheControl.ephemeral)
   end
 end
 
@@ -14343,6 +13888,17 @@ describe Crig::Providers::Gemini::EmbeddingModel do
     payload["requests"].as_a.first["outputDimensionality"].as_i.should eq(2)
 
     http_server.close
+  end
+
+  it "uses default and explicit embedding dimensions like upstream" do
+    client = Crig::Providers::Gemini::Client.new("test-key")
+
+    default_model = client.embedding_model(Crig::Providers::Gemini::EMBEDDING_001)
+    explicit_model = client.embedding_model_with_ndims(Crig::Providers::Gemini::EMBEDDING_001, 256)
+
+    default_model.ndims.should eq(3072)
+    explicit_model.ndims.should eq(256)
+    default_model.max_documents.should eq(1024)
   end
 end
 

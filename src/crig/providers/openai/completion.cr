@@ -748,11 +748,16 @@ module Crig
           private def self.parse_tool_call(value : JSON::Any) : ToolCall
             hash = value.as_h
             function = hash["function"]
+            arguments = if raw = function["arguments"].as_s?
+                          Crig::JSONUtils.parse_tool_arguments(raw)
+                        else
+                          function["arguments"]
+                        end
             ToolCall.new(
               hash["id"].as_s,
               Function.new(
                 function["name"].as_s,
-                parse_json_or_string(function["arguments"].as_s),
+                arguments,
               ),
             )
           end

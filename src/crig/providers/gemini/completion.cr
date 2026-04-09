@@ -9,8 +9,16 @@ module Crig
       GEMINI_2_5_FLASH_PREVIEW_04_17 = "gemini-2.5-flash-preview-04-17"
       GEMINI_2_5_PRO_EXP_03_25       = "gemini-2.5-pro-exp-03-25"
       GEMINI_2_5_FLASH               = "gemini-2.5-flash"
+      GEMINI_3_FLASH_PREVIEW         = "gemini-3-flash-preview"
+      GEMINI_3_1_FLASH_LITE_PREVIEW  = "gemini-3.1-flash-lite-preview"
       GEMINI_2_0_FLASH_LITE          = "gemini-2.0-flash-lite"
       GEMINI_2_0_FLASH               = "gemini-2.0-flash"
+
+      enum ThinkingLevel
+        Low
+        Medium
+        High
+      end
 
       TEXT_DOCUMENT_MEDIA_TYPES = {
         Crig::Completion::DocumentMediaType::TXT,

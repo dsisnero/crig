@@ -33,6 +33,9 @@ module Crig
       end
 
       struct Client
+        include Crig::AudioGenerationClient(Crig::Providers::XAI::AudioGenerationModel)
+        include Crig::ImageGenerationClient(Crig::Providers::XAI::ImageGenerationModel)
+
         getter api_key : Crig::BearerAuth
         getter base_url : String
 
@@ -62,6 +65,14 @@ module Crig
 
         def completion_model(model : String) : Crig::Providers::XAI::CompletionModel
           Crig::Providers::XAI::CompletionModel.new(self, model)
+        end
+
+        def audio_generation_model(model : String) : Crig::Providers::XAI::AudioGenerationModel
+          Crig::Providers::XAI::AudioGenerationModel.make(self, model)
+        end
+
+        def image_generation_model(model : String) : Crig::Providers::XAI::ImageGenerationModel
+          Crig::Providers::XAI::ImageGenerationModel.make(self, model)
         end
 
         def post_json(path : String, body : String, headers : Hash(String, String) = {} of String => String) : HTTP::Client::Response

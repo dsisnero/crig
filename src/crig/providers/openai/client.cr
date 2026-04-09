@@ -95,6 +95,14 @@ module Crig
           CompletionsClient.new(@api_key, @base_url)
         end
 
+        def responses_websocket_builder(model : String) : Crig::Providers::OpenAI::ResponsesWebSocketSessionBuilder
+          Crig::Providers::OpenAI::ResponsesWebSocketSessionBuilder.new(completion_model(model))
+        end
+
+        def responses_websocket(model : String) : Crig::Providers::OpenAI::ResponsesWebSocketSession
+          responses_websocket_builder(model).connect
+        end
+
         def embedding_model(model : String) : Crig::Providers::OpenAI::EmbeddingModel
           Crig::Providers::OpenAI::EmbeddingModel.make(self, model, nil)
         end

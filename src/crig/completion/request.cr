@@ -1,6 +1,27 @@
 module Crig
   module Completion
     module Request
+      struct ProviderToolDefinition
+        include JSON::Serializable
+
+        @[JSON::Field(key: "type")]
+        getter kind : String
+        include JSON::Serializable::Unmapped
+
+        def initialize(@kind : String)
+        end
+
+        def with_config(key : String, value : JSON::Any) : self
+          copy = self.class.from_json(to_json)
+          copy.json_unmapped[key] = value
+          copy
+        end
+
+        def to_json_value : JSON::Any
+          JSON.parse(to_json)
+        end
+      end
+
       struct Document
         include JSON::Serializable
 
@@ -31,6 +52,7 @@ module Crig
         getter chat_history : Crig::OneOrMany(Crig::Completion::Message)
         getter documents : Array(Document)
         getter tools : Array(Crig::Completion::ToolDefinition)
+        getter provider_tools : Array(ProviderToolDefinition)
         getter temperature : Float64?
         getter max_tokens : Int64?
         getter tool_choice : Crig::Completion::ToolChoice?
@@ -43,6 +65,7 @@ module Crig
           @preamble : String? = nil,
           @documents : Array(Document) = [] of Document,
           @tools : Array(Crig::Completion::ToolDefinition) = [] of Crig::Completion::ToolDefinition,
+          @provider_tools : Array(ProviderToolDefinition) = [] of ProviderToolDefinition,
           @temperature : Float64? = nil,
           @max_tokens : Int64? = nil,
           @tool_choice : Crig::Completion::ToolChoice? = nil,
@@ -77,6 +100,36 @@ module Crig
             ),
           )
         end
+
+        def with_provider_tool(tool : ProviderToolDefinition) : self
+          self.class.new(
+            @chat_history,
+            model: @model,
+            preamble: @preamble,
+            documents: @documents,
+            tools: @tools,
+            provider_tools: @provider_tools + [tool],
+            temperature: @temperature,
+            max_tokens: @max_tokens,
+            tool_choice: @tool_choice,
+            additional_params: with_provider_tools_in_params(@additional_params, @provider_tools + [tool]),
+            output_schema: @output_schema,
+          )
+        end
+
+        def with_provider_tools(tools : Array(ProviderToolDefinition)) : self
+          tools.reduce(self) { |request, tool| request.with_provider_tool(tool) }
+        end
+
+        private def with_provider_tools_in_params(
+          additional_params : JSON::Any?,
+          provider_tools : Array(ProviderToolDefinition),
+        ) : JSON::Any?
+          params_hash = additional_params.try(&.as_h?.try(&.dup)) || {} of String => JSON::Any
+          existing = params_hash["tools"]?.try(&.as_a?.dup) || [] of JSON::Any
+          params_hash["tools"] = JSON.parse((existing + provider_tools.map(&.to_json_value)).to_json)
+          JSON.parse(params_hash.to_json)
+        end
       end
 
       struct CompletionRequestBuilder
@@ -86,6 +139,7 @@ module Crig
         getter chat_history : Array(Crig::Completion::Message)
         getter documents : Array(Document)
         getter tools : Array(Crig::Completion::ToolDefinition)
+        getter provider_tools : Array(ProviderToolDefinition)
         getter temperature : Float64?
         getter max_tokens : Int64?
         getter tool_choice : Crig::Completion::ToolChoice?
@@ -99,6 +153,7 @@ module Crig
           @chat_history : Array(Crig::Completion::Message) = [] of Crig::Completion::Message,
           @documents : Array(Document) = [] of Document,
           @tools : Array(Crig::Completion::ToolDefinition) = [] of Crig::Completion::ToolDefinition,
+          @provider_tools : Array(ProviderToolDefinition) = [] of ProviderToolDefinition,
           @temperature : Float64? = nil,
           @max_tokens : Int64? = nil,
           @tool_choice : Crig::Completion::ToolChoice? = nil,
@@ -109,19 +164,7 @@ module Crig
 
         def self.new(prompt : Crig::Completion::Message | String) : self
           prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-          new(
-            prompt_message,
-            nil,
-            nil,
-            [] of Crig::Completion::Message,
-            [] of Document,
-            [] of Crig::Completion::ToolDefinition,
-            nil,
-            nil,
-            nil,
-            nil,
-            nil,
-          )
+          new(prompt_message)
         end
 
         def self.from_prompt(prompt : Crig::Completion::Message | String) : self
@@ -129,23 +172,23 @@ module Crig
         end
 
         def preamble(value : String) : self
-          self.class.new(@prompt, @request_model, value, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, value, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def model(value : String) : self
-          self.class.new(@prompt, value, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, value, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def model_opt(value : String?) : self
-          self.class.new(@prompt, value, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, value, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def without_preamble : self
-          self.class.new(@prompt, @request_model, nil, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, nil, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def message(value : Crig::Completion::Message) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history + [value], @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history + [value], @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def messages(values : Array(Crig::Completion::Message)) : self
@@ -153,7 +196,7 @@ module Crig
         end
 
         def document(value : Document) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents + [value], @tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents + [value], @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def documents(values : Array(Document)) : self
@@ -161,61 +204,78 @@ module Crig
         end
 
         def tool(value : Crig::Completion::ToolDefinition) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools + [value], @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools + [value], @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def tools(values : Array(Crig::Completion::ToolDefinition)) : self
           values.reduce(self) { |builder, value| builder.tool(value) }
         end
 
+        def provider_tool(value : ProviderToolDefinition) : self
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools + [value], @temperature, @max_tokens, @tool_choice, @additional_params, @output_schema)
+        end
+
+        def provider_tools(values : Array(ProviderToolDefinition)) : self
+          values.reduce(self) { |builder, value| builder.provider_tool(value) }
+        end
+
         def additional_params(value : JSON::Any) : self
           merged = @additional_params ? merge_json(@additional_params.as(JSON::Any), value) : value
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, merged, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, merged, @output_schema)
         end
 
         def additional_params_opt(value : JSON::Any?) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, value, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, value, @output_schema)
         end
 
         def temperature(value : Float64) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, value, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, value, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def temperature_opt(value : Float64?) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, value, @max_tokens, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, value, @max_tokens, @tool_choice, @additional_params, @output_schema)
         end
 
         def max_tokens(value : Int64) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, value, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, value, @tool_choice, @additional_params, @output_schema)
         end
 
         def max_tokens_opt(value : Int64?) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, value, @tool_choice, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, value, @tool_choice, @additional_params, @output_schema)
         end
 
         def tool_choice(value : Crig::Completion::ToolChoice) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, value, @additional_params, @output_schema)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, value, @additional_params, @output_schema)
         end
 
         def output_schema(value : JSON::Any) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, value)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, value)
         end
 
         def output_schema_opt(value : JSON::Any?) : self
-          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @temperature, @max_tokens, @tool_choice, @additional_params, value)
+          self.class.new(@prompt, @request_model, @preamble, @chat_history, @documents, @tools, @provider_tools, @temperature, @max_tokens, @tool_choice, @additional_params, value)
         end
 
         def build : CompletionRequest
+          merged_additional_params = if @provider_tools.empty?
+                                       @additional_params
+                                     else
+                                       params = @additional_params.try(&.as_h?.try(&.dup)) || {} of String => JSON::Any
+                                       existing = params["tools"]?.try(&.as_a?.dup) || [] of JSON::Any
+                                       params["tools"] = JSON.parse((existing + @provider_tools.map(&.to_json_value)).to_json)
+                                       JSON.parse(params.to_json)
+                                     end
           CompletionRequest.new(
             Crig::OneOrMany(Crig::Completion::Message).many(@chat_history + [@prompt]),
             model: @request_model,
             preamble: @preamble,
             documents: @documents,
             tools: @tools,
+            provider_tools: @provider_tools,
             temperature: @temperature,
             max_tokens: @max_tokens,
             tool_choice: @tool_choice,
-            additional_params: @additional_params,
+            additional_params: merged_additional_params,
             output_schema: @output_schema,
           )
         end

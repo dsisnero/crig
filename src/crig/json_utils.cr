@@ -30,6 +30,12 @@ module Crig
       value.raw.is_a?(String) ? value.as_s : value.to_json
     end
 
+    def self.parse_tool_arguments(arguments : String) : JSON::Any
+      return JSON.parse(%({})) if arguments.strip.empty?
+
+      JSON.parse(arguments)
+    end
+
     module StringifiedJSON
       def self.to_json(value : JSON::Any, json : JSON::Builder) : Nil
         json.string(value.to_json)
@@ -40,6 +46,15 @@ module Crig
         return JSON.parse(%({})) if string.strip.empty?
 
         JSON.parse(string)
+      end
+
+      def self.deserialize_maybe_stringified(pull : JSON::PullParser) : JSON::Any
+        case pull.kind
+        when .string?
+          Crig::JSONUtils.parse_tool_arguments(pull.read_string)
+        else
+          JSON::Any.new(pull)
+        end
       end
     end
 

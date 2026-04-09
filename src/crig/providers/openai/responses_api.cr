@@ -706,6 +706,7 @@ module Crig
         @[JSON::Field(key: "type")]
         getter kind : String
         getter description : String
+        include JSON::Serializable::Unmapped
 
         def initialize(
           @name : String,
@@ -722,6 +723,46 @@ module Crig
             parameters: OpenAI.sanitize_schema(tool.parameters),
             description: tool.description,
           )
+        end
+
+        def self.function(name : String, description : String, parameters : JSON::Any) : self
+          new(
+            name: name,
+            parameters: OpenAI.sanitize_schema(parameters),
+            description: description,
+            strict: true,
+            kind: "function",
+          )
+        end
+
+        def self.hosted(kind : String) : self
+          new(
+            name: "",
+            parameters: JSON.parse("null"),
+            description: "",
+            strict: false,
+            kind: kind,
+          )
+        end
+
+        def self.web_search : self
+          hosted("web_search")
+        end
+
+        def self.file_search : self
+          hosted("file_search")
+        end
+
+        def self.computer_use : self
+          hosted("computer_use")
+        end
+
+        def with_config(key : String, value : JSON::Any) : self
+          mapped = json_unmapped.dup
+          mapped[key] = value
+          copy = self.class.from_json(to_json_value.to_json)
+          mapped.each { |config_key, config_value| copy.json_unmapped[config_key] = config_value }
+          copy
         end
 
         def to_json_value : JSON::Any
@@ -1854,6 +1895,24 @@ module Crig
           )
         end
 
+        def with_tool(tool : ResponsesToolDefinition) : self
+          self.class.new(
+            input: @input,
+            model: @model,
+            instructions: @instructions,
+            max_output_tokens: @max_output_tokens,
+            stream: @stream,
+            temperature: @temperature,
+            tool_choice: @tool_choice,
+            tools: @tools + [tool],
+            additional_parameters: @additional_parameters,
+          )
+        end
+
+        def with_tools(tools : Enumerable(ResponsesToolDefinition)) : self
+          tools.reduce(self) { |request, tool| request.with_tool(tool) }
+        end
+
         def with_stream(stream : Bool) : self
           self.class.new(
             input: @input,
@@ -1974,7 +2033,7 @@ module Crig
           Crig::StreamingCompletionResponse(Crig::Providers::OpenAI::ResponsesStreamingCompletionResponse).stream_raw_choices(raw_choices)
         end
 
-        private def create_completion_request(request : Crig::Completion::Request::CompletionRequest) : CompletionRequest
+        def create_completion_request(request : Crig::Completion::Request::CompletionRequest) : CompletionRequest
           input_items = [] of InputItem
           if preamble = request.preamble
             input_items << InputItem.system_message(preamble)

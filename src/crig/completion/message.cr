@@ -1076,6 +1076,10 @@ module Crig
         new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).one(UserContent.text(text)))
       end
 
+      def self.system(text : String) : self
+        user(text)
+      end
+
       def self.user(content : UserContent) : self
         new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).one(content))
       end

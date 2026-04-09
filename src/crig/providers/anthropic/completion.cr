@@ -10,12 +10,39 @@ module Crig
       ANTHROPIC_VERSION_2023_01_01 = "2023-01-01"
       ANTHROPIC_VERSION_2023_06_01 = "2023-06-01"
 
-      enum CacheControl
-        Ephemeral
+      enum CacheTtl
+        OneHour
+
+        def to_wire : String
+          "1h"
+        end
+      end
+
+      struct CacheControl
+        enum Kind
+          Ephemeral
+        end
+
+        getter kind : Kind
+        getter ttl : CacheTtl?
+
+        def initialize(@kind : Kind, @ttl : CacheTtl? = nil)
+        end
+
+        def self.ephemeral : self
+          new(Kind::Ephemeral)
+        end
+
+        def self.ephemeral_1h : self
+          new(Kind::Ephemeral, CacheTtl::OneHour)
+        end
 
         def to_json(json : JSON::Builder) : Nil
           json.object do
             json.field "type", "ephemeral"
+            if ttl = @ttl
+              json.field "ttl", ttl.to_wire
+            end
           end
         end
       end
@@ -489,7 +516,7 @@ module Crig
 
         private def self.parse_cache_control(value : JSON::Any?) : CacheControl?
           return unless value
-          CacheControl::Ephemeral
+          value["ttl"]?.try(&.as_s?) == "1h" ? CacheControl.ephemeral_1h : CacheControl.ephemeral
         end
       end
 
@@ -1064,7 +1091,7 @@ module Crig
         unless system.empty?
           system_index = system.size - 1
           last_system = system[system_index]
-          last_system.cache_control = CacheControl::Ephemeral
+          last_system.cache_control = CacheControl.ephemeral
           system[system_index] = last_system
         end
 
@@ -1083,7 +1110,7 @@ module Crig
           last_message = messages[message_index]
           content = last_message.content.to_a
           last_content = content.pop
-          last_content.cache_control = CacheControl::Ephemeral
+          last_content.cache_control = CacheControl.ephemeral
           content << last_content
           messages[message_index] = Message.new(last_message.role, Crig::OneOrMany(Content).many(content))
         end
@@ -1124,8 +1151,9 @@ module Crig
         getter model : String
         getter default_max_tokens : Int64?
         getter? prompt_caching : Bool
+        getter automatic_caching_ttl : CacheTtl?
 
-        def initialize(@client : Client, @model : String, @default_max_tokens : Int64? = nil, @prompt_caching : Bool = false)
+        def initialize(@client : Client, @model : String, @default_max_tokens : Int64? = nil, @prompt_caching : Bool = false, @automatic_caching_ttl : CacheTtl? = nil)
           @default_max_tokens ||= Anthropic.calculate_max_tokens(@model)
         end
 
@@ -1138,7 +1166,15 @@ module Crig
         end
 
         def with_prompt_caching : self
-          self.class.new(@client, @model, @default_max_tokens, true)
+          self.class.new(@client, @model, @default_max_tokens, true, @automatic_caching_ttl)
+        end
+
+        def with_automatic_caching : self
+          self.class.new(@client, @model, @default_max_tokens, true, nil)
+        end
+
+        def with_automatic_caching_1h : self
+          self.class.new(@client, @model, @default_max_tokens, true, CacheTtl::OneHour)
         end
 
         def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
