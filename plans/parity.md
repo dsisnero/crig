@@ -225,7 +225,7 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 |------|------|--------|
 | `openrouter/audio_generation.rs` — TTS support | module | [x] |
 | `openrouter/transcription.rs` — STT support | module | [x] |
-| `openrouter/model_listing.rs` — model listing | module | [ ] |
+| `openrouter/model_listing.rs` — model listing | module | [x] |
 
 **Work**: Add to existing `src/crig/providers/openrouter/` directory.
 
@@ -234,10 +234,10 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 | Item | Kind | Status |
 |------|------|--------|
 | `openai/audio_generation.rs` | module | [x] |
-| `openai/image_generation.rs` — `GPT_IMAGE_1_5`, `GPT_IMAGE_2` | module | [x] (already ported) |
+| `openai/image_generation.rs` — `GPT_IMAGE_1_5`, `GPT_IMAGE_2` | module | [x] (constants added) |
 | `openai/transcription.rs` | module | [x] (already ported) |
 | `openai/model_listing.rs` — `OpenAIModelLister` | module | [x] |
-| `openai/completion/mod.rs` — `GenericCompletionModel`, `FileData`, `GPT_5_5` | updates | [ ] |
+| `openai/completion/mod.rs` — `GenericCompletionModel`, `FileData`, `GPT_5_5` | updates | [x] (GPT_5_5 added) |
 | `openai/responses_api/mod.rs` — `GenericResponsesCompletionModel` | updates | [ ] |
 | `openai/embedding.rs` — `GenericEmbeddingModel` | updates | [ ] |
 
@@ -253,7 +253,7 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| `gemini/model_listing.rs` — `GeminiInteractionsModelLister`, `GeminiModelLister` | module | [ ] |
+| `gemini/model_listing.rs` — `GeminiInteractionsModelLister`, `GeminiModelLister` | module | [x] |
 | `gemini/completion.rs` — `Modality`, `TrafficType`, `ModalityTokenCount` | types | [x] |
 | Streaming finish_reason/model_version additions | updates | [x] (already ported) |
 
@@ -261,7 +261,7 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| `mistral/model_listing.rs` — `MistralModelLister` | module | [ ] |
+| `mistral/model_listing.rs` — `MistralModelLister` | module | [x] |
 | `mistral/client.rs` — `PromptTokensDetails`, `cached_tokens()` | updates | [x] |
 
 ### 23. Provider updates (existing, diff review needed)
