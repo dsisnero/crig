@@ -3,6 +3,7 @@ module Crig
   end
 end
 
+require "./providers/internal"
 require "./providers/anthropic"
 require "./providers/openai"
 require "./providers/azure"
