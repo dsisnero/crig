@@ -25,7 +25,7 @@ in existing modules, and new tests. What follows is a work breakdown in dependen
 - [x] Purge AppleDouble `._*` files from vendor and src trees
 - [x] Fix Ruby `parity_inventory_lib.rb` to handle non-UTF-8 bytes gracefully
 - [x] Re-run `ensure_parity_plan.sh` with `REFRESH=1` to regenerate source/test parity inventories
-- [ ] Run `verify_parity_adversarial.sh` and record baseline failures
+- [x] Run `verify_parity_adversarial.sh` and record baseline failures
 - [x] Ensure `mcp` shard installs (`shards install`) so `make test` passes
 
 ---
@@ -213,9 +213,9 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| `internal/buffered.rs` — buffered request/response helpers | module | [ ] |
-| `internal/openai_chat_completions_compatible.rs` — shared OpenAI-compat logic | module | [ ] |
-| All `#[test]` functions (~5 tool-call/eof-cleanup tests) | test | [ ] |
+| `internal/buffered.rs` — buffered request/response helpers | module | [x] |
+| `internal/openai_chat_completions_compatible.rs` — shared OpenAI-compat logic | module | [ ] (deferred — each provider has own streaming) |
+| All `#[test]` functions (~5 tool-call/eof-cleanup tests) | test | [ ] (deferred) |
 
 **Work**: Create `src/crig/providers/internal/` directory with `buffered.cr` and `openai_chat_completions_compatible.cr`.
 
@@ -238,8 +238,8 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 | `openai/transcription.rs` | module | [x] (already ported) |
 | `openai/model_listing.rs` — `OpenAIModelLister` | module | [x] |
 | `openai/completion/mod.rs` — `GenericCompletionModel`, `FileData`, `GPT_5_5` | updates | [x] (GPT_5_5 added) |
-| `openai/responses_api/mod.rs` — `GenericResponsesCompletionModel` | updates | [ ] |
-| `openai/embedding.rs` — `GenericEmbeddingModel` | updates | [ ] |
+| `openai/responses_api/mod.rs` — `GenericResponsesCompletionModel` | updates | [x] (Crystal uses different architecture) |
+| `openai/embedding.rs` — `GenericEmbeddingModel` | updates | [x] (Crystal uses different architecture) |
 
 ### 20. Anthropic provider — new sub-modules
 
@@ -315,20 +315,29 @@ behind a `test_utils` compilation flag (Crystal macros or conditional require).
 
 | Item | Reason |
 |------|--------|
-| `chatgpt` provider | Large (800+ LOC), OAuth device-code auth — deferred |
-| `copilot` provider | Large, OAuth auth similar to chatgpt — deferred |
-| `test_utils/` consolidation | Existing inline mocks cover use cases — deferred |
-| `client/builder.rs` audit | Crystal uses different client architecture — N/A |
-| `file_id()` | ✅ Completed (FileId variant + 25 pattern match updates) |
+| `chatgpt` OAuth flow | Deferred — access_token auth ported, OAuth device-code flow is future work |
+| `copilot` OAuth flow | Deferred — same as chatgpt |
+| `xiaomimimo` Anthropic client | Deferred — OpenAI-compatible client ported |
+| `test_utils/` consolidation | Deferred — existing inline mocks in spec cover use cases |
+| `internal/openai_chat_completions_compatible` | Deferred — each provider has own streaming implementation |
+| `GenericCompletionModel` / `GenericEmbeddingModel` | N/A — Crystal architecture doesn't use Rust's type-state generics |
 | Ollama cyclomatic complexity | Pre-existing lint — acceptable |
+
+## Parity Adversarial Baseline
+
+`verify_parity_adversarial.sh` exits 0. Remaining unmatched inventory items are:
+- test_utils module items (deferred)
+- builder method tracking differences (already ported, inventory not recognizing Crystal equivalents)
+- chatgpt/copilot auth sub-module items (deferred)
 
 ## Final Stats
 
-- **Specs**: 1065 examples, 0 failures, 0 errors, 3 pending (compiler-bug probe tests)
+- **Specs**: 1076 examples, 0 failures, 0 errors, 3 pending (compiler-bug probe tests)
 - **Format**: `crystal tool format --check src spec` ✓
 - **Lint**: 148 inspected, 1 pre-existing failure (ollama complexity)
-- **New files created**: 14 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, client spec, agent_memory spec, memory spec)
-- **Files modified**: 25+ (agent, providers, completion, http_client, spec)
+- **New files created**: 18 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, internal+buffered, chatgpt, copilot, 3 specs)
+- **Files modified**: 30+ (agent, providers, completion, http_client, spec, major spec fixture updates)
+- **Vendor delta**: +92 commits, repo restructured, 33 new upstream files tracked
 
 ---
 
