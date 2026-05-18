@@ -3,7 +3,9 @@ require "http/client"
 module Crig
   module Providers
     module Moonshot
-      MOONSHOT_API_BASE_URL = "https://api.moonshot.cn/v1"
+      MOONSHOT_API_BASE_URL        = "https://api.moonshot.cn/v1"
+      MOONSHOT_GLOBAL_API_BASE_URL = "https://api.moonshot.ai/v1"
+      MOONSHOT_ANTHROPIC_BASE_URL  = "https://api.moonshot.ai/anthropic"
 
       MOONSHOT_CHAT = "moonshot-v1-128k"
       KIMI_K2       = "kimi-k2"
@@ -28,6 +30,14 @@ module Crig
 
         def base_url(base_url : String) : self
           self.class.new(@api_key, base_url)
+        end
+
+        def global : self
+          base_url(MOONSHOT_GLOBAL_API_BASE_URL)
+        end
+
+        def china : self
+          base_url(MOONSHOT_API_BASE_URL)
         end
 
         def build : Client
