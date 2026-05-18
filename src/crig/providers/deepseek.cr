@@ -4,6 +4,8 @@ module Crig
       DEEPSEEK_API_BASE_URL = "https://api.deepseek.com"
       DEEPSEEK_CHAT         = "deepseek-chat"
       DEEPSEEK_REASONER     = "deepseek-reasoner"
+      DEEPSEEK_V4_FLASH     = "deepseek-v4-flash"
+      DEEPSEEK_V4_PRO       = "deepseek-v4-pro"
 
       struct DeepSeekExt
       end
@@ -830,6 +832,36 @@ module Crig
           JSON.parse(arguments)
         rescue
           nil
+        end
+      end
+
+      struct DeepSeekModelLister
+        include Crig::Client::ModelLister(Crig::Providers::DeepSeek::Client)
+
+        getter client : Crig::Providers::DeepSeek::Client
+
+        def initialize(@client : Crig::Providers::DeepSeek::Client)
+        end
+
+        def list_all : Crig::ModelList
+          path = "/models"
+          uri = "#{@client.base_url.rstrip('/')}/#{path.lstrip('/')}"
+          headers = HTTP::Headers{
+            "Authorization" => "Bearer #{@client.api_key}",
+            "Accept"        => "application/json",
+          }
+          response = HTTP::Client.get(uri, headers: headers)
+          raise Crig::ModelListingError.api_error(response.status_code, response.body) unless response.success?
+
+          parsed = JSON.parse(response.body)
+          entries = parsed["data"].as_a.map do |entry|
+            Crig::Model::Model.new(
+              entry["id"].as_s,
+              owned_by: entry["owned_by"]?.try(&.as_s),
+            )
+          end
+
+          Crig::ModelList.new(entries)
         end
       end
 

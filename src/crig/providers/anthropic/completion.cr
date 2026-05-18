@@ -6,6 +6,10 @@ module Crig
       CLAUDE_3_7_SONNET = "claude-3-7-sonnet-latest"
       CLAUDE_3_5_SONNET = "claude-3-5-sonnet-latest"
       CLAUDE_3_5_HAIKU  = "claude-3-5-haiku-latest"
+      CLAUDE_OPUS_4_6   = "claude-opus-4-6"
+      CLAUDE_OPUS_4_7   = "claude-opus-4-7"
+      CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
+      CLAUDE_HAIKU_4_5  = "claude-haiku-4-5"
 
       ANTHROPIC_VERSION_2023_01_01 = "2023-01-01"
       ANTHROPIC_VERSION_2023_06_01 = "2023-06-01"
