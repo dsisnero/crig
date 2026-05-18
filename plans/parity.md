@@ -236,7 +236,7 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 | `openai/audio_generation.rs` | module | [ ] |
 | `openai/image_generation.rs` — `GPT_IMAGE_1_5`, `GPT_IMAGE_2` | module | [ ] |
 | `openai/transcription.rs` | module | [ ] |
-| `openai/model_listing.rs` — `OpenAIModelLister` | module | [ ] |
+| `openai/model_listing.rs` — `OpenAIModelLister` | module | [x] |
 | `openai/completion/mod.rs` — `GenericCompletionModel`, `FileData`, `GPT_5_5` | updates | [ ] |
 | `openai/responses_api/mod.rs` — `GenericResponsesCompletionModel` | updates | [ ] |
 | `openai/embedding.rs` — `GenericEmbeddingModel` | updates | [ ] |
@@ -245,9 +245,9 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| `anthropic/model_listing.rs` — `AnthropicModelLister` | module | [ ] |
+| `anthropic/model_listing.rs` — `AnthropicModelLister` | module | [x] |
 | `anthropic/completion.rs` — `GenericCompletionModel`, `AnthropicCompatibleProvider` | updates | [ ] |
-| `anthropic/completion.rs` — new model consts (`CLAUDE_HAIKU_4_5`, `CLAUDE_OPUS_4_6/7`, `CLAUDE_SONNET_4_6`) | consts | [ ] |
+| `anthropic/completion.rs` — new model consts (`CLAUDE_HAIKU_4_5`, `CLAUDE_OPUS_4_6/7`, `CLAUDE_SONNET_4_6`) | consts | [x] |
 
 ### 21. Gemini provider — new sub-modules
 
