@@ -311,11 +311,24 @@ behind a `test_utils` compilation flag (Crystal macros or conditional require).
 
 ---
 
-## Removed File
+## Remaining / Deferred
 
-| Rust file removed | Crystal equivalent | Status |
-|------------------|-------------------|--------|
-| `client/builder.rs` | `src/crig/client/builder.cr` exists | [ ] audit if still needed |
+| Item | Reason |
+|------|--------|
+| `chatgpt` provider | Large (800+ LOC), OAuth device-code auth — deferred |
+| `copilot` provider | Large, OAuth auth similar to chatgpt — deferred |
+| `test_utils/` consolidation | Existing inline mocks cover use cases — deferred |
+| `client/builder.rs` audit | Crystal uses different client architecture — N/A |
+| `file_id()` | ✅ Completed (FileId variant + 25 pattern match updates) |
+| Ollama cyclomatic complexity | Pre-existing lint — acceptable |
+
+## Final Stats
+
+- **Specs**: 1065 examples, 0 failures, 0 errors, 3 pending (compiler-bug probe tests)
+- **Format**: `crystal tool format --check src spec` ✓
+- **Lint**: 148 inspected, 1 pre-existing failure (ollama complexity)
+- **New files created**: 14 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, client spec, agent_memory spec, memory spec)
+- **Files modified**: 25+ (agent, providers, completion, http_client, spec)
 
 ---
 
