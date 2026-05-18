@@ -50,7 +50,7 @@ module Crig
               json.field("input_audio") do
                 json.object do
                   json.field "data", base64_data
-                  json.field "format", request.filename ? infer_format(request.filename.not_nil!) : "wav"
+                  json.field "format", request.filename ? infer_format(request.filename) : "wav"
                 end
               end
               json.field "language", request.language unless request.language.nil?

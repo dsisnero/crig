@@ -219,9 +219,9 @@ module Crig
         return Error.invalid_status_code(response.status_code) unless response.status_code == 200
 
         content_type = response.headers["Content-Type"]?
-        return nil if @allow_missing_content_type && content_type.nil?
+        return if @allow_missing_content_type && content_type.nil?
         return Error.invalid_content_type("") unless content_type
-        return nil if event_stream_content_type?(content_type)
+        return if event_stream_content_type?(content_type)
 
         Error.invalid_content_type(content_type)
       end
