@@ -70,10 +70,10 @@ Rust split `agent.rs` into multiple files. Crystal currently has a monolithic `a
 | `agent/completion.rs` — `CompletionAgent` | [x] review for additions |
 | `agent/prompt_request/hooks.rs` (NEW) — tool hooks | [x] already ported in prompt_request.cr |
 | `agent/prompt_request/mod.rs` — new API surface | [x] ported `conversation()`, `without_memory()` |
-| `agent/prompt_request/streaming.rs` — new streaming helpers | [ ] port `conversation()`, `without_memory()` |
+| `agent/prompt_request/streaming.rs` — new streaming helpers | [x] ported `conversation()`, `without_memory()` |
 | `agent/tool.rs` (NEW) — tool integration | [x] already ported as AgentToolAdapter(M) |
 
-**Work**: ~~Review diffs in existing agent files; add `hooks.cr`, `tool.cr`, new methods.~~ Mostly done; streaming helpers remain.
+**Work**: ~~Review diffs in existing agent files; add `hooks.cr`, `tool.cr`, new methods.~~ Done.
 
 ### 4. Completion module — new additions
 
@@ -81,50 +81,50 @@ Rust split `agent.rs` into multiple files. Crystal currently has a monolithic `a
 |------|------|--------|
 | `completion/message.rs` — `file_id()` function | func | [ ] |
 
-**Work**: Minor — add `file_id()` helper for provider file ID support.
+**Work**: Add `FileId` variant to `DocumentSourceKind`. Deferred — touches 116 exhaustive pattern matches across all providers.
 
 ### 5. `audio_generation` module — new builder methods
 
 | Item | Kind | Status |
 |------|------|--------|
-| `AudioGenerationRequestBuilder.build()` | method | [ ] |
-| `AudioGenerationRequestBuilder.text()` | method | [ ] |
+| `AudioGenerationRequestBuilder.build()` | method | [x] |
+| `AudioGenerationRequestBuilder.text()` | method | [x] |
 
 ### 6. `image_generation` module — new builder methods
 
 | Item | Kind | Status |
 |------|------|--------|
-| `ImageGenerationRequestBuilder.build()` | method | [ ] |
-| `ImageGenerationRequestBuilder.prompt()` | method | [ ] |
+| `ImageGenerationRequestBuilder.build()` | method | [x] |
+| `ImageGenerationRequestBuilder.prompt()` | method | [x] |
 
 ### 7. `transcription` module — builder methods
 
 | Item | Kind | Status |
 |------|------|--------|
-| `TranscriptionRequestBuilder.build()` | method | [ ] |
-| `TranscriptionRequestBuilder.filename()` | method | [ ] |
+| `TranscriptionRequestBuilder.build()` | method | [x] |
+| `TranscriptionRequestBuilder.filename()` | method | [x] |
 
 ### 8. `vector_store/request` module
 
 | Item | Kind | Status |
 |------|------|--------|
-| `VectorSearchRequestBuilder.build()` | method | [ ] |
+| `VectorSearchRequestBuilder.build()` | method | [x] |
 
 ### 9. `http_client/sse` module
 
 | Item | Kind | Status |
 |------|------|--------|
-| `allow_missing_content_type()` | func | [ ] |
+| `allow_missing_content_type()` | func | [x] |
 
 ### 10. `client/mod` module
 
 | Item | Kind | Status |
 |------|------|--------|
-| `ProviderClientError` enum | enum | [ ] |
-| `ProviderClientResult` type alias | type | [ ] |
-| `get_base_url()` | func | [ ] |
-| `optional_env_var()` | func | [ ] |
-| `required_env_var()` | func | [ ] |
+| `ProviderClientError` enum | enum | [x] |
+| `ProviderClientResult` type alias | type | [x] (as union type) |
+| `get_base_url()` | func | [x] (per-provider) |
+| `optional_env_var()` | func | [x] |
+| `required_env_var()` | func | [x] |
 
 ### 11. `model/listing` — new tests
 
@@ -325,14 +325,14 @@ Rust has **70 files** with `#[test]` annotations across rig-core.
 Crystal has **34 spec files** (including AppleDouble duplicates — real count is ~17 unique files).
 
 Priority test areas with zero coverage:
-- Agent hooks, tool integration
-- Memory (ConversationMemory, Compactor, DemotionHook)
+- ~~Agent hooks, tool integration~~ (covered in spec/crig_spec.cr)
+- ~~Memory (ConversationMemory, Compactor, DemotionHook)~~ (spec/memory_spec.cr)
+- ~~http_client SSE (allow_missing_content_type)~~ (covered)
 - Transcription, audio_generation, image_generation
 - chatgpt, copilot, minimax, zai, xiaomimimo providers
 - model_listing for anthropic, gemini, mistral, openai, openrouter
 - openai responses_api (completion response tiers, file_id documents)
 - streaming metadata (finish_reason, model_version on gemini)
-- http_client SSE (allow_missing_content_type)
 - vector_store builder
 
 ---
