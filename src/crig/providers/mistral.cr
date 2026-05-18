@@ -10,6 +10,7 @@ require "./mistral/client"
 require "./mistral/completion"
 require "./mistral/embedding"
 require "./mistral/transcription"
+require "./mistral/model_listing"
 
 module Crig
   module Providers

@@ -3,9 +3,11 @@ require "base64"
 module Crig
   module Providers
     module OpenAI
-      DALL_E_2    = "dall-e-2"
-      DALL_E_3    = "dall-e-3"
-      GPT_IMAGE_1 = "gpt-image-1"
+      DALL_E_2      = "dall-e-2"
+      DALL_E_3      = "dall-e-3"
+      GPT_IMAGE_1   = "gpt-image-1"
+      GPT_IMAGE_1_5 = "gpt-image-1.5"
+      GPT_IMAGE_2   = "gpt-image-2"
 
       struct ImageGenerationData
         include JSON::Serializable

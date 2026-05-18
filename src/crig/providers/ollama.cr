@@ -915,6 +915,32 @@ module Crig
         include Crig::CompletionClient(Crig::Providers::Ollama::CompletionModel)
         include Crig::EmbeddingsClient(Crig::Providers::Ollama::EmbeddingModel)
       end
+
+      struct OllamaModelLister
+        include Crig::Client::ModelLister(Crig::Providers::Ollama::Client)
+
+        getter client : Crig::Providers::Ollama::Client
+
+        def initialize(@client : Crig::Providers::Ollama::Client)
+        end
+
+        def list_all : Crig::ModelList
+          path = "/api/tags"
+          uri = "#{@client.base_url.rstrip('/')}/#{path.lstrip('/')}"
+          headers = HTTP::Headers{"Accept" => "application/json"}
+          response = HTTP::Client.get(uri, headers: headers)
+          raise Crig::ModelListingError.api_error(response.status_code, response.body) unless response.success?
+
+          parsed = JSON.parse(response.body)
+          entries = parsed["models"].as_a.map do |entry|
+            Crig::Model::Model.new(
+              entry["name"].as_s,
+            )
+          end
+
+          Crig::ModelList.new(entries)
+        end
+      end
     end
   end
 end
