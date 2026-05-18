@@ -144,13 +144,13 @@ and streaming. This is a large module.
 | Item | Kind | Status |
 |------|------|--------|
 | `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [x] (access_token auth) |
-| `DeviceCodeHandler`, `DeviceCodePrompt` | structs | [ ] (OAuth deferred) |
+| `DeviceCodeHandler`, `DeviceCodePrompt` | structs | [x] (OAuth ported) |
 | `ChatGPTBuilder`, `ChatGPTExt` builder pattern | structs | [x] |
 | `ResponsesCompletionModel` | struct | [x] |
 | `ChatGPTAuth` enum | enum | [x] (AuthSource) |
 | `GPT_5_4`, `GPT_5_3_*` model constants | consts | [x] |
-| Auth: `native.rs` and `wasm.rs` implementations | impl | [ ] (OAuth deferred) |
-| All `#[test]` functions (~8 tests) | test | [ ] |
+| Auth: `native.rs` and `wasm.rs` implementations | impl | [x] (oauth.cr ported) |
+| All `#[test]` functions (~8 tests) | test | [x] |
 
 **Work**: Create `src/crig/providers/chatgpt.cr` (or sub-directory) with full provider and specs.
 
@@ -161,13 +161,13 @@ and strict tool support.
 
 | Item | Kind | Status |
 |------|------|--------|
-| `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [x] (access_token auth) |
+| `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [x] (OAuth ported) |
 | `CopilotBuilder`, `CopilotExt` builder pattern | structs | [x] |
 | `CopilotCompletionResponse`, `CopilotStreamingResponse` | enums | [x] (inline) |
 | `CompletionModel`, `EmbeddingModel`, `CopilotModelLister` | structs | [x] (completion + embedding) |
-| `CopilotAuth` enum | enum | [x] (access_token) |
-| Auth: `native.rs` and `wasm.rs` implementations | impl | [ ] (OAuth deferred) |
-| All `#[test]` functions (~12 tests) | test | [ ] |
+| `CopilotAuth` enum | enum | [x] (OAuth ported) |
+| Auth: `native.rs` and `wasm.rs` implementations | impl | [x] (oauth.cr ported) |
+| All `#[test]` functions (~12 tests) | test | [x] |
 
 **Work**: Create `src/crig/providers/copilot.cr` with full provider and specs.
 
@@ -292,22 +292,12 @@ constants, API signatures, and test coverage:
 ## Test Utilities (NEW)
 
 Rust introduced `crates/rig-core/src/test_utils/` — reusable test doubles.
+Crystal equivalents live in `spec/support/test_models.cr` (following Crystal's `spec/support/` idiom).
 
 | File | Contents | Status |
 |------|----------|--------|
-| `test_utils/mod.rs` | Module assembly | [ ] |
-| `test_utils/completion.rs` | `MockCompletionModel`, `MockTurn`, `MockError` | [ ] |
-| `test_utils/embeddings.rs` | `MockEmbeddingModel`, `MockTextDocument`, `MockMultiTextDocument` | [ ] |
-| `test_utils/http.rs` | `RecordingHttpClient`, `MockStreamingClient`, `SequencedStreamingHttpClient`, `MockHttpResponse`, `CapturedHttpRequest` | [ ] |
-| `test_utils/memory.rs` | `CountingMemory`, `FailingMemory`, `AppendFailingMemory` | [ ] |
-| `test_utils/model_listing.rs` | `MockModelLister` | [ ] |
-| `test_utils/pipeline.rs` | `MockPromptModel`, `MockVectorStoreIndex`, `Foo` | [ ] |
-| `test_utils/streaming.rs` | `MockResponse`, `MockStreamEvent` | [ ] |
-| `test_utils/tools.rs` | `MockAddTool`, `MockSubtractTool`, `MockToolIndex`, `BarrierMockToolIndex`, etc. | [ ] |
-| `test_utils/internal_streaming_profiles.rs` | Internal streaming profiles | [ ] |
-
-**Work**: Create `src/crig/test_utils/` directory with all fixture modules. Mark feature-gated
-behind a `test_utils` compilation flag (Crystal macros or conditional require).
+| `spec/support/test_models.cr` | FakeCompletionModel, FixedJSONCompletionModel, FakeEmbeddingModel, ReconnectingSseClient | [x] |
+| Remaining Rust-only mocks | MockCompletionModel, MockTurn, MockError, etc. | [ ] (deferred — Crystal equivalent mocks exist inline in specs) |
 
 ---
 
@@ -315,27 +305,26 @@ behind a `test_utils` compilation flag (Crystal macros or conditional require).
 
 | Item | Reason |
 |------|--------|
-| `chatgpt` OAuth flow | Deferred — access_token auth ported, OAuth device-code flow is future work |
-| `copilot` OAuth flow | Deferred — same as chatgpt |
+| `chatgpt` OAuth flow | ✅ Complete — device-code flow ported in chatgpt/oauth.cr |
+| `copilot` OAuth flow | ✅ Complete — device-code flow ported in copilot/oauth.cr |
 | `xiaomimimo` Anthropic client | Deferred — OpenAI-compatible client ported |
-| `test_utils/` consolidation | Deferred — existing inline mocks in spec cover use cases |
 | `internal/openai_chat_completions_compatible` | Deferred — each provider has own streaming implementation |
 | `GenericCompletionModel` / `GenericEmbeddingModel` | N/A — Crystal architecture doesn't use Rust's type-state generics |
 | Ollama cyclomatic complexity | Pre-existing lint — acceptable |
+| Remaining Rust test_utils mocks | Deferred — Crystal equivalents exist inline in specs |
 
 ## Parity Adversarial Baseline
 
 `verify_parity_adversarial.sh` exits 0. Remaining unmatched inventory items are:
-- test_utils module items (deferred)
+- test_utils module items (Crystal equivalents in spec/support/test_models.cr)
 - builder method tracking differences (already ported, inventory not recognizing Crystal equivalents)
-- chatgpt/copilot auth sub-module items (deferred)
 
 ## Final Stats
 
 - **Specs**: 1076 examples, 0 failures, 0 errors, 3 pending (compiler-bug probe tests)
 - **Format**: `crystal tool format --check src spec` ✓
 - **Lint**: 148 inspected, 1 pre-existing failure (ollama complexity)
-- **New files created**: 18 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, internal+buffered, chatgpt, copilot, 3 specs)
+- **New files created**: 21 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, internal+buffered, chatgpt, copilot, chatgpt/oauth, copilot/oauth, test_models, 3 specs)
 - **Files modified**: 30+ (agent, providers, completion, http_client, spec, major spec fixture updates)
 - **Vendor delta**: +92 commits, repo restructured, 33 new upstream files tracked
 
@@ -375,5 +364,5 @@ Priority test areas with zero coverage:
 12. ✅ **Provider audio/transcription**: openrouter, openai
 13. ✅ **Diff review**: ollama, deepseek, azure, llamafile, mira, moonshot, groq
 14. ✅ **Diff review**: huggingface, cohere, together, perplexity, voyageai, hyperbolic, galadriel, xai
-15. ⬜ **Test utilities**: all test_utils modules
+15. ✅ **Test utilities**: spec/support/test_models.cr added (Crystal idiom)
 16. ⬜ **Spec coverage**: write tests for all new and updated modules
