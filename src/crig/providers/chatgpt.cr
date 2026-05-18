@@ -15,13 +15,11 @@ module Crig
       GPT_5_3_INSTANT     = "gpt-5.3-instant"
       GPT_5_3_CHAT_LATEST = "gpt-5.3-chat-latest"
 
+      DEFAULT_USER_AGENT = "rig-crystal"
+
       enum AuthSource
         AccessToken
         OAuth
-      end
-
-      private def self.default_user_agent : String
-        "rig/#{Crig::VERSION} (#{System.hostname}; #{DEFAULT_ORIGINATOR})"
       end
 
       struct ChatGPTExt
@@ -38,7 +36,7 @@ module Crig
           @account_id : String? = nil,
           @default_instructions : String? = DEFAULT_INSTRUCTIONS,
           @originator : String = DEFAULT_ORIGINATOR,
-          @user_agent : String = default_user_agent,
+          @user_agent : String = DEFAULT_USER_AGENT,
         )
         end
       end
@@ -93,7 +91,7 @@ module Crig
             @base_url,
             @default_instructions,
             @originator,
-            @user_agent || ChatGPT.default_user_agent,
+            @user_agent || DEFAULT_USER_AGENT,
           )
           client
         end
@@ -111,7 +109,7 @@ module Crig
           @base_url : String = CHATGPT_API_BASE_URL,
           @default_instructions : String? = DEFAULT_INSTRUCTIONS,
           @originator : String = DEFAULT_ORIGINATOR,
-          @user_agent : String = ChatGPT.default_user_agent,
+          @user_agent : String = DEFAULT_USER_AGENT,
         )
           @ext = ChatGPTExt.new(
             auth_source: AuthSource::AccessToken,

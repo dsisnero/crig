@@ -13,8 +13,6 @@ module Crig
           output_tokens: output_tokens,
           total_tokens: total_tokens,
           cached_input_tokens: cached_input_tokens,
-          cache_creation_input_tokens: 0_i64,
-          reasoning_tokens: 0_i64,
         )
       end
 

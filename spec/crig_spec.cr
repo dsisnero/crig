@@ -14968,6 +14968,111 @@ describe Crig::Providers::OpenAI::Chat::Streaming do
   end
 end
 
+describe Crig::Providers::ChatGPT do
+  it "supports client initialization with access token" do
+    client = Crig::Providers::ChatGPT::Client.new("test-token")
+    client.access_token.should eq("test-token")
+    client.base_url.should eq(Crig::Providers::ChatGPT::CHATGPT_API_BASE_URL)
+  end
+
+  it "builds client through builder" do
+    built = Crig::Providers::ChatGPT::Client.builder
+      .access_token("token-123")
+      .account_id("acct-456")
+      .originator("test-rig")
+      .build
+
+    built.access_token.should eq("token-123")
+    built.account_id.should eq("acct-456")
+    built.ext.originator.should eq("test-rig")
+  end
+
+  it "exposes all model constants" do
+    Crig::Providers::ChatGPT::GPT_5_4.should eq("gpt-5.4")
+    Crig::Providers::ChatGPT::GPT_5_4_PRO.should eq("gpt-5.4-pro")
+    Crig::Providers::ChatGPT::GPT_5_3_CODEX.should eq("gpt-5.3-codex")
+    Crig::Providers::ChatGPT::GPT_5_3_CHAT_LATEST.should eq("gpt-5.3-chat-latest")
+  end
+
+  it "builds a completion model through the client" do
+    client = Crig::Providers::ChatGPT::Client.new("test-token")
+    model = client.completion_model(Crig::Providers::ChatGPT::GPT_5_4)
+
+    model.should be_a(Crig::Providers::ChatGPT::ResponsesCompletionModel)
+    model.model.should eq(Crig::Providers::ChatGPT::GPT_5_4)
+  end
+end
+
+describe Crig::Providers::Copilot do
+  it "supports client initialization with access token" do
+    client = Crig::Providers::Copilot::Client.new("test-token")
+    client.access_token.should eq("test-token")
+    client.base_url.should eq(Crig::Providers::Copilot::GITHUB_COPILOT_API_BASE_URL)
+  end
+
+  it "builds client through builder" do
+    built = Crig::Providers::Copilot::Client.builder
+      .access_token("gh-token")
+      .base_url("https://custom.copilot.com")
+      .build
+
+    built.access_token.should eq("gh-token")
+    built.base_url.should eq("https://custom.copilot.com")
+  end
+
+  it "routes codex models to responses API" do
+    model = Crig::Providers::Copilot::CompletionModel.new(
+      Crig::Providers::Copilot::Client.new("test-token"),
+      Crig::Providers::Copilot::GPT_5_3_CODEX,
+    )
+    # Internal routing check: codex models use responses path
+    Crig::Providers::Copilot::CODEX_MODELS.includes?(Crig::Providers::Copilot::GPT_5_3_CODEX).should be_true
+  end
+
+  it "exposes embedding models" do
+    client = Crig::Providers::Copilot::Client.new("test-token")
+    emb = client.embedding_model(Crig::Providers::Copilot::TEXT_EMBEDDING_3_SMALL)
+
+    emb.should be_a(Crig::Providers::Copilot::EmbeddingModel)
+    emb.model.should eq(Crig::Providers::Copilot::TEXT_EMBEDDING_3_SMALL)
+  end
+
+  it "exposes all model constants" do
+    Crig::Providers::Copilot::GPT_4O.should eq("gpt-4o")
+    Crig::Providers::Copilot::CLAUDE_SONNET_4.should eq("claude-sonnet-4")
+    Crig::Providers::Copilot::GEMINI_3_FLASH.should eq("gemini-3-flash-preview")
+    Crig::Providers::Copilot::O3_MINI.should eq("o3-mini")
+    Crig::Providers::Copilot::TEXT_EMBEDDING_3_LARGE.should eq("text-embedding-3-large")
+  end
+end
+
+describe Crig::Providers::Internal do
+  it "builds completion_usage with token counts" do
+    usage = Crig::Providers::Internal.completion_usage(10_i64, 5_i64, 15_i64, 2_i64)
+    usage.input_tokens.should eq(10)
+    usage.output_tokens.should eq(5)
+    usage.total_tokens.should eq(15)
+    usage.cached_input_tokens.should eq(2)
+  end
+
+  it "adapts buffered response to streaming via stream_from_completion_response" do
+    response = Crig::Completion::CompletionResponse(JSON::Any).new(
+      Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+        Crig::Completion::AssistantContent.text("hello"),
+      ),
+      Crig::Completion::Usage.new(output_tokens: 1),
+      JSON.parse(%({"text": "hello"})),
+    )
+
+    stream = Crig::Providers::Internal.stream_from_completion_response(response) do |content|
+      text = content.text.try(&.text) || ""
+      [Crig::RawStreamingChoice(JSON::Any).message(text)]
+    end
+
+    stream.should be_a(Crig::StreamingCompletionResponse(JSON::Any))
+  end
+end
+
 describe Crig::Integrations::ChatBotBuilder(Crig::Integrations::NoImplProvided) do
   it "builds chat and agent chatbot variants" do
     chat_builder = Crig::Integrations::ChatBotBuilder(Crig::Integrations::NoImplProvided).new
