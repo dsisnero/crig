@@ -79,9 +79,9 @@ Rust split `agent.rs` into multiple files. Crystal currently has a monolithic `a
 
 | Item | Kind | Status |
 |------|------|--------|
-| `completion/message.rs` — `file_id()` function | func | [ ] |
+| `completion/message.rs` — `file_id()` function | func | [x] |
 
-**Work**: Add `FileId` variant to `DocumentSourceKind`. Deferred — touches 116 exhaustive pattern matches across all providers.
+**Work**: ~~Add `FileId` variant to `DocumentSourceKind`.~~ Done — added FileId variant + 25 exhaustive pattern match updates across 10 provider files.
 
 ### 5. `audio_generation` module — new builder methods
 
