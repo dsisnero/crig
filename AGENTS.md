@@ -4,8 +4,8 @@
 
 - This repository ports Rust upstream behavior from `https://github.com/0xPlaygrounds/rig.git`.
 - The pinned upstream checkout lives at `vendor/rig`.
-- Current parity work targets the Rust crate at `vendor/rig/rig/rig-core`.
-- The pinned upstream commit for this baseline is `013d65a3f5d0a3cbf5a712826c343a3526d13112`.
+- Current parity work targets the Rust crate at `vendor/rig/crates/rig-core`.
+- The pinned upstream commit for this baseline is `f77a5819ec2a71e98583480a68a341f816a75c8a`.
 
 ## Required Workflow
 
@@ -19,6 +19,6 @@
 ## Parity Commands
 
 ```bash
-./scripts/ensure_parity_plan.sh . vendor/rig/rig/rig-core rust auto 0
-./scripts/verify_parity_adversarial.sh . vendor/rig/rig/rig-core rust 'crystal spec' 'cargo test -p rig-core'
+./scripts/ensure_parity_plan.sh . vendor/rig/crates/rig-core rust auto 0
+./scripts/verify_parity_adversarial.sh . vendor/rig/crates/rig-core rust 'crystal spec' 'cargo test -p rig-core'
 ```
