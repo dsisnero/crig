@@ -1,13 +1,15 @@
 module Crig
   VERSION              = "0.1.0"
   UPSTREAM_URL         = "https://github.com/0xPlaygrounds/rig.git"
-  UPSTREAM_COMMIT      = "f5c4812de02e776d9a68b481a8cf71ed6b572a2d"
-  UPSTREAM_SOURCE_PATH = "vendor/rig/rig/rig-core"
+  UPSTREAM_COMMIT      = "f77a5819ec2a71e98583480a68a341f816a75c8a"
+  UPSTREAM_SOURCE_PATH = "vendor/rig/crates/rig-core"
 end
 
 require "./crig/completion"
+require "./crig/markers"
 require "./crig/concurrency"
 require "./crig/embeddings"
+require "./crig/memory"
 require "./crig/tool"
 require "./crig/tool/rmcp"
 require "./crig/tool/server"
