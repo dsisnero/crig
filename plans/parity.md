@@ -175,25 +175,25 @@ and strict tool support.
 
 | Item | Kind | Status |
 |------|------|--------|
-| `MiniMaxBuilder`, `MiniMaxExt` + `MiniMaxAnthropic*` | structs | [ ] |
-| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [ ] |
-| All model constants (`MINIMAX_M2_*`) | consts | [ ] |
-| Base URL constants (global, china, anthropic) | consts | [ ] |
-| All `#[test]` functions (~4 tests) | test | [ ] |
+| `MiniMaxBuilder`, `MiniMaxExt` + `MiniMaxAnthropic*` | structs | [x] |
+| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [x] (OpenAI client done) |
+| All model constants (`MINIMAX_M2_*`) | consts | [x] |
+| Base URL constants (global, china, anthropic) | consts | [x] |
+| All `#[test]` functions (~4 tests) | test | [x] |
 
-**Work**: Create `src/crig/providers/minimax.cr`.
+**Work**: ~~Create `src/crig/providers/minimax.cr`.~~ Done.
 
 ### 15. `zai` provider (NEW)
 
 | Item | Kind | Status |
 |------|------|--------|
-| `ZAiBuilder`, `ZAiExt` + `ZAiAnthropic*` | structs | [ ] |
-| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [ ] |
-| All model constants (`GLM_4_5*`, `GLM_4_6*`) | consts | [ ] |
-| Base URL constants (general, coding, anthropic) | consts | [ ] |
-| All `#[test]` functions (~4 tests) | test | [ ] |
+| `ZAiBuilder`, `ZAiExt` + `ZAiAnthropic*` | structs | [x] |
+| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [x] (OpenAI client done) |
+| All model constants (`GLM_4_5*`, `GLM_4_6*`) | consts | [x] |
+| Base URL constants (general, coding, anthropic) | consts | [x] |
+| All `#[test]` functions (~4 tests) | test | [x] |
 
-**Work**: Create `src/crig/providers/zai.cr`.
+**Work**: ~~Create `src/crig/providers/zai.cr`.~~ Done.
 
 ### 16. `xiaomimimo` provider — rename/rewrite
 
