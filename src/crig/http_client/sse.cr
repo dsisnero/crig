@@ -47,6 +47,7 @@ module Crig
         @events = Channel(Result(Event, Error)).new
         @closed = Atomic(Bool).new(false)
         @last_event_id = nil
+        @allow_missing_content_type = false
         spawn { run }
       end
 
@@ -58,11 +59,19 @@ module Crig
         @events = Channel(Result(Event, Error)).new
         @closed = Atomic(Bool).new(false)
         @last_event_id = nil
+        @allow_missing_content_type = false
         spawn { run }
       end
 
       def receive? : Result(Event, Error)?
         @events.receive?
+      end
+
+      # When set, missing or empty Content-Type headers are accepted.
+      # By default, only text/event-stream is accepted.
+      def allow_missing_content_type : self
+        @allow_missing_content_type = true
+        self
       end
 
       def self.with_retry_policy(
@@ -209,8 +218,10 @@ module Crig
       private def validate_response(response : StreamingResponse) : Error?
         return Error.invalid_status_code(response.status_code) unless response.status_code == 200
 
-        content_type = response.headers["Content-Type"]? || return Error.invalid_content_type("")
-        return if event_stream_content_type?(content_type)
+        content_type = response.headers["Content-Type"]?
+        return nil if @allow_missing_content_type && content_type.nil?
+        return Error.invalid_content_type("") unless content_type
+        return nil if event_stream_content_type?(content_type)
 
         Error.invalid_content_type(content_type)
       end

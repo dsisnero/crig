@@ -56,6 +56,56 @@ module Crig
       end
     end
 
+    # Errors returned while constructing provider clients from environment
+    # variables or explicit input.
+    class ProviderClientError < Exception
+      enum Kind
+        EnvironmentVariable
+        Http
+        InvalidConfiguration
+      end
+
+      getter kind : Kind
+      getter var_name : String?
+      getter http_error : HttpClient::Error?
+      getter detail : String?
+
+      def initialize(
+        message : String,
+        @kind : Kind,
+        @var_name : String? = nil,
+        @http_error : HttpClient::Error? = nil,
+        @detail : String? = nil,
+      )
+        super(message)
+      end
+
+      def self.environment_variable(name : String, message : String) : self
+        new("environment variable '#{name}' is not set or is invalid: #{message}", Kind::EnvironmentVariable, var_name: name)
+      end
+
+      def self.http(error : HttpClient::Error) : self
+        new(error.message || "http error", Kind::Http, http_error: error)
+      end
+
+      def self.invalid_configuration(message : String) : self
+        new(message, Kind::InvalidConfiguration, detail: message)
+      end
+    end
+
+    # Read a required environment variable for provider client construction.
+    def self.required_env_var(name : String) : String | ProviderClientError
+      ENV[name]? || ProviderClientError.environment_variable(name, "not set")
+    end
+
+    # Read an optional environment variable for provider client construction.
+    # Returns nil when the variable is not present.
+    def self.optional_env_var(name : String) : String? | ProviderClientError
+      if ENV.has_key?(name)
+        ENV[name]
+      end
+    end
+
     struct Capable(M)
       include Capability
 
