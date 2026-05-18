@@ -223,8 +223,8 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| `openrouter/audio_generation.rs` — TTS support | module | [ ] |
-| `openrouter/transcription.rs` — STT support | module | [ ] |
+| `openrouter/audio_generation.rs` — TTS support | module | [x] |
+| `openrouter/transcription.rs` — STT support | module | [x] |
 | `openrouter/model_listing.rs` — model listing | module | [ ] |
 
 **Work**: Add to existing `src/crig/providers/openrouter/` directory.
@@ -233,9 +233,9 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| `openai/audio_generation.rs` | module | [ ] |
-| `openai/image_generation.rs` — `GPT_IMAGE_1_5`, `GPT_IMAGE_2` | module | [ ] |
-| `openai/transcription.rs` | module | [ ] |
+| `openai/audio_generation.rs` | module | [x] |
+| `openai/image_generation.rs` — `GPT_IMAGE_1_5`, `GPT_IMAGE_2` | module | [x] (already ported) |
+| `openai/transcription.rs` | module | [x] (already ported) |
 | `openai/model_listing.rs` — `OpenAIModelLister` | module | [x] |
 | `openai/completion/mod.rs` — `GenericCompletionModel`, `FileData`, `GPT_5_5` | updates | [ ] |
 | `openai/responses_api/mod.rs` — `GenericResponsesCompletionModel` | updates | [ ] |
