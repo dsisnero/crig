@@ -194,6 +194,8 @@ module Crig
     getter temperature : Float64?
     getter tool_choice : Crig::Completion::ToolChoice?
     getter output_schema : JSON::Any?
+    getter memory : Crig::Memory::ConversationMemory?
+    getter default_conversation_id : String?
 
     def initialize(
       @model : M,
@@ -211,6 +213,8 @@ module Crig
       @temperature : Float64? = nil,
       @tool_choice : Crig::Completion::ToolChoice? = nil,
       @output_schema : JSON::Any? = nil,
+      @memory : Crig::Memory::ConversationMemory? = nil,
+      @default_conversation_id : String? = nil,
     )
     end
 
@@ -394,6 +398,8 @@ module Crig
     getter temperature_value : Float64?
     getter tool_choice_value : Crig::Completion::ToolChoice?
     getter output_schema_value : JSON::Any?
+    getter memory_value : Crig::Memory::ConversationMemory?
+    getter default_conversation_id_value : String?
 
     def initialize(
       @model : M,
@@ -411,6 +417,8 @@ module Crig
       @temperature_value : Float64? = nil,
       @tool_choice_value : Crig::Completion::ToolChoice? = nil,
       @output_schema_value : JSON::Any? = nil,
+      @memory_value : Crig::Memory::ConversationMemory? = nil,
+      @default_conversation_id_value : String? = nil,
     )
     end
 
@@ -622,6 +630,22 @@ module Crig
       output_schema(Crig::OutputSchemaBuilder(T).build)
     end
 
+    # Attach a ConversationMemory backend.
+    # When set, the agent will automatically load prior conversation history before
+    # sending a prompt and append new messages after a successful turn. A
+    # conversation_id must be supplied either via #conversation_id on the builder
+    # or per-request via PromptRequest#conversation. If neither is set, memory is
+    # silently bypassed.
+    def memory(memory : Crig::Memory::ConversationMemory) : self
+      self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value, memory, @default_conversation_id_value)
+    end
+
+    # Set a default conversation id used when none is provided per-request.
+    # Can be overridden per-request via PromptRequest#conversation.
+    def conversation_id(id : String) : self
+      self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value, @memory_value, id)
+    end
+
     def build : Agent(M)
       Agent(M).new(
         @model,
@@ -639,6 +663,8 @@ module Crig
         temperature: @temperature_value,
         tool_choice: @tool_choice_value,
         output_schema: @output_schema_value,
+        memory: @memory_value,
+        default_conversation_id: @default_conversation_id_value,
       )
     end
   end

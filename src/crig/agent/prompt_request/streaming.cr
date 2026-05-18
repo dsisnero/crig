@@ -122,6 +122,8 @@ module Crig
     getter chat_history : Array(Crig::Completion::Message)?
     getter max_turns : Int32
     getter hook : Crig::PromptHook?
+    getter memory : Crig::Memory::ConversationMemory?
+    getter conversation_id : String?
 
     def initialize(
       @agent : Crig::Agent(M),
@@ -129,24 +131,36 @@ module Crig
       @chat_history : Array(Crig::Completion::Message)? = nil,
       @max_turns : Int32 = 0,
       @hook : Crig::PromptHook? = nil,
+      @memory : Crig::Memory::ConversationMemory? = nil,
+      @conversation_id : String? = nil,
     )
     end
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0)
+      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
     def multi_turn(turns : Int) : self
-      self.class.new(@agent, @prompt, @chat_history, turns.to_i32, @hook)
+      self.class.new(@agent, @prompt, @chat_history, turns.to_i32, @hook, @memory, @conversation_id)
     end
 
     def with_history(history : Array(Crig::Completion::Message)) : self
-      self.class.new(@agent, @prompt, history.dup, @max_turns, @hook)
+      self.class.new(@agent, @prompt, history.dup, @max_turns, @hook, @memory, @conversation_id)
     end
 
     def with_hook(hook : Crig::PromptHook) : self
-      self.class.new(@agent, @prompt, @chat_history, @max_turns, hook)
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, hook, @memory, @conversation_id)
+    end
+
+    # Set the conversation id used to load and persist memory for this request.
+    def conversation(id : String) : self
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, @hook, @memory, id)
+    end
+
+    # Disable conversation memory for this request.
+    def without_memory : self
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, @hook, nil, nil)
     end
 
     def send_items : Crig::MultiTurnStreamingResult(Crig::FinalResponse)

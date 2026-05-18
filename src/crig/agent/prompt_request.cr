@@ -149,6 +149,8 @@ module Crig
     getter concurrency : Int32
     getter agent : Crig::Agent(M)
     getter hook : Crig::PromptHook?
+    getter memory : Crig::Memory::ConversationMemory?
+    getter conversation_id : String?
 
     def initialize(
       @agent : Crig::Agent(M),
@@ -157,32 +159,46 @@ module Crig
       @max_turns : Int32 = 0,
       @concurrency : Int32 = 1,
       @hook : Crig::PromptHook? = nil,
+      @memory : Crig::Memory::ConversationMemory? = nil,
+      @conversation_id : String? = nil,
     )
     end
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0)
+      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
     def extended_details : PromptRequest(Crig::Extended, M)
-      PromptRequest(Crig::Extended, M).new(@agent, @prompt, @chat_history, @max_turns, @concurrency, @hook)
+      PromptRequest(Crig::Extended, M).new(@agent, @prompt, @chat_history, @max_turns, @concurrency, @hook, @memory, @conversation_id)
     end
 
     def max_turns(depth : Int) : self
-      self.class.new(@agent, @prompt, @chat_history, depth.to_i32, @concurrency, @hook)
+      self.class.new(@agent, @prompt, @chat_history, depth.to_i32, @concurrency, @hook, @memory, @conversation_id)
     end
 
     def with_tool_concurrency(concurrency : Int) : self
-      self.class.new(@agent, @prompt, @chat_history, @max_turns, concurrency.to_i32, @hook)
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, concurrency.to_i32, @hook, @memory, @conversation_id)
     end
 
     def with_history(history : Array(Crig::Completion::Message)) : self
-      self.class.new(@agent, @prompt, history.dup, @max_turns, @concurrency, @hook)
+      self.class.new(@agent, @prompt, history.dup, @max_turns, @concurrency, @hook, @memory, @conversation_id)
     end
 
     def with_hook(hook : Crig::PromptHook) : self
-      self.class.new(@agent, @prompt, @chat_history, @max_turns, @concurrency, hook)
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, @concurrency, hook, @memory, @conversation_id)
+    end
+
+    # Set the conversation id used to load and persist memory for this request.
+    # Overrides any default conversation id set on the agent.
+    def conversation(id : String) : self
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, @concurrency, @hook, @memory, id)
+    end
+
+    # Disable conversation memory for this request.
+    # History will neither be loaded from nor saved to the agent's memory backend.
+    def without_memory : self
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, @concurrency, @hook, nil, nil)
     end
 
     def send
