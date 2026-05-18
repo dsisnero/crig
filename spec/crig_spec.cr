@@ -14798,6 +14798,44 @@ describe Crig::Providers::MiniMax do
   end
 end
 
+describe Crig::Providers::ZAI do
+  it "supports client initialization and builders" do
+    client = Crig::Providers::ZAI::Client.new("dummy-key")
+    built = Crig::Providers::ZAI::Client.builder.api_key("dummy-key").build
+
+    client.api_key.should eq("dummy-key")
+    built.api_key.should eq("dummy-key")
+    built.base_url.should eq(Crig::Providers::ZAI::GENERAL_API_BASE_URL)
+  end
+
+  it "supports general and coding entrypoints" do
+    general = Crig::Providers::ZAI::Client.builder.api_key("key").general.build
+    coding = Crig::Providers::ZAI::Client.builder.api_key("key").coding.build
+
+    general.base_url.should eq(Crig::Providers::ZAI::GENERAL_API_BASE_URL)
+    coding.base_url.should eq(Crig::Providers::ZAI::CODING_API_BASE_URL)
+  end
+
+  it "builds completion requests and rejects specific tool choice" do
+    request = Crig::Completion::Request::CompletionRequestBuilder
+      .from_prompt("Hello")
+      .preamble("Be concise")
+      .tool(Crig::Completion::ToolDefinition.new("lookup", "Lookup", JSON.parse(%({"type":"object"}))))
+      .tool_choice(Crig::Completion::ToolChoice.required)
+      .build
+
+    payload = Crig::Providers::ZAI::ZAiCompletionRequest.from_request(
+      Crig::Providers::ZAI::GLM_4_6,
+      request
+    ).to_json_value
+
+    payload["model"].as_s.should eq(Crig::Providers::ZAI::GLM_4_6)
+    payload["messages"].as_a.first["role"].as_s.should eq("system")
+    payload["tools"].as_a.first["function"]["name"].as_s.should eq("lookup")
+    payload["tool_choice"].as_s.should eq("required")
+  end
+end
+
 describe Crig::Providers::VoyageAI do
   it "supports client initialization and builders" do
     client = Crig::Providers::VoyageAI::Client.new("dummy-key")
