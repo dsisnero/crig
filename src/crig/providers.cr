@@ -4,6 +4,7 @@ module Crig
 end
 
 require "./providers/internal"
+require "./providers/copilot"
 require "./providers/chatgpt"
 require "./providers/anthropic"
 require "./providers/openai"
