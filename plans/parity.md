@@ -143,13 +143,13 @@ and streaming. This is a large module.
 
 | Item | Kind | Status |
 |------|------|--------|
-| `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [ ] |
-| `DeviceCodeHandler`, `DeviceCodePrompt` | structs | [ ] |
-| `ChatGPTBuilder`, `ChatGPTExt` builder pattern | structs | [ ] |
-| `ResponsesCompletionModel` | struct | [ ] |
-| `ChatGPTAuth` enum | enum | [ ] |
-| `GPT_5_4`, `GPT_5_3_*` model constants | consts | [ ] |
-| Auth: `native.rs` and `wasm.rs` implementations | impl | [ ] |
+| `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [x] (access_token auth) |
+| `DeviceCodeHandler`, `DeviceCodePrompt` | structs | [ ] (OAuth deferred) |
+| `ChatGPTBuilder`, `ChatGPTExt` builder pattern | structs | [x] |
+| `ResponsesCompletionModel` | struct | [x] |
+| `ChatGPTAuth` enum | enum | [x] (AuthSource) |
+| `GPT_5_4`, `GPT_5_3_*` model constants | consts | [x] |
+| Auth: `native.rs` and `wasm.rs` implementations | impl | [ ] (OAuth deferred) |
 | All `#[test]` functions (~8 tests) | test | [ ] |
 
 **Work**: Create `src/crig/providers/chatgpt.cr` (or sub-directory) with full provider and specs.
@@ -161,12 +161,12 @@ and strict tool support.
 
 | Item | Kind | Status |
 |------|------|--------|
-| `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [ ] |
-| `CopilotBuilder`, `CopilotExt` builder pattern | structs | [ ] |
-| `CopilotCompletionResponse`, `CopilotStreamingResponse` | enums | [ ] |
-| `CompletionModel`, `EmbeddingModel`, `CopilotModelLister` | structs | [ ] |
-| `CopilotAuth` enum | enum | [ ] |
-| Auth: `native.rs` and `wasm.rs` implementations | impl | [ ] |
+| `AuthError`, `AuthSource`, `AuthContext`, `Authenticator` | enums/structs | [x] (access_token auth) |
+| `CopilotBuilder`, `CopilotExt` builder pattern | structs | [x] |
+| `CopilotCompletionResponse`, `CopilotStreamingResponse` | enums | [x] (inline) |
+| `CompletionModel`, `EmbeddingModel`, `CopilotModelLister` | structs | [x] (completion + embedding) |
+| `CopilotAuth` enum | enum | [x] (access_token) |
+| Auth: `native.rs` and `wasm.rs` implementations | impl | [ ] (OAuth deferred) |
 | All `#[test]` functions (~12 tests) | test | [ ] |
 
 **Work**: Create `src/crig/providers/copilot.cr` with full provider and specs.
@@ -360,8 +360,8 @@ Priority test areas with zero coverage:
 6. ⏭️ **Provider: `internal/`** — deferred (consolidation of existing logic)
 7. ✅ **Provider: `xiaomimimo` rename + diff review**
 8. ✅ **Provider: `minimax`, `zai`** (similar pattern, ~400 LOC each)
-9. ⬜ **Provider: `chatgpt`** (largest new provider, auth system)
-10. ⬜ **Provider: `copilot`** (auth system, similar to chatgpt)
+9. ✅ **Provider: `chatgpt`** (largest new provider, auth system)
+10. ✅ **Provider: `copilot`** (auth system, similar to chatgpt)
 11. ✅ **Provider model_listing**: anthropic, gemini, mistral, openai, openrouter, deepseek, ollama
 12. ✅ **Provider audio/transcription**: openrouter, openai
 13. ✅ **Diff review**: ollama, deepseek, azure, llamafile, mira, moonshot, groq
