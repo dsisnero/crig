@@ -1251,6 +1251,33 @@ module Crig
         end
       end
 
+      struct ModalityTokenCount
+        include JSON::Serializable
+
+        @[JSON::Field(key: "modality")]
+        getter modality : Modality
+        @[JSON::Field(key: "tokenCount")]
+        getter token_count : Int32
+
+        def initialize(@modality : Modality, @token_count : Int32)
+        end
+      end
+
+      enum Modality
+        MODALITY_UNSPECIFIED
+        TEXT
+        IMAGE
+        VIDEO
+        AUDIO
+        DOCUMENT
+      end
+
+      enum TrafficType
+        TRAFFIC_TYPE_UNSPECIFIED
+        ON_DEMAND
+        PROVISIONED_THROUGHPUT
+      end
+
       struct ContentCandidate
         include JSON::Serializable
 

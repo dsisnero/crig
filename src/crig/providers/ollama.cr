@@ -651,7 +651,7 @@ module Crig
         getter temperature : Float64?
         getter tools : Array(ToolDefinition)
         getter? stream : Bool
-        getter? think : Bool
+        getter think : Bool | String
         getter max_tokens : Int64?
         getter keep_alive : String?
         getter format : JSON::Any?
@@ -663,7 +663,7 @@ module Crig
           @temperature : Float64? = nil,
           @tools : Array(ToolDefinition) = [] of ToolDefinition,
           @stream : Bool = false,
-          @think : Bool = false,
+          @think : Bool | String = false,
           @max_tokens : Int64? = nil,
           @keep_alive : String? = nil,
           @format : JSON::Any? = nil,
@@ -675,8 +675,8 @@ module Crig
           @stream
         end
 
-        def think : Bool
-          @think
+        def think? : Bool
+          @think.is_a?(Bool) && @think
         end
 
         def self.from_request(default_model : String, req : Crig::Completion::Request::CompletionRequest) : self
@@ -697,7 +697,7 @@ module Crig
             end
           end
 
-          think = false
+          think = false.as(Bool | String)
           keep_alive = nil
           temperature_value = req.temperature
           options_hash = {"temperature" => temperature_value.nil? ? JSON.parse("null") : JSON::Any.new(temperature_value)}
@@ -705,9 +705,19 @@ module Crig
           if extra = req.additional_params
             object = extra.as_h?.try(&.dup) || raise Crig::Completion::CompletionError.new("Ollama additional_params must be an object")
             if think_value = object.delete("think")
-              bool = think_value.as_bool?
-              raise Crig::Completion::CompletionError.new("`think` must be a bool") if bool.nil?
-              think = bool
+              if think_value.as_bool?
+                think = think_value.as_bool
+              elsif think_s = think_value.as_s?
+                level = think_s.downcase
+                case level
+                when "low", "medium", "high"
+                  think = level
+                else
+                  raise Crig::Completion::CompletionError.new("`think` must be a 'low', 'medium', 'high', or bool")
+                end
+              else
+                raise Crig::Completion::CompletionError.new("`think` must be a 'low', 'medium', 'high', or bool")
+              end
             end
             if keep_alive_value = object.delete("keep_alive")
               keep_alive_text = keep_alive_value.as_s?

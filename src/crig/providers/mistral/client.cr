@@ -28,6 +28,16 @@ module Crig
         end
       end
 
+      struct PromptTokensDetails
+        include JSON::Serializable
+
+        @[JSON::Field(key: "cached_tokens")]
+        getter cached_tokens : Int64
+
+        def initialize(@cached_tokens : Int64 = 0_i64)
+        end
+      end
+
       struct Usage
         include JSON::Serializable
         include Crig::Completion::GetTokenUsage
@@ -35,8 +45,28 @@ module Crig
         getter completion_tokens : Int32
         getter prompt_tokens : Int32
         getter total_tokens : Int32
+        @[JSON::Field(key: "num_cached_tokens")]
+        getter num_cached_tokens : Int64?
+        @[JSON::Field(key: "prompt_tokens_details")]
+        getter prompt_tokens_details : PromptTokensDetails?
 
-        def initialize(@completion_tokens : Int32, @prompt_tokens : Int32, @total_tokens : Int32)
+        def initialize(
+          @completion_tokens : Int32,
+          @prompt_tokens : Int32,
+          @total_tokens : Int32,
+          @num_cached_tokens : Int64? = nil,
+          @prompt_tokens_details : PromptTokensDetails? = nil,
+        )
+        end
+
+        def cached_tokens : Int64
+          if details = @prompt_tokens_details
+            details.cached_tokens
+          elsif cached = @num_cached_tokens
+            cached
+          else
+            0_i64
+          end
         end
 
         def token_usage : Crig::Completion::Usage?
@@ -44,7 +74,7 @@ module Crig
             input_tokens: @prompt_tokens.to_i64,
             output_tokens: @completion_tokens.to_i64,
             total_tokens: @total_tokens.to_i64,
-            cached_input_tokens: 0_i64,
+            cached_input_tokens: cached_tokens,
           )
         end
 
