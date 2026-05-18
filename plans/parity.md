@@ -273,19 +273,19 @@ constants, API signatures, and test coverage:
 |-------------|----------------------|
 | `providers/ollama.cr` (910 LOC) | `think` string levels, `OllamaApiKey`, `OllamaModelLister` |
 | `providers/deepseek.cr` (841 LOC) | `DEEPSEEK_V4_FLASH`, `DEEPSEEK_V4_PRO`, `DeepSeekModelLister` |
-| `providers/azure.cr` (698 LOC) | ~1,188 lines of upstream changes |
-| `providers/llamafile.cr` (131 LOC) | ~867 lines of upstream changes (many are tests) |
-| `providers/mira.cr` (451 LOC) | ~830 lines of upstream changes |
-| `providers/moonshot.cr` (385 LOC) | ~798 lines of upstream changes + new anthropic compat |
-| `providers/groq.cr` (498 LOC) | ~790 lines of upstream changes |
-| `providers/huggingface.cr` | ~1,332 lines of upstream changes + image_generation, transcription |
-| `providers/cohere.cr` | ~824 lines of upstream changes |
-| `providers/together.cr` | review diff |
-| `providers/perplexity.cr` | review diff |
-| `providers/voyageai.cr` | review diff |
-| `providers/hyperbolic.cr` | review diff |
-| `providers/galadriel.cr` | review diff |
-| `providers/xai.cr` | review diff |
+| `providers/azure.cr` (698 LOC) | ~1,188 lines of upstream changes — reviewed, all model constants present |
+| `providers/llamafile.cr` (131 LOC) | ~867 lines of upstream changes (many are tests) — reviewed |
+| `providers/mira.cr` (451 LOC) | ~830 lines of upstream changes — reviewed |
+| `providers/moonshot.cr` (385 LOC) | ~798 lines of upstream changes + new anthropic compat — reviewed, KIMI_K2 present |
+| `providers/groq.cr` (498 LOC) | ~790 lines of upstream changes — reviewed |
+| `providers/huggingface.cr` | ~1,332 lines of upstream changes + image_generation, transcription — both sub-modules present |
+| `providers/cohere.cr` | ~824 lines of upstream changes — reviewed, all sub-modules present |
+| `providers/together.cr` | review diff — completion/embedding sub-modules present |
+| `providers/perplexity.cr` | review diff — SONAR_PRO/SONAR constants present |
+| `providers/voyageai.cr` | review diff — present |
+| `providers/hyperbolic.cr` | review diff — present |
+| `providers/galadriel.cr` | review diff — present |
+| `providers/xai.cr` | review diff — audio_generation/image_generation sub-modules present |
 
 ---
 
@@ -339,19 +339,19 @@ Priority test areas with zero coverage:
 
 ## Suggested Work Order
 
-1. **Infrastructure**: Fix parity scripts, get `make test` passing
-2. **Core module: `markers.cr`** (trivial, unblocks builders)
-3. **Core module: `memory.cr`** (new, self-contained, medium size)
-4. **Agent**: hooks and tool sub-modules
-5. **Client/Completion**: `file_id()`, `ProviderClientError`, missing builder methods
-6. **Provider: `internal/`** (shared infra for other providers)
-7. **Provider: `xiaomimimo` rename + diff review**
-8. **Provider: `minimax`, `zai`** (similar pattern, ~400 LOC each)
-9. **Provider: `chatgpt`** (largest new provider, auth system)
-10. **Provider: `copilot`** (auth system, similar to chatgpt)
-11. **Provider model_listing**: anthropic, gemini, mistral, openai, openrouter
-12. **Provider audio/transcription**: openrouter, openai
-13. **Diff review**: ollama, deepseek, azure, llamafile, mira, moonshot, groq
-14. **Diff review**: huggingface, cohere, together, perplexity, voyageai, hyperbolic, galadriel, xai
-15. **Test utilities**: all test_utils modules
-16. **Spec coverage**: write tests for all new and updated modules
+1. ✅ **Infrastructure**: Fix parity scripts, get `make test` passing
+2. ✅ **Core module: `markers.cr`** (trivial, unblocks builders)
+3. ✅ **Core module: `memory.cr`** (new, self-contained, medium size)
+4. ✅ **Agent**: hooks and tool sub-modules
+5. ✅ **Client/Completion**: `file_id()`, `ProviderClientError`, missing builder methods
+6. ⏭️ **Provider: `internal/`** — deferred (consolidation of existing logic)
+7. ✅ **Provider: `xiaomimimo` rename + diff review**
+8. ✅ **Provider: `minimax`, `zai`** (similar pattern, ~400 LOC each)
+9. ⬜ **Provider: `chatgpt`** (largest new provider, auth system)
+10. ⬜ **Provider: `copilot`** (auth system, similar to chatgpt)
+11. ✅ **Provider model_listing**: anthropic, gemini, mistral, openai, openrouter, deepseek, ollama
+12. ✅ **Provider audio/transcription**: openrouter, openai
+13. ✅ **Diff review**: ollama, deepseek, azure, llamafile, mira, moonshot, groq
+14. ✅ **Diff review**: huggingface, cohere, together, perplexity, voyageai, hyperbolic, galadriel, xai
+15. ⬜ **Test utilities**: all test_utils modules
+16. ⬜ **Spec coverage**: write tests for all new and updated modules
