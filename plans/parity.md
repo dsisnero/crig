@@ -202,12 +202,12 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 
 | Item | Kind | Status |
 |------|------|--------|
-| Rename `xiaomi.cr` → `xiaomimimo.cr` | refactor | [ ] |
-| `XiaomiMimoBuilder`, `XiaomiMimoExt` + `XiaomiMimoAnthropic*` | structs | [ ] (existing may need updates) |
-| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [ ] (existing may need updates) |
-| New model constants (`MIMO_V2_5_PRO`, `MIMO_V2_FLASH`, `MIMO_V2_OMNI`) | consts | [ ] |
-| All `#[test]` functions (~4 tests) | test | [ ] |
-| Review diff for API changes | audit | [ ] |
+| Rename `xiaomi.cr` → `xiaomimimo.cr` | refactor | [x] |
+| `XiaomiMimoBuilder`, `XiaomiMimoExt` + `XiaomiMimoAnthropic*` | structs | [x] (existing updated) |
+| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [ ] (Anthropic client deferred) |
+| New model constants (`MIMO_V2_5_PRO`, `MIMO_V2_FLASH`, `MIMO_V2_OMNI`) | consts | [x] |
+| All `#[test]` functions (~4 tests) | test | [x] |
+| Review diff for API changes | audit | [x] |
 
 ### 17. `providers/internal/` module (NEW)
 
