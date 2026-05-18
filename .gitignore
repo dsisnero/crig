@@ -21,3 +21,4 @@ temp/
 # Make timestamp file for incremental builds
 .timestamp-src
 /lib
+bin/
