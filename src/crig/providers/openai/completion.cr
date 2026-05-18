@@ -514,7 +514,7 @@ module Crig
                     detail = image.detail || raise Crig::Completion::CompletionError.new("OpenAI image URI must have image detail")
                     data = image.data.string_value || raise Crig::Completion::CompletionError.new("OpenAI base64 image is missing")
                     other_content << UserContent.image("data:#{media_type};base64,#{data}", detail.to_s.downcase)
-                  in .raw?, .string?, .unknown?
+                  in .raw?, .string?, .file_id?, .unknown?
                     raise Crig::Completion::CompletionError.new("Unsupported document type: #{image.data.kind}")
                   end
                 in .document?
@@ -523,7 +523,7 @@ module Crig
                   in .base64?, .string?
                     text = document.data.string_value || raise Crig::Completion::CompletionError.new("Document text is missing")
                     other_content << UserContent.text(text)
-                  in .url?, .raw?, .unknown?
+                  in .url?, .raw?, .file_id?, .unknown?
                     raise Crig::Completion::CompletionError.new("Documents must be base64 or a string")
                   end
                 in .audio?
@@ -535,7 +535,7 @@ module Crig
                       data,
                       Crig::Completion::MimeType.audio_to_mime_type(audio.media_type || Crig::Completion::AudioMediaType::MP3).sub("audio/", ""),
                     )
-                  in .url?, .raw?, .unknown?, .string?
+                  in .url?, .raw?, .file_id?, .unknown?, .string?
                     raise Crig::Completion::CompletionError.new("URLs are not supported for audio")
                   end
                 in .tool_result?

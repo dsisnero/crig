@@ -396,7 +396,7 @@ module Crig
                 when .base64?
                   media_type = image.media_type ? Crig::Completion::MimeType.image_to_mime_type(image.media_type.as(Crig::Completion::ImageMediaType)) : "image/png"
                   "data:#{media_type};base64,#{image.data.string_value || ""}"
-                when .raw?, .string?
+                when .raw?, .string?, .file_id?
                   raise Crig::Completion::CompletionError.new("xAI does not support raw image data; use base64 or URL")
                 end
           url ||= raise Crig::Completion::CompletionError.new("xAI image URL missing")
@@ -413,7 +413,7 @@ module Crig
                    ContentItem.file(file_data: "data:#{media_type};base64,#{document.data.string_value || ""}")
                  when .string?
                    ContentItem.text(document.data.string_value || "")
-                 when .raw?
+                 when .raw?, .file_id?
                    raise Crig::Completion::CompletionError.new("xAI does not support raw document data; use base64 or URL")
                  end
           item || raise Crig::Completion::CompletionError.new("Unsupported xAI document content")

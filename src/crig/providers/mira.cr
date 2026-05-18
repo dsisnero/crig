@@ -205,7 +205,7 @@ module Crig
                   case document.data.kind
                   in .base64?, .string?
                     document.data.string_value || ""
-                  in .url?, .raw?, .unknown?
+                  in .url?, .raw?, .file_id?, .unknown?
                     ""
                   end
                 in .text?

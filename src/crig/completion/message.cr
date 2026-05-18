@@ -282,6 +282,7 @@ module Crig
         Base64
         Raw
         String
+        FileId
         Unknown
       end
 
@@ -308,19 +309,23 @@ module Crig
         new(Kind::String, string_value: input)
       end
 
+      def self.file_id(file_id : String) : self
+        new(Kind::FileId, string_value: file_id)
+      end
+
       def self.unknown : self
         new(Kind::Unknown)
       end
 
       def try_into_inner : String?
-        if @kind.url? || @kind.base64? || @kind.string?
+        if @kind.url? || @kind.base64? || @kind.string? || @kind.file_id?
           @string_value
         end
       end
 
       def to_s(io : IO) : Nil
         case @kind
-        in .url?, .base64?, .string?
+        in .url?, .base64?, .string?, .file_id?
           io << @string_value
         in .raw?
           io << "<binary data>"
@@ -343,6 +348,9 @@ module Crig
             json.field "value", @bytes_value.try(&.to_a)
           in .string?
             json.field "type", "string"
+            json.field "value", @string_value
+          in .file_id?
+            json.field "type", "file_id"
             json.field "value", @string_value
           in .unknown?
             json.field "type", "unknown"
@@ -695,7 +703,7 @@ module Crig
         in .base64?
           media_type = @media_type || raise MessageError.new("A media type is required to create a valid base64-encoded image URL")
           "data:#{MimeType.image_to_mime_type(media_type)};base64,#{@data.string_value}"
-        in .raw?, .string?, .unknown?
+        in .raw?, .string?, .file_id?, .unknown?
           raise MessageError.new("Tried to convert unknown type to a URL: #{@data}")
         end
       end

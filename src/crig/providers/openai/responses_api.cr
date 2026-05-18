@@ -1811,7 +1811,7 @@ module Crig
             else
               raise Crig::Completion::CompletionError.new("Unsupported document type: #{document.data.kind}")
             end
-          in .raw?, .unknown?
+          in .raw?, .file_id?, .unknown?
             raise Crig::Completion::CompletionError.new("Raw file data not supported, encode as base64 first")
           end
         end
@@ -1823,7 +1823,7 @@ module Crig
                   "data:#{media_type};base64,#{image.data.string_value}"
                 in .url?
                   image.data.string_value || ""
-                in .raw?, .string?, .unknown?
+                in .raw?, .string?, .file_id?, .unknown?
                   raise Crig::Completion::CompletionError.new("Raw file data not supported, encode as base64 first")
                 end
 
@@ -1837,7 +1837,7 @@ module Crig
               audio.data.string_value || "",
               Crig::Completion::MimeType.audio_to_mime_type(audio.media_type || Crig::Completion::AudioMediaType::MP3).sub("audio/", "")
             ))
-          in .url?, .raw?, .string?, .unknown?
+          in .url?, .raw?, .file_id?, .string?, .unknown?
             raise Crig::Completion::CompletionError.new("Unsupported message: #{audio.data.kind}")
           end
         end

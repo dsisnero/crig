@@ -532,7 +532,7 @@ module Crig
                 mime_type: mime_type,
               )
             )
-          in .raw?, .string?, .unknown?
+          in .raw?, .string?, .file_id?, .unknown?
             raise Crig::Completion::MessageError.new("Unsupported image source kind for tool results")
           end
         end
@@ -559,6 +559,8 @@ module Crig
                         raise Crig::Completion::MessageError.new("Strings cannot be used as image files!")
                       in .raw?
                         raise Crig::Completion::MessageError.new("Raw files not supported, encode as base64 first")
+                      in .file_id?
+                        raise Crig::Completion::MessageError.new("File IDs not supported for image inputs, use URL or base64")
                       in .unknown?
                         raise Crig::Completion::MessageError.new("Content has no body")
                       end
@@ -588,6 +590,8 @@ module Crig
                         raise Crig::Completion::MessageError.new("Strings cannot be used as audio files!")
                       in .raw?
                         raise Crig::Completion::MessageError.new("Raw files not supported, encode as base64 first")
+                      in .file_id?
+                        raise Crig::Completion::MessageError.new("File IDs not supported for audio inputs, use URL or base64")
                       in .unknown?
                         raise Crig::Completion::MessageError.new("Content has no body")
                       end
@@ -612,6 +616,8 @@ module Crig
                         raise Crig::Completion::MessageError.new("Strings cannot be used as audio files!")
                       in .raw?
                         raise Crig::Completion::MessageError.new("Raw file data not supported, encode as base64 first")
+                      in .file_id?
+                        raise Crig::Completion::MessageError.new("File IDs not supported for video inputs, use URL or base64")
                       in .unknown?
                         raise Crig::Completion::MessageError.new("Media type for video is required for Gemini")
                       end
@@ -650,6 +656,8 @@ module Crig
             )
           in .raw?
             raise Crig::Completion::MessageError.new("Raw files not supported, encode as base64 first")
+          in .file_id?
+            raise Crig::Completion::MessageError.new("File IDs not supported for document inputs, use URL or base64")
           in .unknown?
             raise Crig::Completion::MessageError.new("Document has no body")
           end
@@ -664,6 +672,8 @@ module Crig
             PartKind.inline_data(Blob.new(mime_type, source.string_value || ""))
           in .raw?
             raise Crig::Completion::MessageError.new("Raw files not supported, encode as base64 first")
+          in .file_id?
+            raise Crig::Completion::MessageError.new("File IDs not supported for document inputs, use URL or base64")
           in .unknown?
             raise Crig::Completion::MessageError.new("Document has no body")
           end

@@ -951,7 +951,7 @@ module Crig
               image(ImageContent.new(uri: image.data.string_value, mime_type: mime_type))
             in .base64?, .string?
               image(ImageContent.new(data: image.data.string_value, mime_type: mime_type))
-            in .raw?, .unknown?
+            in .raw?, .file_id?, .unknown?
               raise Crig::Completion::MessageError.new("Raw content is not supported, encode as base64 first")
             end
           end
@@ -964,7 +964,7 @@ module Crig
               audio(AudioContent.new(uri: audio.data.string_value, mime_type: mime_type))
             in .base64?, .string?
               audio(AudioContent.new(data: audio.data.string_value, mime_type: mime_type))
-            in .raw?, .unknown?
+            in .raw?, .file_id?, .unknown?
               raise Crig::Completion::MessageError.new("Raw content is not supported, encode as base64 first")
             end
           end
@@ -977,7 +977,7 @@ module Crig
               document(DocumentContent.new(uri: document.data.string_value, mime_type: mime_type))
             in .base64?, .string?
               document(DocumentContent.new(data: document.data.string_value, mime_type: mime_type))
-            in .raw?, .unknown?
+            in .raw?, .file_id?, .unknown?
               raise Crig::Completion::MessageError.new("Raw content is not supported, encode as base64 first")
             end
           end
@@ -990,7 +990,7 @@ module Crig
               video(VideoContent.new(uri: video.data.string_value, mime_type: mime_type))
             in .base64?, .string?
               video(VideoContent.new(data: video.data.string_value, mime_type: mime_type))
-            in .raw?, .unknown?
+            in .raw?, .file_id?, .unknown?
               raise Crig::Completion::MessageError.new("Raw content is not supported, encode as base64 first")
             end
           end

@@ -439,7 +439,7 @@ module Crig
             in .base64?, .string?
               string_value = document.data.string_value || raise Crig::Completion::MessageError.new("Missing string document content")
               UserContent.text(string_value)
-            in .url?, .unknown?
+            in .url?, .file_id?, .unknown?
               raise Crig::Completion::MessageError.new("HuggingFace only supports text and images")
             end
           in .image?

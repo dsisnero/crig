@@ -350,7 +350,7 @@ module Crig
                 if content = document.data.try_into_inner
                   text_parts << content
                 end
-              in .url?, .raw?, .unknown?
+              in .url?, .raw?, .file_id?, .unknown?
               end
             in .image?, .audio?, .video?
             end

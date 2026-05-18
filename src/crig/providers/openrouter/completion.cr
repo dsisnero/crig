@@ -625,6 +625,8 @@ module Crig
                     raise Crig::Completion::CompletionError.new("Raw bytes not supported, encode as base64 first")
                   in .string?
                     raise Crig::Completion::CompletionError.new("String source not supported for images")
+                  in .file_id?
+                    raise Crig::Completion::CompletionError.new("File ID source not supported for images, use URL or base64")
                   in .unknown?
                     raise Crig::Completion::CompletionError.new("Image has no data")
                   end
@@ -647,6 +649,8 @@ module Crig
               text(document.data.string_value || "")
             in .raw?
               raise Crig::Completion::CompletionError.new("Raw bytes not supported for documents, encode as base64 first")
+            in .file_id?
+              raise Crig::Completion::CompletionError.new("File ID source not supported for documents, use URL or base64")
             in .unknown?
               raise Crig::Completion::CompletionError.new("Document has no data")
             end
@@ -662,6 +666,8 @@ module Crig
               raise Crig::Completion::CompletionError.new("Raw bytes not supported for audio, encode as base64 first")
             in .string?
               raise Crig::Completion::CompletionError.new("String source not supported for audio")
+            in .file_id?
+              raise Crig::Completion::CompletionError.new("File ID source not supported for audio, use URL or base64")
             in .unknown?
               raise Crig::Completion::CompletionError.new("Audio has no data")
             end
@@ -677,6 +683,8 @@ module Crig
                     raise Crig::Completion::CompletionError.new("Raw bytes not supported for video, encode as base64 first")
                   in .string?
                     raise Crig::Completion::CompletionError.new("String source not supported for video")
+                  in .file_id?
+                    raise Crig::Completion::CompletionError.new("File ID source not supported for video, use URL or base64")
                   in .unknown?
                     raise Crig::Completion::CompletionError.new("Video has no data")
                   end
