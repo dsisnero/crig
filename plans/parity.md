@@ -254,15 +254,15 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 | Item | Kind | Status |
 |------|------|--------|
 | `gemini/model_listing.rs` — `GeminiInteractionsModelLister`, `GeminiModelLister` | module | [ ] |
-| `gemini/completion.rs` — `Modality`, `TrafficType`, `ModalityTokenCount` | types | [ ] |
-| Streaming finish_reason/model_version additions | updates | [ ] |
+| `gemini/completion.rs` — `Modality`, `TrafficType`, `ModalityTokenCount` | types | [x] |
+| Streaming finish_reason/model_version additions | updates | [x] (already ported) |
 
 ### 22. Mistral provider — new sub-modules
 
 | Item | Kind | Status |
 |------|------|--------|
 | `mistral/model_listing.rs` — `MistralModelLister` | module | [ ] |
-| `mistral/client.rs` — `PromptTokensDetails`, `cached_tokens()` | updates | [ ] |
+| `mistral/client.rs` — `PromptTokensDetails`, `cached_tokens()` | updates | [x] |
 
 ### 23. Provider updates (existing, diff review needed)
 
