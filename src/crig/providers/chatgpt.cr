@@ -1,5 +1,6 @@
 require "http/client"
 require "random/secure"
+require "./chatgpt/oauth"
 
 module Crig
   module Providers
@@ -48,6 +49,8 @@ module Crig
         getter default_instructions : String?
         getter originator : String
         getter user_agent : String?
+        property device_code_handler : Proc(OAuth::DeviceCodePrompt, Nil)?
+        property auth_file : String?
 
         def initialize(
           @access_token : String? = nil,
@@ -81,6 +84,22 @@ module Crig
 
         def user_agent(agent : String) : self
           self.class.new(@access_token, @account_id, @base_url, @default_instructions, @originator, agent)
+        end
+
+        # Enable OAuth device-code authentication instead of access-token auth.
+        def oauth : self
+          self.class.new(@access_token, @account_id, @base_url, @default_instructions, @originator, @user_agent)
+        end
+
+        # Set a callback for displaying the device code prompt to the user.
+        def on_device_code(&handler : OAuth::DeviceCodePrompt -> Nil) : self
+          @device_code_handler = handler
+          self
+        end
+
+        def token_dir(path : String) : self
+          @auth_file = File.join(path, "auth.json")
+          self
         end
 
         def build : Client
@@ -134,6 +153,13 @@ module Crig
 
         def self.from_val(token : String) : self
           new(token)
+        end
+
+        # Trigger the OAuth device-code flow. Resolves when user authorizes.
+        def oauth_authenticate(authenticator : OAuth::Authenticator) : Nil
+          context = authenticator.auth_context
+          @access_token = context.access_token
+          @account_id = context.account_id
         end
 
         def completion_model(model : String) : ResponsesCompletionModel

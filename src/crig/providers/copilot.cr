@@ -1,4 +1,5 @@
 require "http/client"
+require "./copilot/oauth"
 
 module Crig
   module Providers
@@ -33,19 +34,37 @@ module Crig
       struct CopilotBuilder
         getter access_token : String?
         getter base_url : String
+        property device_code_handler : Proc(OAuth::DeviceCodePrompt, Nil)?
+        property api_key_file : String?
 
         def initialize(
           @access_token : String? = nil,
           @base_url : String = GITHUB_COPILOT_API_BASE_URL,
+          @device_code_handler : Proc(OAuth::DeviceCodePrompt, Nil)? = nil,
+          @api_key_file : String? = nil,
         )
         end
 
         def access_token(token : String) : self
-          self.class.new(token, @base_url)
+          self.class.new(token, @base_url, @device_code_handler, @api_key_file)
         end
 
         def base_url(url : String) : self
-          self.class.new(@access_token, url)
+          self.class.new(@access_token, url, @device_code_handler, @api_key_file)
+        end
+
+        def oauth : self
+          self
+        end
+
+        def on_device_code(&handler : OAuth::DeviceCodePrompt -> Nil) : self
+          @device_code_handler = handler
+          self
+        end
+
+        def token_dir(path : String) : self
+          @api_key_file = File.join(path, "copilot_api_key.json")
+          self
         end
 
         def build : Client
@@ -77,6 +96,12 @@ module Crig
 
         def self.from_val(token : String) : self
           new(token)
+        end
+
+        # Trigger the OAuth device-code flow. Resolves when user authorizes.
+        def oauth_authenticate(authenticator : OAuth::Authenticator) : Nil
+          context = authenticator.auth_context
+          @access_token = context.access_token
         end
 
         def completion_model(model : String) : CompletionModel
