@@ -6,6 +6,7 @@ end
 require "./providers/anthropic"
 require "./providers/openai"
 require "./providers/azure"
+require "./providers/minimax"
 require "./providers/xai"
 require "./providers/openrouter"
 require "./providers/perplexity"

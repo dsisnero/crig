@@ -14750,6 +14750,54 @@ SSE
   end
 end
 
+describe Crig::Providers::MiniMax do
+  it "supports client initialization and builders" do
+    client = Crig::Providers::MiniMax::Client.new("dummy-key")
+    built = Crig::Providers::MiniMax::Client.builder.api_key("dummy-key").build
+
+    client.api_key.should eq("dummy-key")
+    built.api_key.should eq("dummy-key")
+    built.base_url.should eq(Crig::Providers::MiniMax::GLOBAL_API_BASE_URL)
+  end
+
+  it "supports global and china entrypoints" do
+    global = Crig::Providers::MiniMax::Client.builder.api_key("key").global.build
+    china = Crig::Providers::MiniMax::Client.builder.api_key("key").china.build
+
+    global.base_url.should eq(Crig::Providers::MiniMax::GLOBAL_API_BASE_URL)
+    china.base_url.should eq(Crig::Providers::MiniMax::CHINA_API_BASE_URL)
+  end
+
+  it "builds completion requests and rejects specific tool choice" do
+    request = Crig::Completion::Request::CompletionRequestBuilder
+      .from_prompt("Hello")
+      .preamble("Be concise")
+      .tool(Crig::Completion::ToolDefinition.new("lookup", "Lookup", JSON.parse(%({"type":"object"}))))
+      .tool_choice(Crig::Completion::ToolChoice.required)
+      .build
+
+    payload = Crig::Providers::MiniMax::MiniMaxCompletionRequest.from_request(
+      Crig::Providers::MiniMax::MINIMAX_M2_7,
+      request
+    ).to_json_value
+
+    payload["model"].as_s.should eq(Crig::Providers::MiniMax::MINIMAX_M2_7)
+    payload["messages"].as_a.first["role"].as_s.should eq("system")
+    payload["tools"].as_a.first["function"]["name"].as_s.should eq("lookup")
+    payload["tool_choice"].as_s.should eq("required")
+
+    expect_raises(Crig::Completion::CompletionError, /Provider doesn't support only using specific tools/) do
+      Crig::Providers::MiniMax::MiniMaxCompletionRequest.from_request(
+        Crig::Providers::MiniMax::MINIMAX_M2_7,
+        Crig::Completion::Request::CompletionRequestBuilder
+          .from_prompt("Hello")
+          .tool_choice(Crig::Completion::ToolChoice.specific(["lookup"]))
+          .build
+      )
+    end
+  end
+end
+
 describe Crig::Providers::VoyageAI do
   it "supports client initialization and builders" do
     client = Crig::Providers::VoyageAI::Client.new("dummy-key")
