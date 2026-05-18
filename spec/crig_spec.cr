@@ -14659,14 +14659,14 @@ SSE
   end
 end
 
-describe Crig::Providers::Xiaomi do
+describe Crig::Providers::XiaomiMimo do
   it "supports client initialization and builders" do
-    client = Crig::Providers::Xiaomi::Client.new("dummy-key")
-    built = Crig::Providers::Xiaomi::Client.builder.api_key("dummy-key").build
+    client = Crig::Providers::XiaomiMimo::Client.new("dummy-key")
+    built = Crig::Providers::XiaomiMimo::Client.builder.api_key("dummy-key").build
 
     client.api_key.should eq("dummy-key")
     built.api_key.should eq("dummy-key")
-    built.base_url.should eq(Crig::Providers::Xiaomi::XIAOMI_MIMO_API_BASE_URL)
+    built.base_url.should eq(Crig::Providers::XiaomiMimo::XIAOMI_MIMO_API_BASE_URL)
   end
 
   it "builds xiaomi requests and rejects specific tool choice mode" do
@@ -14677,19 +14677,19 @@ describe Crig::Providers::Xiaomi do
       .tool_choice(Crig::Completion::ToolChoice.required)
       .build
 
-    payload = Crig::Providers::Xiaomi::XiaomiCompletionRequest.from_request(
-      Crig::Providers::Xiaomi::MIMO_V2_PRO,
+    payload = Crig::Providers::XiaomiMimo::XiaomiMimoCompletionRequest.from_request(
+      Crig::Providers::XiaomiMimo::MIMO_V2_PRO,
       request
     ).to_json_value
 
-    payload["model"].as_s.should eq(Crig::Providers::Xiaomi::MIMO_V2_PRO)
+    payload["model"].as_s.should eq(Crig::Providers::XiaomiMimo::MIMO_V2_PRO)
     payload["messages"].as_a.first["role"].as_s.should eq("system")
     payload["tools"].as_a.first["function"]["name"].as_s.should eq("lookup")
     payload["tool_choice"].as_s.should eq("required")
 
     expect_raises(Crig::Completion::CompletionError, /Provider doesn't support only using specific tools/) do
-      Crig::Providers::Xiaomi::XiaomiCompletionRequest.from_request(
-        Crig::Providers::Xiaomi::MIMO_V2_PRO,
+      Crig::Providers::XiaomiMimo::XiaomiMimoCompletionRequest.from_request(
+        Crig::Providers::XiaomiMimo::MIMO_V2_PRO,
         Crig::Completion::Request::CompletionRequestBuilder
           .from_prompt("Hello")
           .tool_choice(Crig::Completion::ToolChoice.specific(["lookup"]))
@@ -14727,8 +14727,8 @@ SSE
     address = http_server.bind_tcp("127.0.0.1", 0)
     spawn { http_server.listen }
 
-    client = Crig::Providers::Xiaomi::Client.new("test-key", "http://127.0.0.1:#{address.port}/v1")
-    model = client.completion_model(Crig::Providers::Xiaomi::MIMO_V2_PRO)
+    client = Crig::Providers::XiaomiMimo::Client.new("test-key", "http://127.0.0.1:#{address.port}/v1")
+    model = client.completion_model(Crig::Providers::XiaomiMimo::MIMO_V2_PRO)
     request = Crig::Completion::Request::CompletionRequestBuilder.from_prompt("Hello").build
 
     sync_response = model.completion(request)

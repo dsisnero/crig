@@ -2,17 +2,21 @@ require "http/client"
 
 module Crig
   module Providers
-    module Xiaomi
-      # Inferred from Xiaomi's OpenAI-compatible docs surface.
+    module XiaomiMimo
+      # Xiaomi MiMo API provider — OpenAI-compatible and Anthropic-compatible chat APIs.
       XIAOMI_MIMO_API_BASE_URL = "https://api.xiaomimimo.com/v1"
+      ANTHROPIC_API_BASE_URL   = "https://api.xiaomimimo.com/anthropic/v1"
 
-      MIMO_V2_PRO   = "mimo-v2-pro"
       MIMO_V2_FLASH = "mimo-v2-flash"
+      MIMO_V2_OMNI  = "mimo-v2-omni"
+      MIMO_V2_PRO   = "mimo-v2-pro"
+      MIMO_V2_5     = "mimo-v2.5"
+      MIMO_V2_5_PRO = "mimo-v2.5-pro"
 
-      struct XiaomiExt
+      struct XiaomiMimoExt
       end
 
-      struct XiaomiBuilder
+      struct XiaomiMimoBuilder
       end
 
       struct ClientBuilder
@@ -31,7 +35,7 @@ module Crig
         end
 
         def build : Client
-          key = @api_key || raise "XIAOMI_API_KEY not set"
+          key = @api_key || raise "XIAOMI_MIMO_API_KEY not set"
           Client.new(key, @base_url)
         end
       end
@@ -88,7 +92,7 @@ module Crig
         end
       end
 
-      struct XiaomiCompletionRequest
+      struct XiaomiMimoCompletionRequest
         getter model : String
         getter messages : Array(Crig::Providers::OpenAI::Chat::Message)
         getter temperature : Float64?
@@ -179,7 +183,7 @@ module Crig
         end
 
         def self.from_env : self
-          api_key = ENV["XIAOMI_API_KEY"]? || raise "XIAOMI_API_KEY not set"
+          api_key = ENV["XIAOMI_MIMO_API_KEY"]? || raise "XIAOMI_MIMO_API_KEY not set"
           new(api_key, XIAOMI_MIMO_API_BASE_URL)
         end
 
@@ -224,7 +228,7 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          payload = XiaomiCompletionRequest.from_request(@model, request).to_json_value
+          payload = XiaomiMimoCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
           raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
@@ -236,12 +240,12 @@ module Crig
           if error = body.error
             raise Crig::Completion::CompletionError.new(error.message)
           end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("Xiaomi response did not include a success payload")
+          response_body = body.ok || raise Crig::Completion::CompletionError.new("XiaomiMimo response did not include a success payload")
           response_body.to_completion_response(parsed)
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
-          request_payload = XiaomiCompletionRequest.from_request(@model, request)
+          request_payload = XiaomiMimoCompletionRequest.from_request(@model, request)
           params = request_payload.additional_params || JSON.parse(%({}))
           merged = JSON.parse(
             Crig::Providers::OpenAI.merge_json_hashes(
@@ -249,7 +253,7 @@ module Crig
               JSON.parse(%({"stream":true,"stream_options":{"include_usage":true}})).as_h
             ).to_json
           )
-          payload = XiaomiCompletionRequest.new(
+          payload = XiaomiMimoCompletionRequest.new(
             request_payload.model,
             request_payload.messages,
             request_payload.temperature,
@@ -382,7 +386,7 @@ module Crig
       end
 
       struct Client
-        include Crig::CompletionClient(Crig::Providers::Xiaomi::CompletionModel)
+        include Crig::CompletionClient(Crig::Providers::XiaomiMimo::CompletionModel)
       end
     end
   end
