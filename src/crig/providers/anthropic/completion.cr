@@ -215,18 +215,21 @@ module Crig
           Base64
           Text
           Url
+          File
         end
 
         getter kind : Kind
         getter data : String?
         getter media_type : DocumentFormat | PlainTextMediaType | Nil
         getter url : String?
+        getter file_id : String?
 
         def initialize(
           @kind : Kind,
           @data : String? = nil,
           @media_type : DocumentFormat | PlainTextMediaType | Nil = nil,
           @url : String? = nil,
+          @file_id : String? = nil,
         )
         end
 
@@ -242,6 +245,10 @@ module Crig
           new(Kind::Url, url: url)
         end
 
+        def self.file(file_id : String) : self
+          new(Kind::File, file_id: file_id)
+        end
+
         def self.from_json_value(value : JSON::Any) : self
           hash = value.as_h
           case hash["type"].as_s
@@ -251,6 +258,8 @@ module Crig
             text(hash["data"].as_s)
           when "url"
             url(hash["url"].as_s)
+          when "file"
+            file(hash["file_id"].as_s)
           else
             raise Crig::Completion::MessageError.new("Unsupported document source type: #{hash["type"].as_s}")
           end
@@ -270,6 +279,9 @@ module Crig
             in .url?
               json.field "type", "url"
               json.field "url", @url
+            in .file?
+              json.field "type", "file"
+              json.field "file_id", @file_id
             end
           end
         end
@@ -632,21 +644,21 @@ module Crig
             Content.image(source)
           in .document?
             document = content.document || raise Crig::Completion::MessageError.new("Missing document content")
-            media_type = document.media_type || raise Crig::Completion::MessageError.new("Document media type is required")
-            source = if media_type.pdf?
-                       if document.data.kind.base64? || document.data.kind.string?
+            source = if document.data.kind.file_id?
+                       DocumentSource.file(document.data.string_value || "")
+                     elsif document.data.kind.base64? || document.data.kind.string?
+                       media_type = document.media_type
+                       if media_type.try(&.pdf?)
+                         DocumentSource.base64(document.data.string_value || "", DocumentFormat::PDF)
+                       elsif media_type.try(&.txt?)
+                         DocumentSource.text(document.data.string_value || "")
+                       elsif media_type.nil?
                          DocumentSource.base64(document.data.string_value || "", DocumentFormat::PDF)
                        else
-                         raise Crig::Completion::MessageError.new("Only base64 encoded data is supported for PDF documents")
-                       end
-                     elsif media_type.txt?
-                       if document.data.kind.string? || document.data.kind.base64?
-                         DocumentSource.text(document.data.string_value || "")
-                       else
-                         raise Crig::Completion::MessageError.new("Only string or base64 data is supported for plain text documents")
+                         raise Crig::Completion::MessageError.new("Anthropic only supports PDF and plain text documents, got: #{Crig::Completion::MimeType.document_to_mime_type(media_type)}")
                        end
                      else
-                       raise Crig::Completion::MessageError.new("Anthropic only supports PDF and plain text documents, got: #{Crig::Completion::MimeType.document_to_mime_type(media_type)}")
+                       raise Crig::Completion::MessageError.new("Only base64 encoded data is supported for PDF documents")
                      end
             Content.document(source)
           in .audio?
@@ -686,6 +698,8 @@ module Crig
               Crig::Completion::UserContent.document(source.data || "", Crig::Completion::DocumentMediaType::TXT)
             in .url?
               Crig::Completion::UserContent.document_url(source.url || "", nil)
+            in .file?
+              Crig::Completion::UserContent.document_file_id(source.file_id || "")
             end
           else
             raise Crig::Completion::MessageError.new("Unsupported content type for User role")
@@ -810,13 +824,16 @@ module Crig
       end
 
       def self.calculate_max_tokens(model : String) : Int64?
-        if model.starts_with?("claude-opus-4")
-          32_000_i64
-        elsif model.starts_with?("claude-sonnet-4") || model.starts_with?("claude-3-7-sonnet")
+        case model
+        when CLAUDE_OPUS_4_7, CLAUDE_OPUS_4_6
+          128_000_i64
+        when CLAUDE_SONNET_4_6, CLAUDE_HAIKU_4_5
           64_000_i64
-        elsif model.starts_with?("claude-3-5-sonnet") || model.starts_with?("claude-3-5-haiku")
+        when .starts_with?("claude-sonnet-4"), .starts_with?("claude-3-7-sonnet")
+          64_000_i64
+        when .starts_with?("claude-3-5-sonnet"), .starts_with?("claude-3-5-haiku")
           8_192_i64
-        elsif model.starts_with?("claude-3-opus") || model.starts_with?("claude-3-sonnet") || model.starts_with?("claude-3-haiku")
+        when .starts_with?("claude-3-opus"), .starts_with?("claude-3-sonnet"), .starts_with?("claude-3-haiku")
           4_096_i64
         end
       end
@@ -1081,9 +1098,22 @@ module Crig
           )
         end
 
+        private EMPTY_RESPONSE_ERROR = "Response contained no message or tool call (empty)"
+
         def to_crig_response : Crig::Completion::CompletionResponse(self)
           converted = @content.map(&.to_core_assistant_content)
-          choice = Crig::OneOrMany(Crig::Completion::AssistantContent).many(converted) || raise Crig::Completion::CompletionError.new("Response contained no message or tool call (empty)")
+          choice = if converted.empty?
+                     if @stop_reason == "end_turn"
+                       Crig::OneOrMany(Crig::Completion::AssistantContent).one(
+                         Crig::Completion::AssistantContent.text("")
+                       )
+                     else
+                       raise Crig::Completion::CompletionError.new(EMPTY_RESPONSE_ERROR)
+                     end
+                   else
+                     Crig::OneOrMany(Crig::Completion::AssistantContent).many(converted) ||
+                       raise Crig::Completion::CompletionError.new(EMPTY_RESPONSE_ERROR)
+                   end
           usage = token_usage || Crig::Completion::Usage.new
           Crig::Completion::CompletionResponse(self).new(choice, usage, self)
         end
@@ -1191,6 +1221,14 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
+          span = Crig::Span.current
+          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "anthropic")
+          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
+          if preamble = request.preamble
+            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
+          end
+
           request = if request.max_tokens.nil?
                       if max_tokens = @default_max_tokens
                         Crig::Completion::Request::CompletionRequest.new(
@@ -1225,7 +1263,12 @@ module Crig
             raise Crig::Completion::CompletionError.new(message)
           end
 
-          CompletionResponse.from_json_value(parsed).to_crig_response
+          provider_response = CompletionResponse.from_json_value(parsed)
+          span.record_response_metadata(provider_response)
+          if usage = provider_response.usage
+            span.record_token_usage(usage)
+          end
+          provider_response.to_crig_response
         end
 
         def into_agent_builder : Crig::AgentBuilder(self)
@@ -1247,6 +1290,35 @@ module Crig
 
         def completion_model(model : String) : Crig::Providers::Anthropic::CompletionModel
           Crig::Providers::Anthropic::CompletionModel.new(self, model)
+        end
+      end
+
+      # Telemetry trait implementation for Anthropic CompletionResponse
+      struct CompletionResponse
+        include Crig::Telemetry::ProviderResponseExt(Content, Usage)
+
+        def response_id : String?
+          @id
+        end
+
+        def response_model_name : String?
+          @model
+        end
+
+        def output_messages : Array(Content)
+          @content.to_a
+        end
+
+        def text_response : String?
+          texts = @content.to_a.compact_map do |c|
+            c.text if c.kind.text?
+          end
+          joined = texts.join('\n')
+          joined.empty? ? nil : joined
+        end
+
+        def usage : Usage?
+          @usage
         end
       end
     end

@@ -148,11 +148,24 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          if codex_model?
-            completion_responses(request)
-          else
-            completion_chat(request)
+          span = Crig::Span.current
+          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "copilot")
+          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
+          if preamble = request.preamble
+            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
           end
+
+          result = if codex_model?
+                     completion_responses(request)
+                   else
+                     completion_chat(request)
+                   end
+          if response = result.raw_response
+            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
+            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
+          end
+          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
@@ -382,6 +395,96 @@ module Crig
 
         def embedding_model_with_ndims(model : String, ndims : Int32) : Crig::Providers::Copilot::EmbeddingModel
           Crig::Providers::Copilot::EmbeddingModel.new(self, model)
+        end
+      end
+      # Extension marker (upstream stores an Authenticator; Crystal handles auth via builder)
+      struct CopilotExt
+      end
+
+      # Copilot-specific chat completion response (when not reusing OpenAI's directly)
+      struct ChatCompletionResponse
+        include JSON::Serializable
+
+        getter id : String
+        getter object : String?
+        getter created : Int64?
+        getter model : String
+        @[JSON::Field(key: "system_fingerprint")]
+        getter system_fingerprint : String?
+        getter choices : Array(ChatChoice)
+        getter usage : Crig::Providers::OpenAI::OpenAIUsage?
+
+        def initialize(
+          @id : String,
+          @model : String,
+          @choices : Array(ChatChoice),
+          @object : String? = nil,
+          @created : Int64? = nil,
+          @usage : Crig::Providers::OpenAI::OpenAIUsage? = nil,
+          @system_fingerprint : String? = nil,
+        )
+        end
+      end
+
+      struct ChatChoice
+        include JSON::Serializable
+
+        getter index : Int32
+        getter message : Crig::Providers::OpenAI::Chat::Message
+        getter logprobs : JSON::Any?
+        @[JSON::Field(key: "finish_reason")]
+        getter finish_reason : String?
+
+        def initialize(
+          @index : Int32,
+          @message : Crig::Providers::OpenAI::Chat::Message,
+          @logprobs : JSON::Any? = nil,
+          @finish_reason : String? = nil,
+        )
+        end
+      end
+
+      struct ChatApiErrorResponse
+        include JSON::Serializable
+
+        getter message : String?
+        getter error : String?
+
+        def initialize(@message : String? = nil, @error : String? = nil)
+        end
+
+        def error_message : String
+          @message || @error || "unknown error"
+        end
+      end
+
+      struct CopilotModelLister
+        include Crig::Client::ModelLister(Crig::Providers::Copilot::Client)
+
+        getter client : Crig::Providers::Copilot::Client
+
+        def initialize(@client : Crig::Providers::Copilot::Client)
+        end
+
+        def list_all : Crig::ModelList
+          path = "/models"
+          uri = "#{@client.base_url.rstrip('/')}/#{path.lstrip('/')}"
+          headers = HTTP::Headers{
+            "Authorization" => "Bearer #{@client.access_token}",
+            "Accept"        => "application/json",
+          }
+          response = HTTP::Client.get(uri, headers: headers)
+          raise Crig::ModelListingError.api_error(response.status_code, response.body) unless response.success?
+
+          parsed = JSON.parse(response.body)
+          entries = parsed["data"].as_a.map do |entry|
+            Crig::Model::Model.new(
+              entry["id"].as_s,
+              owned_by: entry["owned_by"]?.try(&.as_s),
+            )
+          end
+
+          Crig::ModelList.new(entries)
         end
       end
     end

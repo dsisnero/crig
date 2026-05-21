@@ -45,6 +45,7 @@ module Crig
 
       struct OpenAIUsage
         include JSON::Serializable
+        include Crig::Completion::GetTokenUsage
 
         struct PromptTokensDetails
           include JSON::Serializable
@@ -64,6 +65,10 @@ module Crig
         getter prompt_tokens_details : PromptTokensDetails?
 
         def initialize(@prompt_tokens : Int32 = 0, @total_tokens : Int32 = 0, @prompt_tokens_details : PromptTokensDetails? = nil)
+        end
+
+        def token_usage : Crig::Completion::Usage?
+          to_crig_usage
         end
 
         def to_crig_usage : Crig::Completion::Usage
@@ -807,6 +812,7 @@ module Crig
 
         struct CompletionResponse
           include JSON::Serializable
+          include Crig::Telemetry::ProviderResponseExt(Choice, OpenAIUsage)
 
           getter id : String
           getter object : String
@@ -827,6 +833,33 @@ module Crig
             @usage : OpenAIUsage? = nil,
             @system_fingerprint : String? = nil,
           )
+          end
+
+          def response_id : String?
+            @id
+          end
+
+          def response_model_name : String?
+            @model
+          end
+
+          def output_messages : Array(Choice)
+            @choices
+          end
+
+          def text_response : String?
+            texts = @choices.compact_map do |choice|
+              case msg = choice.message
+              when Message
+                msg.assistant_content.map(&.text).compact_map(&.text).join('\n')
+              end
+            end
+            joined = texts.join('\n')
+            joined.empty? ? nil : joined
+          end
+
+          def usage : OpenAIUsage?
+            @usage
           end
 
           def self.from_json_value(value : JSON::Any) : self
@@ -896,6 +929,8 @@ module Crig
         end
 
         struct CompletionRequest
+          include Crig::Telemetry::ProviderRequestExt(Message)
+
           getter model : String
           getter messages : Array(Message)
           getter tools : Array(ToolDefinition)
@@ -1191,6 +1226,14 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
+          span = Crig::Span.current
+          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "openai")
+          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
+          if preamble = request.preamble
+            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
+          end
+
           payload = build_request_payload(request)
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
@@ -1204,7 +1247,12 @@ module Crig
             raise Crig::Completion::CompletionError.new(error["message"].as_s)
           end
 
-          parse_completion_response(body)
+          provider_response = Chat::CompletionResponse.from_json_value(body)
+          span.record_response_metadata(provider_response)
+          if usage = provider_response.usage
+            span.record_token_usage(usage)
+          end
+          provider_response.to_completion_response(body)
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
@@ -1355,6 +1403,71 @@ module Crig
 
       struct CompletionsClient
         include Crig::CompletionClient(Crig::Providers::OpenAI::CompletionModel)
+      end
+
+      module Chat
+        # Telemetry trait implementations
+
+        struct CompletionResponse
+          include Crig::Telemetry::ProviderResponseExt(Chat::Choice, OpenAIUsage)
+
+          def response_id : String?
+            @id
+          end
+
+          def response_model_name : String?
+            @model
+          end
+
+          def output_messages : Array(Chat::Choice)
+            @choices
+          end
+
+          def text_response : String?
+            texts = @choices.compact_map do |choice|
+              case msg = choice.message
+              when Chat::Message
+                msg.assistant_content.map(&.text).compact_map(&.text).join('\n')
+              end
+            end
+            joined = texts.join('\n')
+            joined.empty? ? nil : joined
+          end
+
+          def usage : OpenAIUsage?
+            @usage
+          end
+        end
+
+        struct CompletionRequest
+          include Crig::Telemetry::ProviderRequestExt(Chat::Message)
+
+          def input_messages : Array(Chat::Message)
+            @messages
+          end
+
+          def system_prompt : String?
+            first = @messages.first?
+            return nil unless first
+            return nil unless first.kind.system?
+            first.system_content.try(&.first.try(&.text))
+          end
+
+          def model_name : String
+            @model
+          end
+
+          def prompt : String?
+            last = @messages.last?
+            return nil unless last
+            return nil unless last.kind.user?
+            last.user_content.try(&.first.try { |uc|
+              case uc.kind
+              in .text? then uc.text
+              end
+            })
+          end
+        end
       end
     end
   end
