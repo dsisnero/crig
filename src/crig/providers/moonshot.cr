@@ -3,9 +3,10 @@ require "http/client"
 module Crig
   module Providers
     module Moonshot
-      MOONSHOT_API_BASE_URL        = "https://api.moonshot.cn/v1"
-      MOONSHOT_GLOBAL_API_BASE_URL = "https://api.moonshot.ai/v1"
-      MOONSHOT_ANTHROPIC_BASE_URL  = "https://api.moonshot.ai/anthropic"
+      MOONSHOT_API_BASE_URL             = "https://api.moonshot.cn/v1"
+      MOONSHOT_GLOBAL_API_BASE_URL      = "https://api.moonshot.ai/v1"
+      MOONSHOT_ANTHROPIC_BASE_URL       = "https://api.moonshot.ai/anthropic"
+      MOONSHOT_CHINA_ANTHROPIC_BASE_URL = "https://api.moonshot.cn/anthropic"
 
       MOONSHOT_CHAT = "moonshot-v1-128k"
       KIMI_K2       = "kimi-k2"
@@ -92,9 +93,9 @@ module Crig
           case value.kind
           in .none?
             None
-          in .auto?
+          in .auto?, .required?
             Auto
-          in .required?, .specific?
+          in .specific?
             raise Crig::Completion::CompletionError.new("Unsupported tool choice type: #{value.kind}")
           end
         end
@@ -132,10 +133,29 @@ module Crig
           if preamble = req.preamble
             full_history << Crig::Providers::OpenAI::Chat::Message.system(preamble)
           end
+
+          tool_choice_required = false
+
           partial_history.each do |message|
             Crig::Providers::OpenAI::Chat::Message.from_core_message(message).each do |item|
               full_history << item
             end
+          end
+
+          tool_choice_val = req.tool_choice.try do |choice|
+            if choice.kind.required?
+              tool_choice_required = true
+              ToolChoice::Auto
+            else
+              ToolChoice.from_core(choice)
+            end
+          end
+
+          if tool_choice_required && !req.tools.empty?
+            steering = Crig::Providers::OpenAI::Chat::Message.system(
+              "Moonshot does not support tool_choice=required; coercing to auto with an additional steering message"
+            )
+            full_history.unshift(steering)
           end
 
           new(
@@ -144,7 +164,7 @@ module Crig
             req.temperature,
             req.tools.map { |tool| Crig::Providers::OpenAI::Chat::ToolDefinition.from_tool(tool) },
             req.max_tokens,
-            req.tool_choice.try { |choice| ToolChoice.from_core(choice) },
+            tool_choice_val,
             req.additional_params,
           )
         end
@@ -240,6 +260,14 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
+          span = Crig::Span.current
+          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "moonshot")
+          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
+          if preamble = request.preamble
+            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
+          end
+
           payload = MoonshotCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
@@ -253,7 +281,12 @@ module Crig
             raise Crig::Completion::CompletionError.new(error.error.message)
           end
           response_body = body.ok || raise Crig::Completion::CompletionError.new("Moonshot response did not include a success payload")
-          response_body.to_completion_response(parsed)
+          result = response_body.to_completion_response(parsed)
+          if response = result.raw_response
+            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
+            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
+          end
+          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
@@ -389,6 +422,136 @@ module Crig
 
       struct Client
         include Crig::CompletionClient(Crig::Providers::Moonshot::CompletionModel)
+      end
+
+      struct MoonshotAnthropicExt
+      end
+
+      struct MoonshotAnthropicBuilder
+        property anthropic_version : String = Crig::Providers::Anthropic::ANTHROPIC_VERSION_LATEST
+        property anthropic_betas : Array(String) = [] of String
+      end
+
+      struct AnthropicClientBuilder
+        getter api_key : String
+        getter base_url : String
+        getter anthropic_version : String
+        getter anthropic_betas : Array(String)
+
+        def initialize(
+          @api_key : String,
+          @base_url : String = MOONSHOT_ANTHROPIC_BASE_URL,
+          @anthropic_version : String = Crig::Providers::Anthropic::ANTHROPIC_VERSION_LATEST,
+          @anthropic_betas : Array(String) = [] of String,
+        )
+        end
+
+        def api_key(api_key : String) : self
+          self.class.new(api_key, @base_url, @anthropic_version, @anthropic_betas)
+        end
+
+        def base_url(base_url : String) : self
+          self.class.new(@api_key, base_url, @anthropic_version, @anthropic_betas)
+        end
+
+        def global : self
+          base_url(MOONSHOT_ANTHROPIC_BASE_URL)
+        end
+
+        def china : self
+          base_url(MOONSHOT_CHINA_ANTHROPIC_BASE_URL)
+        end
+
+        def anthropic_version(version : String) : self
+          self.class.new(@api_key, @base_url, version, @anthropic_betas)
+        end
+
+        def anthropic_beta(beta : String) : self
+          self.class.new(@api_key, @base_url, @anthropic_version, @anthropic_betas + [beta])
+        end
+
+        def anthropic_betas(betas : Array(String)) : self
+          self.class.new(@api_key, @base_url, @anthropic_version, @anthropic_betas + betas)
+        end
+
+        def build : AnthropicClient
+          AnthropicClient.new(@api_key, @base_url, @anthropic_version, @anthropic_betas)
+        end
+      end
+
+      struct AnthropicClient
+        include Crig::CompletionClient(Crig::Providers::Anthropic::CompletionModel)
+
+        getter inner : Crig::Providers::Anthropic::Client
+
+        def initialize(api_key : String, base_url : String, anthropic_version : String, anthropic_betas : Array(String))
+          @inner = Crig::Providers::Anthropic::Client.new(
+            api_key: api_key,
+            base_url: Anthropic.normalize_anthropic_base_url(base_url),
+            anthropic_version: anthropic_version,
+            anthropic_betas: anthropic_betas,
+          )
+        end
+
+        def self.builder : AnthropicClientBuilder
+          raise "Use AnthropicClient.builder(api_key) instead"
+        end
+
+        def self.from_env : self
+          api_key = ENV["MOONSHOT_API_KEY"]? || raise "MOONSHOT_API_KEY not set"
+          builder = AnthropicClientBuilder.new(api_key)
+
+          if primary = ENV["MOONSHOT_ANTHROPIC_API_BASE"]?
+            builder = builder.base_url(primary)
+          elsif fallback = ENV["MOONSHOT_API_BASE"]?
+            if normalized = Moonshot.normalize_anthropic_base_url(fallback)
+              builder = builder.base_url(normalized)
+            end
+          end
+
+          builder.build
+        end
+
+        def self.from_val(input : String) : self
+          AnthropicClientBuilder.new(input).build
+        end
+
+        def completion_model(model : String) : Crig::Providers::Anthropic::CompletionModel
+          @inner.completion_model(model)
+        end
+
+        delegate agent, to: @inner
+        delegate extractor, to: @inner
+      end
+
+      def self.normalize_anthropic_base_url(base_url : String) : String?
+        if base_url.includes?("/anthropic")
+          return base_url
+        end
+        normalized = base_url.rstrip('/')
+        if normalized.ends_with?("/v1")
+          normalized[0...-"/v1".size] + "/anthropic"
+        end
+      end
+
+      def self.resolve_anthropic_base_override(primary : String?, fallback : String?) : String?
+        if primary
+          primary
+        elsif fallback
+          normalize_anthropic_base_url(fallback)
+        end
+      end
+
+      def self.anthropic_beta : AnthropicClientBuilder | Crig::Nothing
+        raise "Use AnthropicClientBuilder#anthropic_beta on an Anthropic client builder"
+      end
+
+      def self.anthropic_betas : AnthropicClientBuilder | Crig::Nothing
+        raise "Use AnthropicClientBuilder#anthropic_betas on an Anthropic client builder"
+      end
+
+      def self.anthropic_version : AnthropicClientBuilder | Crig::Nothing
+        raise "Use AnthropicClientBuilder#anthropic_version on an Anthropic client builder"
       end
     end
   end

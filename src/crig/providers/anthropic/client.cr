@@ -194,6 +194,19 @@ module Crig
           "#{@base_url.rstrip('/')}/#{path.lstrip('/')}"
         end
       end
+
+      def self.normalize_anthropic_base_url(base_url : String) : String
+        trimmed = base_url.rstrip('/')
+        if trimmed.ends_with?("/v1/messages")
+          trimmed[0...-"/v1/messages".size]
+        elsif trimmed.ends_with?("/messages")
+          trimmed[0...-"/messages".size]
+        elsif trimmed.ends_with?("/v1")
+          trimmed[0...-"/v1".size]
+        else
+          trimmed
+        end
+      end
     end
   end
 end

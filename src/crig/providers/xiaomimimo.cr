@@ -228,6 +228,14 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
+          span = Crig::Span.current
+          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "xiaomimimo")
+          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
+          if preamble = request.preamble
+            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
+          end
+
           payload = XiaomiMimoCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
@@ -241,7 +249,12 @@ module Crig
             raise Crig::Completion::CompletionError.new(error.message)
           end
           response_body = body.ok || raise Crig::Completion::CompletionError.new("XiaomiMimo response did not include a success payload")
-          response_body.to_completion_response(parsed)
+          result = response_body.to_completion_response(parsed)
+          if response = result.raw_response
+            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
+            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
+          end
+          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
@@ -387,6 +400,118 @@ module Crig
 
       struct Client
         include Crig::CompletionClient(Crig::Providers::XiaomiMimo::CompletionModel)
+      end
+
+      struct XiaomiMimoAnthropicExt
+      end
+
+      struct XiaomiMimoAnthropicBuilder
+        property anthropic_version : String = Crig::Providers::Anthropic::ANTHROPIC_VERSION_LATEST
+        property anthropic_betas : Array(String) = [] of String
+      end
+
+      struct AnthropicClientBuilder
+        getter api_key : String
+        getter base_url : String
+        getter anthropic_version : String
+        getter anthropic_betas : Array(String)
+
+        def initialize(
+          @api_key : String,
+          @base_url : String = ANTHROPIC_API_BASE_URL,
+          @anthropic_version : String = Crig::Providers::Anthropic::ANTHROPIC_VERSION_LATEST,
+          @anthropic_betas : Array(String) = [] of String,
+        )
+        end
+
+        def api_key(api_key : String) : self
+          self.class.new(api_key, @base_url, @anthropic_version, @anthropic_betas)
+        end
+
+        def base_url(base_url : String) : self
+          self.class.new(@api_key, base_url, @anthropic_version, @anthropic_betas)
+        end
+
+        def anthropic_version(version : String) : self
+          self.class.new(@api_key, @base_url, version, @anthropic_betas)
+        end
+
+        def anthropic_beta(beta : String) : self
+          self.class.new(@api_key, @base_url, @anthropic_version, @anthropic_betas + [beta])
+        end
+
+        def anthropic_betas(betas : Array(String)) : self
+          self.class.new(@api_key, @base_url, @anthropic_version, @anthropic_betas + betas)
+        end
+
+        def build : AnthropicClient
+          AnthropicClient.new(@api_key, @base_url, @anthropic_version, @anthropic_betas)
+        end
+      end
+
+      struct AnthropicClient
+        include Crig::CompletionClient(Crig::Providers::Anthropic::CompletionModel)
+
+        getter inner : Crig::Providers::Anthropic::Client
+
+        def initialize(api_key : String, base_url : String, anthropic_version : String, anthropic_betas : Array(String))
+          @inner = Crig::Providers::Anthropic::Client.new(
+            api_key: api_key,
+            base_url: Crig::Providers::Anthropic.normalize_anthropic_base_url(base_url),
+            anthropic_version: anthropic_version,
+            anthropic_betas: anthropic_betas,
+          )
+        end
+
+        def self.builder : AnthropicClientBuilder
+          raise "Use AnthropicClient.builder(api_key) instead"
+        end
+
+        def self.from_env : self
+          api_key = ENV["XIAOMI_MIMO_API_KEY"]? || raise "XIAOMI_MIMO_API_KEY not set"
+          builder = AnthropicClientBuilder.new(api_key)
+
+          if primary = ENV["XIAOMI_MIMO_ANTHROPIC_API_BASE"]?
+            builder = builder.base_url(primary)
+          elsif fallback = ENV["XIAOMI_MIMO_API_BASE"]?
+            builder = builder.base_url(XiaomiMimo.normalize_anthropic_base_url(fallback))
+          end
+
+          builder.build
+        end
+
+        def self.from_val(input : String) : self
+          AnthropicClientBuilder.new(input).build
+        end
+
+        def completion_model(model : String) : Crig::Providers::Anthropic::CompletionModel
+          @inner.completion_model(model)
+        end
+
+        delegate agent, to: @inner
+        delegate extractor, to: @inner
+      end
+
+      def self.normalize_anthropic_base_url(base_url : String) : String
+        normalized = base_url.rstrip('/')
+
+        if normalized.includes?("/anthropic")
+          normalized
+        elsif normalized == XIAOMI_MIMO_API_BASE_URL.rstrip('/')
+          ANTHROPIC_API_BASE_URL
+        elsif normalized.ends_with?("/v1")
+          normalized[0...-"/v1".size] + "/anthropic/v1"
+        else
+          normalized + "/anthropic/v1"
+        end
+      end
+
+      def self.resolve_anthropic_base_override(primary : String?, fallback : String?) : String?
+        if primary
+          primary
+        elsif fallback
+          normalize_anthropic_base_url(fallback)
+        end
       end
     end
   end
