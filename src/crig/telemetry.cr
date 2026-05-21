@@ -19,6 +19,9 @@ module Crig
     GEN_AI_USAGE_CACHED_INPUT   = "gen_ai.usage.cache_read.input_tokens"
     GEN_AI_USAGE_CACHE_CREATION = "gen_ai.usage.cache_creation.input_tokens"
     GEN_AI_USAGE_REASONING      = "gen_ai.usage.reasoning_tokens"
+    GEN_AI_AGENT_NAME           = "gen_ai.agent.name"
+    GEN_AI_PROMPT               = "gen_ai.prompt"
+    GEN_AI_COMPLETION           = "gen_ai.completion"
 
     module ProviderRequestExt(InputMessage)
       abstract def input_messages : Array(InputMessage)
@@ -91,7 +94,31 @@ module Crig
         end
 
         def self.current : Span
-          new
+          new(OpenTelemetry::API::Span.current)
+        end
+
+        def self.for_tracer(name : String, operation : String) : Span
+          tracer = OpenTelemetry.tracer_provider.try(&.tracer(name))
+          return new unless tracer
+
+          span = tracer.start_span(operation)
+          new(span)
+        end
+
+        def set_attribute(key : String, value : String) : Nil
+          @otel_span.try(&.set_attribute(key, value))
+        end
+
+        def set_attribute(key : String, value : Int32 | Int64) : Nil
+          @otel_span.try(&.set_attribute(key, value))
+        end
+
+        def set_attribute(key : String, value : Float64) : Nil
+          @otel_span.try(&.set_attribute(key, value))
+        end
+
+        def set_attribute(key : String, value : Bool) : Nil
+          @otel_span.try(&.set_attribute(key, value))
         end
 
         def record_token_usage(usage : Crig::Completion::GetTokenUsage) : Nil
@@ -127,22 +154,6 @@ module Crig
           set_attribute(GEN_AI_OUTPUT_MESSAGES, messages.to_json)
         end
 
-        def set_attribute(key : String, value : String) : Nil
-          @otel_span.try(&.set_attribute(key, value))
-        end
-
-        def set_attribute(key : String, value : Int32 | Int64) : Nil
-          @otel_span.try(&.set_attribute(key, value))
-        end
-
-        def set_attribute(key : String, value : Float64) : Nil
-          @otel_span.try(&.set_attribute(key, value))
-        end
-
-        def set_attribute(key : String, value : Bool) : Nil
-          @otel_span.try(&.set_attribute(key, value))
-        end
-
         def recording? : Bool
           !!@otel_span.try(&.recording?)
         end
@@ -152,8 +163,14 @@ module Crig
           !recording?
         end
 
+        def end_span : Nil
+          @otel_span.try(&.end)
+        end
+
         def in_scope(&)
           yield
+        ensure
+          end_span
         end
       end
     {% else %}
@@ -161,6 +178,10 @@ module Crig
         include SpanCombinator
 
         def self.current : Span
+          new
+        end
+
+        def self.for_tracer(name : String, operation : String) : Span
           new
         end
 
@@ -182,6 +203,9 @@ module Crig
         # ameba:disable Naming/PredicateName
         def is_disabled : Bool
           true
+        end
+
+        def end_span : Nil
         end
 
         def in_scope(&)

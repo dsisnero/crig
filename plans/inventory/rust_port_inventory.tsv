@@ -2748,3 +2748,6 @@ src/test_utils/tools.rs::struct::MockToolIndex	struct	intentional_divergence	-	C
 src/transcription.rs::method::TranscriptionRequestBuilder.build	method	ported	src/crig/transcription.cr:151	-
 src/transcription.rs::method::TranscriptionRequestBuilder.filename	method	ported	src/crig/transcription.cr:116	-
 src/vector_store/request.rs::method::VectorSearchRequestBuilder.build	method	ported	src/crig/vector_store/request.cr:307	-
+src/telemetry/mod.rs::method::Span.for_tracer	method	ported	src/crig/telemetry.cr	Creates an OTel span from a named tracer when -Dtelemetry is active; no-op otherwise
+src/telemetry/mod.rs::method::Span.end_span	method	ported	src/crig/telemetry.cr	Ends the underlying OTel span when -Dtelemetry is active; no-op otherwise
+src/agent/prompt_request/mod.rs::span::invoke_agent	behavioral	ported	src/crig/agent/prompt_request.cr	Agent send creates an invoke_agent span recording gen_ai.agent.name, system_instructions, prompt, completion, and usage

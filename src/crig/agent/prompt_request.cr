@@ -208,55 +208,78 @@ module Crig
         chat_history = (@chat_history || [] of Crig::Completion::Message).dup
         chat_history << @prompt
 
+        agent_name = @agent.name || "Unnamed Agent"
+        preamble_text = @agent.preamble
+
+        agent_span = Crig::Span.current.is_disabled ? Crig::Span.for_tracer("crig", "invoke_agent") : Crig::Span.current
+        agent_span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "invoke_agent")
+        agent_span.set_attribute(Crig::Telemetry::GEN_AI_AGENT_NAME, agent_name)
+        if preamble_text
+          agent_span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble_text)
+        end
+
+        if prompt_text = @prompt.rag_text
+          agent_span.set_attribute(Crig::Telemetry::GEN_AI_PROMPT, prompt_text)
+        end
+
         current_max_turns = 0
         usage = Crig::Completion::Usage.new
 
-        last_prompt = loop do
-          prompt = chat_history.last
+        output = nil
+        begin
+          loop do
+            prompt = chat_history.last
 
-          if current_max_turns > @max_turns + 1
-            break prompt
-          end
+            if current_max_turns > @max_turns + 1
+              raise Crig::Completion::PromptError.max_turns_exceeded(@max_turns, chat_history.dup, prompt)
+            end
 
-          current_max_turns += 1
+            current_max_turns += 1
 
-          run_completion_call_hook(prompt, chat_history[0...-1])
+            run_completion_call_hook(prompt, chat_history[0...-1])
 
-          response = @agent.completion(prompt, chat_history[0...-1]).send(@agent.model)
-          usage += response.usage
+            response = @agent.completion(prompt, chat_history[0...-1]).send(@agent.model)
+            usage += response.usage
 
-          run_completion_response_hook(prompt, response, chat_history)
+            run_completion_response_hook(prompt, response, chat_history)
 
-          tool_calls = [] of Crig::Completion::AssistantContent
-          text_parts = [] of String
-          response.choice.each do |choice|
-            if choice.kind.tool_call?
-              tool_calls << choice
-            elsif choice.kind.text?
-              if text = choice.text
-                text_parts << text.text
+            tool_calls = [] of Crig::Completion::AssistantContent
+            text_parts = [] of String
+            response.choice.each do |choice|
+              if choice.kind.tool_call?
+                tool_calls << choice
+              elsif choice.kind.text?
+                if text = choice.text
+                  text_parts << text.text
+                end
               end
             end
-          end
 
-          chat_history << Crig::Completion::Message.new(
-            Crig::Completion::Message::Role::Assistant,
-            Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(
-              response.choice.to_a.map(&.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
-            ),
-            response.message_id,
-          )
+            chat_history << Crig::Completion::Message.new(
+              Crig::Completion::Message::Role::Assistant,
+              Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(
+                response.choice.to_a.map(&.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+              ),
+              response.message_id,
+            )
 
-          if tool_calls.empty?
+            unless tool_calls.empty?
+              tool_content = execute_tool_calls(tool_calls, chat_history)
+              chat_history << Crig::Completion::Message.from(Crig::OneOrMany(Crig::Completion::UserContent).many(tool_content))
+              next
+            end
+
             output = text_parts.join("\n")
+            agent_span.set_attribute(Crig::Telemetry::GEN_AI_COMPLETION, output)
+            agent_span.record_token_usage(usage)
             return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup)
           end
-
-          tool_content = execute_tool_calls(tool_calls, chat_history)
-          chat_history << Crig::Completion::Message.from(Crig::OneOrMany(Crig::Completion::UserContent).many(tool_content))
+        ensure
+          unless output
+            agent_span.record_token_usage(usage)
+          end
+          agent_span.end_span
         end
-
-        raise Crig::Completion::PromptError.max_turns_exceeded(@max_turns, chat_history.dup, last_prompt)
       {% else %}
         extended_details.send.output
       {% end %}
