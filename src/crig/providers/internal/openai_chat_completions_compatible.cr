@@ -1,6 +1,8 @@
 module Crig
   module Providers
     module Internal
+      # ameba:disable Lint/UnneededDisableDirective
+
       module OpenAICompatible
         enum CompatibleFinishReason
           ToolCalls
@@ -17,7 +19,7 @@ module Crig
           end
 
           def has_nonempty_name? : Bool
-            !!@name.try { |n| !n.empty? }
+            !!@name.try { |val| !val.empty? }
           end
 
           def has_nonempty_arguments? : Bool
@@ -28,9 +30,11 @@ module Crig
             has_nonempty_name? && (@arguments.nil? || !!@arguments.try(&.empty?))
           end
 
+          # ameba:disable Naming/PredicateName
           def is_complete_single_chunk? : Bool
             has_nonempty_name? && has_nonempty_arguments?
           end
+          # ameba:enable Naming/PredicateName
         end
 
         struct CompatibleChoice
@@ -69,8 +73,8 @@ module Crig
         ) : Bool
           new_id = incoming.id
           new_name = incoming.name
-          return false unless new_id && !new_id.empty?
-          return false unless new_name && !new_name.empty?
+          return false if new_id.nil? || new_id.empty?
+          return false if new_name.nil? || new_name.empty?
           return false if existing.id.empty?
           return false unless existing.id != new_id
           return false if existing.name.empty?
@@ -82,7 +86,7 @@ module Crig
           current_args = if tool_call.arguments.raw.nil?
                            ""
                          elsif (str = tool_call.arguments.as_s?)
-                           if str.strip == "null" && !chunk.strip.empty?
+                            if str.strip == "null" && !chunk.strip.empty?
                              ""
                            else
                              str
@@ -113,7 +117,7 @@ module Crig
         end
 
         def self.finalize_pending_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall?
-          return nil if tool_call.name.empty?
+          return if tool_call.name.empty?
 
           if tool_call.arguments.raw.nil?
             tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
@@ -131,10 +135,10 @@ module Crig
               return nil
             end
             tool_call.arguments = parsed
-            return tool_call
+            tool_call
           end
 
-          return tool_call
+          tool_call
         end
 
         private def self.drain_finalized_tool_calls(
@@ -144,8 +148,8 @@ module Crig
           pending = tool_calls.to_a.sort_by!(&.[0])
           tool_calls.clear
 
-          pending.each do |_, tc|
-            if finalized = finalize_pending_tool_call(tc)
+          pending.each do |_, tool_call|
+            if finalized = finalize_pending_tool_call(tool_call)
               completed << finalized
             end
           end
@@ -189,6 +193,7 @@ module Crig
         # Returns an array of intermediate StreamItems plus the accumulated usage
         # value.  Callers convert StreamItems to their concrete RawStreamingChoice(T)
         # and append build_final_response(usage) as the final response.
+        # ameba:disable Metrics/CyclomaticComplexity
         def self.process_compatible_sse_stream(
           text : String,
           profile,
@@ -287,14 +292,14 @@ module Crig
             end
 
             if choice.finish_reason.tool_calls?
-              OpenAICompatible.take_finalized_tool_calls(tool_calls).each do |tc|
-                items << StreamItem.new(tool_call: tc)
+              OpenAICompatible.take_finalized_tool_calls(tool_calls).each do |finalized|
+                items << StreamItem.new(tool_call: finalized)
               end
             end
           end
 
-          OpenAICompatible.take_finalized_tool_calls(tool_calls).each do |tc|
-            items << StreamItem.new(tool_call: tc)
+          OpenAICompatible.take_finalized_tool_calls(tool_calls).each do |finalized|
+            items << StreamItem.new(tool_call: finalized)
           end
 
           {items, final_usage}
