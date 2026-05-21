@@ -375,8 +375,8 @@ Priority test areas with zero or partial coverage:
 16. ✅ **Test utilities**: spec/support/test_models.cr added (Crystal idiom)
 17. ✅ **Provider Anthropic compat**: minimax, moonshot, zai, xiaomimimo
 18. ✅ **Streaming refactor**: Together, HuggingFace, Mira, Moonshot, Galadriel, DeepSeek → shared SSE module (-455 lines)
-19. ⬜ **Telemetry**: OpenTelemetry integration (span exporter/collector)
-20. ⬜ **Spec coverage**: internal module EOF-cleanup unit tests (5 deferred from Rust)
+19. ✅ **Telemetry Phases 1-3**: Span.chat_span wired to all 25 providers, agent invoke_agent spans, OTLP exporter setup
+20. ⬜ **Telemetry Phase 4**: OTLP smoke test (requires external collector)
 
 ---
 
@@ -441,26 +441,25 @@ Alternative: `jgaskins/opentelemetry` (simpler, less complete)
 
 **Phase 1 — Wire Span & SpanCombinator**
 
-- [ ] Replace no-op `Span` with `opentelemetry-api`'s `Span`
-- [ ] Implement `SpanCombinator` on the OTel `Span`, recording `gen_ai.*` fields as OTel attributes
-- [ ] Add `Span.current` that returns the active OTel span (or no-op if no SDK configured)
-- [ ] Port upstream's `GenAISemanticConventions` constant map
+- [x] Replace no-op `Span` with `opentelemetry-api`'s `Span`
+- [x] Implement `SpanCombinator` on the OTel `Span`, recording `gen_ai.*` fields as OTel attributes
+- [x] Add `Span.current` that returns the active OTel span (or no-op if no SDK configured)
+- [x] Port upstream's `GenAISemanticConventions` constant map
 
 **Phase 2 — Provider Request/Response traits**
 
-- [ ] Implement `ProviderRequestExt` on each provider's request type (OpenAI, Anthropic, etc.)
-- [ ] Implement `ProviderResponseExt` on each provider's response type
-- [ ] These are lightweight — mostly delegate to existing getter fields
+- [x] Implement `ProviderRequestExt` on each provider's request type (OpenAI, Anthropic, etc.)
+- [x] Implement `ProviderResponseExt` on each provider's response type
 
 **Phase 3 — Wire spans into completions**
 
-- [ ] Add span creation to each provider's `CompletionModel#completion()`
-- [ ] Create `info_span` equivalent using `gen_ai.operation.name = "chat"`, provider name, model
-- [ ] Record response metadata + token usage on success
-- [ ] Log request body at TRACE-equivalent level
+- [x] Add span creation to each provider's `CompletionModel#completion()`
+- [x] Create `info_span` equivalent via `Span.chat_span()` using `gen_ai.operation.name = "chat"`
+- [x] Record response metadata + token usage on success (record_response_metadata, record_token_usage)
+- [x] Agent-level `invoke_agent` spans with gen_ai.agent.name, prompt, completion
 
-**Phase 4 — OTLP export (optional)**
+**Phase 4 — OTLP export (opt-in via -Dtelemetry)**
 
-- [ ] Wire `opentelemetry-sdk` for real span export
-- [ ] Configure OTLP endpoint via env vars
-- [ ] Add smoke test with OTLP collector
+- [x] Wire `opentelemetry-sdk` for real span export (requires -Dtelemetry compile flag)
+- [x] Configure OTLP endpoint via env vars (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS)
+- [ ] Add smoke test with OTLP collector (requires external infrastructure)
