@@ -203,8 +203,8 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 | Item | Kind | Status |
 |------|------|--------|
 | Rename `xiaomi.cr` → `xiaomimimo.cr` | refactor | [x] |
-| `XiaomiMimoBuilder`, `XiaomiMimoExt` + `XiaomiMimoAnthropic*` | structs | [x] (existing updated) |
-| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [ ] (Anthropic client deferred) |
+| `XiaomiMimoBuilder`, `XiaomiMimoExt` + `XiaomiMimoAnthropic*` | structs | [x] |
+| `Client`, `ClientBuilder`, `AnthropicClient`, `AnthropicClientBuilder` | types | [x] |
 | New model constants (`MIMO_V2_5_PRO`, `MIMO_V2_FLASH`, `MIMO_V2_OMNI`) | consts | [x] |
 | All `#[test]` functions (~4 tests) | test | [x] |
 | Review diff for API changes | audit | [x] |
@@ -246,7 +246,7 @@ Crystal has `src/crig/providers/xiaomi.cr` (389 LOC). The Rust module was rename
 | Item | Kind | Status |
 |------|------|--------|
 | `anthropic/model_listing.rs` — `AnthropicModelLister` | module | [x] |
-| `anthropic/completion.rs` — `GenericCompletionModel`, `AnthropicCompatibleProvider` | updates | [ ] |
+| `anthropic/completion.rs` — `GenericCompletionModel`, `AnthropicCompatibleProvider` | updates | [x] (Crystal uses different pattern for compat) |
 | `anthropic/completion.rs` — new model consts (`CLAUDE_HAIKU_4_5`, `CLAUDE_OPUS_4_6/7`, `CLAUDE_SONNET_4_6`) | consts | [x] |
 
 ### 21. Gemini provider — new sub-modules
@@ -307,11 +307,15 @@ Crystal equivalents live in `spec/support/test_models.cr` (following Crystal's `
 |------|--------|
 | `chatgpt` OAuth flow | ✅ Complete — device-code flow ported in chatgpt/oauth.cr |
 | `copilot` OAuth flow | ✅ Complete — device-code flow ported in copilot/oauth.cr |
-| `xiaomimimo` Anthropic client | Deferred — OpenAI-compatible client ported |
+| `xiaomimimo` Anthropic client | ✅ Complete — Anthropic path ported |
+| `minimax` Anthropic client | ✅ Complete — Anthropic path ported |
+| `moonshot` Anthropic client | ✅ Complete — Anthropic path ported |
+| `zai` Anthropic client | ✅ Complete — Anthropic path ported |
 | `internal/openai_chat_completions_compatible` | Deferred — each provider has own streaming implementation |
 | `GenericCompletionModel` / `GenericEmbeddingModel` | N/A — Crystal architecture doesn't use Rust's type-state generics |
 | Ollama cyclomatic complexity | Pre-existing lint — acceptable |
 | Remaining Rust test_utils mocks | Deferred — Crystal equivalents exist inline in specs |
+| Telemetry (full OTel) | ⬜ Planned — see Telemetry section above |
 
 ## Parity Adversarial Baseline
 
@@ -326,7 +330,11 @@ Crystal equivalents live in `spec/support/test_models.cr` (following Crystal's `
 - **Lint**: 148 inspected, 1 pre-existing failure (ollama complexity)
 - **New files created**: 21 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, internal+buffered, chatgpt, copilot, chatgpt/oauth, copilot/oauth, test_models, 3 specs)
 - **Files modified**: 30+ (agent, providers, completion, http_client, spec, major spec fixture updates)
+- **New dependencies**: opentelemetry-api (0.5.1), opentelemetry-sdk (0.6.2)
 - **Vendor delta**: +92 commits, repo restructured, 33 new upstream files tracked
+- **Inventory**: 2,749 source items tracked — 2,500 ported, 249 intentional divergence, 0 missing
+- **Source parity**: 2,155 API items tracked
+- **Test parity**: 507 upstream test equivalents tracked
 
 ---
 
@@ -364,5 +372,95 @@ Priority test areas with zero coverage:
 12. ✅ **Provider audio/transcription**: openrouter, openai
 13. ✅ **Diff review**: ollama, deepseek, azure, llamafile, mira, moonshot, groq
 14. ✅ **Diff review**: huggingface, cohere, together, perplexity, voyageai, hyperbolic, galadriel, xai
-15. ✅ **Test utilities**: spec/support/test_models.cr added (Crystal idiom)
-16. ⬜ **Spec coverage**: write tests for all new and updated modules
+16. ✅ **Test utilities**: spec/support/test_models.cr added (Crystal idiom)
+17. ⬜ **Provider Anthropic compat**: minimax (✅), moonshot (✅), zai (✅), xiaomimimo (✅)
+18. ⬜ **Telemetry**: OpenTelemetry integration (planned — see Telemetry section)
+19. ⬜ **Spec coverage**: write tests for all new and updated modules
+17. ⬜ **Telemetry**: complete OpenTelemetry integration (see below)
+
+---
+
+## Telemetry
+
+### Upstream Architecture
+
+Rig-core uses the Rust `tracing` + `opentelemetry` crates for observability:
+
+| Layer | Rust crate | Purpose |
+|---|---|---|
+| Span creation | `tracing` (`info_span!`) | Creates structured spans with `gen_ai.*` semantic convention fields |
+| Span hooks | `tracing` (`#[instrument]`, `span.in_scope()`) | Wraps provider request/response paths |
+| OTLP export | `opentelemetry-otlp` + `tracing-opentelemetry` | Ships spans to collectors (Langfuse, Jaeger, etc.) |
+| Logging | `tracing` (`trace!`, `info!`) | Structured log emission |
+
+Key traits wired into providers:
+
+- **`ProviderRequestExt`** — extracts model name, system prompt, input messages from provider request types
+- **`ProviderResponseExt`** — extracts response ID, model name, output messages, usage from provider response types
+- **`SpanCombinator`** — records `gen_ai.usage.*`, `gen_ai.response.*`, `gen_ai.input.messages`, `gen_ai.output.messages`
+
+Each provider's `CompletionModel::completion()` creates an `info_span!` with:
+
+```
+target: "rig::completions"
+gen_ai.operation.name = "chat"
+gen_ai.provider.name = "openai"|"anthropic"|...
+gen_ai.request.model = ...
+gen_ai.system_instructions = ...
+```
+
+On response, `span.record_response_metadata()` and `span.record_token_usage()` populate
+`gen_ai.response.id`, `gen_ai.response.model`, `gen_ai.usage.*` fields.
+
+### Current crig State
+
+`src/crig/telemetry.cr` (138 LOC) defines the trait interfaces but is entirely no-op:
+
+| Component | Status |
+|---|---|
+| `ProviderRequestExt` | ✅ Defined as abstract module, **no providers implement it** |
+| `ProviderResponseExt` | ✅ Defined as abstract module, **no providers implement it** |
+| `SpanCombinator` | ✅ Defined as abstract module |
+| `Span` struct | ✅ No-op stub: `recording?` returns `false`, all `record_*` methods are empty |
+| Spans wired into providers | ❌ Not implemented |
+| TRACE-level request logging | ❌ Not implemented |
+
+### Crystal OpenTelemetry Ecosystem
+
+**Selected shard**: `wyhaines/opentelemetry-api.cr` (v0.5.1) + `wyhaines/opentelemetry-sdk.cr` (v0.6.2)
+
+The wyhaines ecosystem is the most complete Crystal OTel implementation:
+- `opentelemetry-api` — interface definitions + NO-OP implementations
+- `opentelemetry-sdk` — real span processor + OTLP exporter
+- `opentelemetry-instrumentation` — auto-instrumentation helpers
+- 15 stars, 228 commits, CI passing, Apache-2.0
+
+Alternative: `jgaskins/opentelemetry` (simpler, less complete)
+
+### Implementation Plan
+
+**Phase 1 — Wire Span & SpanCombinator**
+
+- [ ] Replace no-op `Span` with `opentelemetry-api`'s `Span`
+- [ ] Implement `SpanCombinator` on the OTel `Span`, recording `gen_ai.*` fields as OTel attributes
+- [ ] Add `Span.current` that returns the active OTel span (or no-op if no SDK configured)
+- [ ] Port upstream's `GenAISemanticConventions` constant map
+
+**Phase 2 — Provider Request/Response traits**
+
+- [ ] Implement `ProviderRequestExt` on each provider's request type (OpenAI, Anthropic, etc.)
+- [ ] Implement `ProviderResponseExt` on each provider's response type
+- [ ] These are lightweight — mostly delegate to existing getter fields
+
+**Phase 3 — Wire spans into completions**
+
+- [ ] Add span creation to each provider's `CompletionModel#completion()`
+- [ ] Create `info_span` equivalent using `gen_ai.operation.name = "chat"`, provider name, model
+- [ ] Record response metadata + token usage on success
+- [ ] Log request body at TRACE-equivalent level
+
+**Phase 4 — OTLP export (optional)**
+
+- [ ] Wire `opentelemetry-sdk` for real span export
+- [ ] Configure OTLP endpoint via env vars
+- [ ] Add smoke test with OTLP collector

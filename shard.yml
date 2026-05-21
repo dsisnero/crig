@@ -1,11 +1,9 @@
+---
 name: crig
 version: 0.1.0
-
 authors:
-  - Dominic Sisneros <dsisnero@gmail.com>
-
-crystal: '>= 1.19.1'
-
+- Dominic Sisneros <dsisnero@gmail.com>
+crystal: ">= 1.19.1"
 dependencies:
   mcp:
     github: spider-gazelle/mcp.cr
@@ -25,10 +23,12 @@ dependencies:
     github: dsisnero/crig-postgres
   cml:
     github: dsisnero/cml
-
+  opentelemetry-api:
+    github: wyhaines/opentelemetry-api.cr
+  opentelemetry-sdk:
+    github: wyhaines/opentelemetry-sdk.cr
 development_dependencies:
   ameba:
     github: crystal-ameba/ameba
-    version: ~> 1.0
-
+    version: "~> 1.0"
 license: MIT

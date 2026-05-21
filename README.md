@@ -2,26 +2,24 @@
 
 `crig` is a Crystal library for building modular, builder-first LLM applications.
 
-It ports the public behavior of Rig's Rust `rig-core` crate into Crystal, but the
-goal of this repository is not just parity bookkeeping. The current codebase already
-includes agents, extractors, provider clients, embeddings, vector stores, streaming,
-tool servers, CLI/Discord integrations, and a large example/spec surface.
+It ports the public behavior of [Rig](https://github.com/0xPlaygrounds/rig)'s
+`rig-core` crate into Crystal. The codebase includes agents, extractors, provider
+clients, embeddings, vector stores, streaming, tool servers, CLI/Discord
+integrations, and 100+ ported examples.
 
 Current upstream parity source:
 - Repository: `https://github.com/0xPlaygrounds/rig.git`
 - Submodule path: `vendor/rig`
-- Rust crate under port: `vendor/rig/rig/rig-core`
-- Pinned upstream commit: `f5c4812de02e776d9a68b481a8cf71ed6b572a2d`
-
-## Table of Contents
+- Rust crate under port: `vendor/rig/crates/rig-core`
+- Pinned upstream commit: `f77a5819ec2a71e98583480a68a341f816a75c8a`
 
 - [What is crig?](#what-is-crig)
-- [High-level Features](#high-level-features)
+- [Features](#features)
 - [Get Started](#get-started)
-  - [Simple Example](#simple-example)
-  - [Embeddings builder example](#embeddings-builder-example)
-  - [Vector search example](#vector-search-example)
-- [Providers and Capabilities](#providers-and-capabilities)
+  - [Simple agent](#simple-agent)
+  - [Structured extraction](#structured-extraction)
+  - [Streaming](#streaming)
+- [Providers](#providers)
 - [Examples](#examples)
 - [Architecture](#architecture)
 - [Development](#development)
@@ -29,42 +27,37 @@ Current upstream parity source:
 
 ## What is crig?
 
-`crig` gives Crystal applications a unified interface for:
+`crig` gives Crystal applications a unified, builder-first interface for:
 
-- completion models
-- agent builders and prompt requests
+- completion, chat, and streaming across 25+ providers
+- agent workflows with tools, dynamic context, memory, and multi-turn prompting
 - structured extraction
-- embeddings and vector search
-- tool calling and tool servers
-- streaming responses
+- embeddings, vector stores, and RAG pipelines
+- tool servers (local and MCP)
 - transcription, audio generation, and image generation
 
-The dominant usage style is builder-based. In practice, most workflows start from a
-provider client and then branch into ergonomic builder entry points such as:
+Every workflow starts from a provider client and branches through ergonomic builders:
 
-- `client.agent(model)`
-- `client.extractor(Type, model)`
-- `client.embeddings(model)`
-- `model.completion_request(prompt)`
-- `model.transcription_request`
-- `model.image_generation_request`
-- `model.audio_generation_request`
+- `client.agent(model)` — build an agent with preamble, tools, and context
+- `client.extractor(Type, model)` — structured data extraction
+- `client.embeddings(model)` — embeddings for search and RAG
+- `model.completion_request(prompt)` — raw completion building
+- `model.stream(prompt)` — streaming responses via channels
 
-## High-level Features
+## Features
 
-- Builder-first public API modeled after Rig's Rust surface.
-- Multi-provider completion support under a shared client/model abstraction.
-- Agent workflows with static context, dynamic context, tools, tool servers, and multi-turn prompting.
-- Channel-backed streaming and async helpers using Crystal fibers instead of Rust futures.
-- Structured extraction through the same submit-tool strategy used upstream.
-- Embeddings builders, vector stores, in-memory search, and dynamic retrieval pipelines.
-- Tool definitions, embedding-backed tools, MCP-backed tools, and channel-based tool server execution.
-- Support for transcription, audio generation, and image generation where providers expose those capabilities.
-- A large and growing example suite ported from upstream `rig-core/examples`.
+- 25+ providers under a unified client/model abstraction
+- Agent workflows: static context, dynamic (RAG) context, tools, tool servers, memory, multi-turn prompting with hooks
+- Streaming via Crystal channels instead of async futures
+- Structured extraction using the same submit-tool strategy as upstream Rig
+- Embeddings builders, in-memory vector stores, vector search with distance metrics
+- Tool definitions, embedding-backed tools, MCP tools, concurrent tool-server execution
+- Transcription, audio generation, and image generation
+- 100+ ported examples covering agents, extractors, streaming, RAG, and every provider
 
 ## Get Started
 
-Until the API stabilizes, the safest way to consume `crig` is from Git:
+Add `crig` to your `shard.yml`:
 
 ```yaml
 dependencies:
@@ -72,182 +65,170 @@ dependencies:
     github: dsisnero/crig
 ```
 
-Then:
-
 ```bash
 shards install
 ```
 
-### Simple Example
+Set your provider API key (here OpenAI):
+
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+### Simple agent
 
 ```crystal
 require "crig"
 
 client = Crig::Providers::OpenAI::Client.from_env
 
-comedian = client
-  .agent("gpt-5.2")
-  .preamble("You are a comedian here to entertain the user using humour and jokes.")
+agent = client
+  .agent(Crig::Providers::OpenAI::GPT_5_2)
+  .preamble("You are a helpful assistant.")
   .build
 
-puts comedian.prompt("Entertain me!").send
+puts agent.prompt("What can you tell me about Crystal?").send
 ```
 
-### Embeddings builder example
+### Structured extraction
 
 ```crystal
 require "crig"
+
+struct Sentiment
+  include JSON::Serializable
+  getter sentiment : String
+  getter confidence : Float64
+end
 
 client = Crig::Providers::OpenAI::Client.from_env
 
-embeddings = client
-  .embeddings("text-embedding-3-large")
-  .simple_document("doc0", "Hello, world!")
-  .simple_document("doc1", "Goodbye, world!")
+extractor = client
+  .extractor(Sentiment, Crig::Providers::OpenAI::GPT_4O_MINI)
   .build
+
+result = extractor.extract("I absolutely love this library!")
+# => ExtractionResponse(@output=Sentiment(@sentiment="positive", @confidence=0.95))
 ```
 
-You can also use explicit dimensions when the model name does not carry enough
-information:
-
-```crystal
-builder = client.embeddings_with_ndims("custom-model", 3072)
-```
-
-### Vector search example
+### Streaming
 
 ```crystal
 require "crig"
 
-embedding_model = Crig::Providers::OpenAI::Client.from_env
-  .embedding_model("text-embedding-3-large")
+client = Crig::Providers::Anthropic::Client.from_env
 
-documents = Crig::Embeddings::EmbeddingsBuilder.new(embedding_model)
-  .simple_document("doc0", "Crystal is a compiled language.")
-  .simple_document("doc1", "Rig is a library for LLM applications.")
-  .build
+model = client.completion_model(Crig::Providers::Anthropic::CLAUDE_SONNET_4_6)
 
-store = Crig::InMemoryVectorStore(Crig::SimpleDocument)
-  .builder
-  .documents_with_id_f(documents) { |document| document.id }
-  .build
-
-request = Crig::VectorSearchRequest.builder
-  .query("What is Crystal?")
-  .samples(1)
-  .build
-
-pp store.index(embedding_model).top_n_results(request)
+model.stream("Write a haiku about programming.").each_item do |item|
+  print item.text.try(&.text) if item.kind.text?
+end
+puts
 ```
 
-## Providers and Capabilities
+## Providers
 
-Current provider surface in `src/crig/providers` includes:
+25 providers under `src/crig/providers/`, all accessed through the same builder API:
 
-- OpenAI
-- Anthropic
-- Azure OpenAI
-- Cohere
-- DeepSeek
-- Galadriel
-- Gemini
-- Groq
-- Hugging Face
-- Hyperbolic
-- Mira
-- Mistral
-- Moonshot
-- Ollama
-- OpenRouter
-- Perplexity
-- Together
-- VoyageAI
-- xAI
-- Xiaomi
+| Provider | Completion | Streaming | Embeddings | Transcription | Image Gen | Audio Gen |
+|---|---|---|---|---|---|---|
+| Anthropic | ✓ | ✓ | — | — | — | — |
+| Azure OpenAI | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| ChatGPT | ✓ | ✓ | — | — | — | — |
+| Cohere | ✓ | ✓ | ✓ | — | — | — |
+| Copilot | ✓ | — | ✓ | — | — | — |
+| DeepSeek | ✓ | ✓ | — | — | — | — |
+| Galadriel | ✓ | ✓ | — | — | — | — |
+| Gemini | ✓ | ✓ | ✓ | ✓ | — | — |
+| Groq | ✓ | ✓ | — | — | — | — |
+| Hugging Face | ✓ | ✓ | — | ✓ | ✓ | — |
+| Hyperbolic | ✓ | ✓ | — | — | ✓ | ✓ |
+| Llamafile | ✓ | ✓ | — | — | — | — |
+| MiniMax | ✓ | ✓ | — | — | — | — |
+| Mira | ✓ | ✓ | — | — | — | — |
+| Mistral | ✓ | ✓ | ✓ | ✓ | — | — |
+| Moonshot | ✓ | ✓ | — | — | — | — |
+| Ollama | ✓ | ✓ | ✓ | — | — | — |
+| OpenAI | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| OpenRouter | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| Perplexity | ✓ | ✓ | — | — | — | — |
+| Together | ✓ | ✓ | ✓ | — | — | — |
+| VoyageAI | — | — | ✓ | — | — | — |
+| xAI | ✓ | ✓ | — | — | — | — |
+| XiaomiMimo | ✓ | ✓ | — | — | — | — |
+| ZAI | ✓ | ✓ | — | — | — | — |
 
-Capabilities vary by provider, but the repo currently includes implementations for:
-
-- completion
-- streaming completion
-- embeddings
-- transcription
-- image generation
-- audio generation
-
-Companion integration examples also exist for:
-
-- SQLite vector stores
-- PostgreSQL vector stores
-- MCP / RMCP tool servers
-- CLI chatbots
-- Discord bots
+Integration modules also exist for:
+- CLI chatbots (`Crig::Integrations::CliChatbot`)
+- Discord bots (`Crig::Integrations::DiscordBot`)
+- MCP / RMCP tool servers (`Crig::Tool::Server`)
+- Conversation memory (`Crig::Memory`)
+- Telemetry / OpenTelemetry spans
 
 ## Examples
 
-The repository ships a substantial example surface under [`examples/`](./examples), including:
+100+ ported examples live under [`examples/`](./examples). A few highlights:
 
-- basic agents
-- context and loader-backed agents
-- nested agent tools
-- structured output
-- extractors
-- streaming
-- embeddings
-- vector search and RAG
-- multi-agent orchestration patterns
-- provider-specific examples for OpenAI, Anthropic, DeepSeek, Gemini, Groq, Hugging Face, Ollama, Together, xAI, and others
-
-Representative files:
-
-- [`examples/agent.cr`](./examples/agent.cr)
-- [`examples/agent_with_tools.cr`](./examples/agent_with_tools.cr)
-- [`examples/openai_streaming.cr`](./examples/openai_streaming.cr)
-- [`examples/gemini_embeddings.cr`](./examples/gemini_embeddings.cr)
-- [`examples/vector_search.cr`](./examples/vector_search.cr)
-- [`examples/rmcp.cr`](./examples/rmcp.cr)
+| Example | What it shows |
+|---|---|
+| [`examples/agent.cr`](./examples/agent.cr) | Basic agent with preamble and prompt |
+| [`examples/agent_with_tools.cr`](./examples/agent_with_tools.cr) | Agent with custom tool definitions |
+| [`examples/extractor.cr`](./examples/extractor.cr) | Structured data extraction from text |
+| [`examples/rag.cr`](./examples/rag.cr) | Retrieval-augmented generation pipeline |
+| [`examples/multi_turn_agent.cr`](./examples/multi_turn_agent.cr) | Multi-turn agent conversation |
+| [`examples/openai_streaming.cr`](./examples/openai_streaming.cr) | Token-by-token streaming with OpenAI |
+| [`examples/anthropic_streaming_with_tools.cr`](./examples/anthropic_streaming_with_tools.cr) | Anthropic streaming with tool calls |
+| [`examples/gemini_extractor_with_rag.cr`](./examples/gemini_extractor_with_rag.cr) | Gemini extraction with RAG context |
+| [`examples/rmcp.cr`](./examples/rmcp.cr) | MCP tool server integration |
+| [`examples/discord_bot.cr`](./examples/discord_bot.cr) | Discord bot with agent backend |
+| [`examples/calculator_chatbot.cr`](./examples/calculator_chatbot.cr) | Interactive CLI chatbot |
+| [`examples/multi_agent.cr`](./examples/multi_agent.cr) | Multi-agent orchestration |
+| [`examples/vector_search.cr`](./examples/vector_search.cr) | Vector search with in-memory store |
+| [`examples/loaders.cr`](./examples/loaders.cr) | File, PDF, and EPUB document loaders |
+| [`examples/request_hook.cr`](./examples/request_hook.cr) | Prompt and tool-call hooks |
+| [`examples/transcription.cr`](./examples/transcription.cr) | Audio transcription workflow |
+| [`examples/openai_image_generation.cr`](./examples/openai_image_generation.cr) | Image generation with DALL·E |
+| [`examples/sentiment_classifier.cr`](./examples/sentiment_classifier.cr) | LLM-based sentiment evaluation |
 
 ## Architecture
 
-`crig` follows the same high-level decomposition as `rig-core`, with Crystal-native
-execution underneath:
+`crig` follows `rig-core`'s decomposition with Crystal-native execution:
 
-- clients construct provider-specific models
-- client mixins expose ergonomic builder entry points
-- agent builders compile static context, dynamic retrieval, tools, and output schemas into concrete agents
-- prompt/extractor/streaming request builders run against model traits
-- tool servers and streaming use fibers and `Channel` instead of Rust async futures
-- vector stores, loaders, and evals are first-class modules rather than example-local helpers
+- **`src/crig/client/`** — generic client infrastructure, provider builder traits, dyn-client factory
+- **`src/crig/completion/`** — message types, completion request/response, chat traits
+- **`src/crig/agent/`** — agent builder, prompt requests, streaming multi-turn loop, hooks
+- **`src/crig/embeddings/`** — embedding model traits, builders, distance metrics, vector stores
+- **`src/crig/providers/`** — 25 provider implementations with request/response conversion
+- **`src/crig/tool/`** — tool definitions, tool servers, MCP integration
+- **`src/crig/pipeline/`** — composable pipeline ops (map, then, chain, parallel, try)
+- **`src/crig/loaders/`** — file, PDF, and EPUB document loaders
+- **`src/crig/evals.cr`** — LLM-as-judge evaluation metrics
+- **`src/crig/memory.cr`** — conversation memory traits and in-memory backend
 
-The most important public design choice is that the builder APIs are the primary
-surface, not an afterthought. The codebase is structured so examples can read the way
-upstream Rig examples read:
-
-- start from a provider client
-- choose a model
-- configure behavior through chained builders
-- call `.build`, `.send`, `.stream`, `.extract`, or `.embed_*`
-
-For a more detailed breakdown, see [`docs/architecture.md`](./docs/architecture.md).
+The builder API is the primary surface — every workflow starts from a client, chains
+builder calls, and terminates with `.build`, `.send`, `.stream`, or `.extract`.
+Crystal fibers and `Channel` replace Rust's async/futures for concurrency.
 
 ## Development
 
-Install dependencies and run the standard gates:
-
 ```bash
-make install
-make format
-make lint
-make test
+make install        # install dependencies
+make format         # crystal tool format --check
+make lint           # ameba
+make test           # crystal spec
 ```
 
-Parity manifests live under `plans/inventory/`. The canonical maintenance commands are:
+Parity tracking lives under `plans/inventory/`. Bootstrap and validate:
 
 ```bash
-./scripts/ensure_parity_plan.sh . vendor/rig/rig/rig-core rust auto 0
-./scripts/check_port_inventory.sh . plans/inventory/rust_port_inventory.tsv vendor/rig/rig/rig-core rust
-./scripts/check_source_parity.sh . plans/inventory/rust_source_parity.tsv vendor/rig/rig/rig-core rust
-./scripts/check_test_parity.sh . plans/inventory/rust_test_parity.tsv vendor/rig/rig/rig-core rust
+./scripts/ensure_parity_plan.sh . vendor/rig/crates/rig-core rust auto 0
+./scripts/check_port_inventory.sh . plans/inventory/rust_port_inventory.tsv vendor/rig/crates/rig-core rust
+./scripts/check_source_parity.sh . plans/inventory/rust_source_parity.tsv vendor/rig/crates/rig-core rust
+./scripts/check_test_parity.sh . plans/inventory/rust_test_parity.tsv vendor/rig/crates/rig-core rust
 ```
+
+Current parity: 2,500 source items ported, 249 intentional divergences, 0 missing.
+Source parity tracks 2,155 API items; test parity tracks 507 upstream test equivalents.
 
 ## Upstream Relationship
 
