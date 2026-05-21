@@ -312,11 +312,11 @@ module Crig
           text = response.body
           raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          raw_choices, final_usage = parse_streaming_choices(text)
-
-          raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).final_response(
-            Crig::Client::FinalCompletionResponse.new(final_usage)
+          profile = StreamingProfile.new
+          raw_choices, final_response = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(
+            text, profile
           )
+          raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).final_response(final_response)
           Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
         end
 
@@ -324,99 +324,41 @@ module Crig
           Crig::AgentBuilder(self).new(self)
         end
 
-        private def parse_streaming_choices(text : String) : {Array(Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse)), Crig::Completion::Usage?}
-          raw_choices = [] of Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse)
-          tool_calls = {} of Int32 => {String, String, String}
-          final_response = Crig::Providers::OpenAI::Chat::Streaming::CompletionResponse.new
-          message_id : String? = nil
-
-          text.each_line do |line|
-            next unless line.starts_with?("data:")
-            data = line.lchop("data:").strip
-            next if data.empty? || data == "[DONE]"
-
-            chunk_json = JSON.parse(data)
-            if id = chunk_json["id"]?.try(&.as_s?)
-              unless message_id
-                message_id = id
-                raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).message_id(id)
-              end
-            end
-
-            chunk = Crig::Providers::OpenAI::Chat::Streaming::CompletionChunk.from_json_value(chunk_json)
-            if usage = chunk.usage
-              final_response = Crig::Providers::OpenAI::Chat::Streaming::CompletionResponse.new(usage)
-            end
+        private struct StreamingProfile
+          def normalize_chunk(data : String) : Crig::Providers::Internal::OpenAICompatible::CompatibleChunk(Crig::Providers::OpenAI::OpenAIUsage)?
+            json = JSON.parse(data)
+            chunk = Crig::Providers::OpenAI::Chat::Streaming::CompletionChunk.from_json_value(json)
 
             choice = chunk.choices.first?
-            next unless choice
-            append_content_delta(raw_choices, choice.delta.content)
-            append_tool_call_deltas(raw_choices, tool_calls, choice.delta.tool_calls)
-          end
-
-          append_final_tool_calls(raw_choices, tool_calls)
-          {raw_choices, final_response.token_usage}
-        end
-
-        private def append_content_delta(
-          raw_choices : Array(Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse)),
-          content : String?,
-        ) : Nil
-          return if content.nil? || content.empty?
-          raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).message(content)
-        end
-
-        private def append_tool_call_deltas(
-          raw_choices : Array(Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse)),
-          tool_calls : Hash(Int32, {String, String, String}),
-          deltas : Array(Crig::Providers::OpenAI::Chat::Streaming::ToolCall),
-        ) : Nil
-          deltas.each do |tool_call|
-            existing = tool_calls[tool_call.index]?
-            id = tool_call.id || existing.try(&.[0]) || ""
-            name = tool_call.function.name || existing.try(&.[1]) || ""
-            arguments_delta = tool_call.function.arguments || ""
-            combined_arguments = (existing.try(&.[2]) || "") + arguments_delta
-            tool_calls[tool_call.index] = {id, name, combined_arguments}
-
-            if incoming_name = tool_call.function.name
-              raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).tool_call_delta(
-                id,
-                id.empty? ? tool_call.index.to_s : id,
-                Crig::ToolCallDeltaContent.name(incoming_name),
+            tool_call_chunks = choice.try(&.delta.tool_calls).try(&.map { |tc|
+              Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk.new(
+                tc.index, tc.id, tc.function.name, tc.function.arguments,
               )
-            end
-            unless arguments_delta.empty?
-              raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).tool_call_delta(
-                id,
-                id.empty? ? tool_call.index.to_s : id,
-                Crig::ToolCallDeltaContent.delta(arguments_delta),
-              )
-            end
-          end
-        end
+            }) || [] of Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk
 
-        private def append_final_tool_calls(
-          raw_choices : Array(Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse)),
-          tool_calls : Hash(Int32, {String, String, String}),
-        ) : Nil
-          tool_calls.keys.sort!.each do |index|
-            id, name, arguments = tool_calls[index]
-            raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).tool_call(
-              Crig::RawStreamingToolCall.new(
-                id,
-                name,
-                parse_json_or_string(arguments),
-                id.empty? ? index.to_s : id,
-              )
+            compat_choice = Crig::Providers::Internal::OpenAICompatible::CompatibleChoice.new(
+              text: choice.try(&.delta.content),
+              tool_calls: tool_call_chunks,
+            )
+
+            Crig::Providers::Internal::OpenAICompatible::CompatibleChunk(Crig::Providers::OpenAI::OpenAIUsage).new(
+              response_id: json["id"]?.try(&.as_s?),
+              choice: compat_choice,
+              usage: chunk.usage,
             )
           end
-        end
 
-        private def parse_json_or_string(value : String) : JSON::Any
-          JSON.parse(value)
-        rescue
-          JSON.parse(value.to_json)
+          def build_final_response(usage : Crig::Providers::OpenAI::OpenAIUsage?) : Crig::Client::FinalCompletionResponse
+            Crig::Client::FinalCompletionResponse.new(usage.try(&.token_usage))
+          end
+
+          def should_evict(existing : Crig::RawStreamingToolCall, incoming : Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk) : Bool
+            false
+          end
+
+          def should_emit_completed_tool_call_immediately(tool_call : Crig::RawStreamingToolCall, incoming : Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk) : Bool
+            false
+          end
         end
       end
 
