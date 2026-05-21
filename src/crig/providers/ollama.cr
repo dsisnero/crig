@@ -820,13 +820,7 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.current
-          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
-          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "ollama")
-          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
-          if preamble = request.preamble
-            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
-          end
+          span = Crig::Span.chat_span("ollama", @model, request.preamble, nil)
 
           payload = OllamaCompletionRequest.from_request(@model, request)
           response = @client.post_json("/api/chat", payload.to_json)

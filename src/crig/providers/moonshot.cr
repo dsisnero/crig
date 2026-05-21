@@ -260,13 +260,7 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.current
-          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
-          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "moonshot")
-          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
-          if preamble = request.preamble
-            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
-          end
+          span = Crig::Span.chat_span("moonshot", @model, request.preamble, nil)
 
           payload = MoonshotCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
@@ -286,6 +280,7 @@ module Crig
             span.record_response_metadata(response) if response.responds_to?(:get_response_id)
             span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
           end
+          span.end_span
           result
         end
 

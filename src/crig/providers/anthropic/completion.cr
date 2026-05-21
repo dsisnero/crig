@@ -1221,13 +1221,7 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.current
-          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
-          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "anthropic")
-          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
-          if preamble = request.preamble
-            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
-          end
+          span = Crig::Span.chat_span("anthropic", @model, request.preamble, nil)
 
           request = if request.max_tokens.nil?
                       if max_tokens = @default_max_tokens
