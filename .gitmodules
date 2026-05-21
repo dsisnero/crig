@@ -1,3 +1,6 @@
 [submodule "vendor/rig"]
 	path = vendor/rig
 	url = https://github.com/0xPlaygrounds/rig.git
+[submodule "vendor/rig-docs"]
+	path = vendor/rig-docs
+	url = https://github.com/0xPlaygrounds/rig-docs.git
