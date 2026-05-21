@@ -25,7 +25,7 @@ module Crig
           end
 
           def starts_new_tool_call? : Bool
-            has_nonempty_name? && (@arguments.nil? || @arguments.try(&.empty?))
+            has_nonempty_name? && (@arguments.nil? || !!@arguments.try(&.empty?))
           end
 
           def is_complete_single_chunk? : Bool
@@ -78,7 +78,7 @@ module Crig
           existing.name != new_name || incoming.starts_new_tool_call?
         end
 
-        def self.append_tool_call_arguments(tool_call : Crig::RawStreamingToolCall, chunk : String) : Nil
+        def self.append_tool_call_arguments(tool_call : Crig::RawStreamingToolCall, chunk : String) : Crig::RawStreamingToolCall
           current_args = if tool_call.arguments.raw.nil?
                            ""
                          elsif (str = tool_call.arguments.as_s?)
@@ -98,11 +98,14 @@ module Crig
           else
             tool_call.arguments = JSON::Any.new(combined)
           end
+
+          tool_call
         rescue
           tool_call.arguments = JSON::Any.new(combined)
+          tool_call
         end
 
-        def self.finalize_completed_streaming_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall
+      def self.finalize_completed_streaming_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall
           if tool_call.arguments.raw.nil?
             tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
           end
@@ -122,8 +125,11 @@ module Crig
               tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
               return tool_call
             end
-            parsed = Crig::JSONUtils.parse_tool_arguments(str)
-            return nil unless parsed
+            begin
+              parsed = Crig::JSONUtils.parse_tool_arguments(str)
+            rescue
+              return nil
+            end
             tool_call.arguments = parsed
             return tool_call
           end
@@ -251,7 +257,7 @@ module Crig
               end
 
               if (arguments = incoming.arguments) && !arguments.empty?
-                OpenAICompatible.append_tool_call_arguments(existing_tc, arguments)
+                existing_tc = OpenAICompatible.append_tool_call_arguments(existing_tc, arguments)
                 internal_id = existing_tc.id.empty? ? incoming.index.to_s : existing_tc.id
                 items << StreamItem.new(
                   tool_call_delta_id: existing_tc.id,
@@ -259,6 +265,8 @@ module Crig
                   tool_call_delta_content: Crig::ToolCallDeltaContent.delta(arguments),
                 )
               end
+
+              tool_calls[incoming.index] = existing_tc
 
               if profile.should_emit_completed_tool_call_immediately(existing_tc, incoming)
                 tool_calls.delete(incoming.index)
