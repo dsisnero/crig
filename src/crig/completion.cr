@@ -229,6 +229,36 @@ module Crig
       )
       end
 
+      def self.new(pull : JSON::PullParser)
+        input_tokens = 0_i64
+        output_tokens = 0_i64
+        total_tokens = 0_i64
+        cached_input_tokens = 0_i64
+        cache_creation = 0_i64
+        reasoning = 0_i64
+
+        pull.read_object do |key|
+          case key
+          when "input_tokens"          then input_tokens = pull.read_int.to_i64
+          when "output_tokens"         then output_tokens = pull.read_int.to_i64
+          when "total_tokens"          then total_tokens = pull.read_int.to_i64
+          when "cached_input_tokens"   then cached_input_tokens = pull.read_int.to_i64
+          when "cache_creation_input_tokens" then cache_creation = pull.read_int.to_i64
+          when "reasoning_tokens"      then reasoning = pull.read_int.to_i64
+          else pull.skip
+          end
+        end
+
+        new(
+          input_tokens: input_tokens,
+          output_tokens: output_tokens,
+          total_tokens: total_tokens,
+          cached_input_tokens: cached_input_tokens,
+          cache_creation_input_tokens: cache_creation,
+          reasoning_tokens: reasoning,
+        )
+      end
+
       def token_usage : Usage?
         self
       end
