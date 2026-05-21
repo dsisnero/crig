@@ -2,6 +2,7 @@
 # Without the flag, all telemetry methods compile to zero-cost no-ops (no OTel dependency).
 {% if flag?(:telemetry) %}
   require "opentelemetry-api"
+  require "opentelemetry-sdk"
 {% end %}
 
 module Crig
@@ -105,6 +106,27 @@ module Crig
           new(span)
         end
 
+        # Create a provider-level chat span (Rust info_span! equivalent).
+        # If a parent span is already recording, reuse it.  Otherwise start
+        # a new span on the "crig" tracer with gen_ai semantic convention
+        # attributes pre-populated.
+        def self.chat_span(provider_name : String, model : String, preamble : String?, request_messages_json : String?) : Span
+          parent = Span.current
+          return parent if parent.recording?
+
+          span = for_tracer("crig", "chat")
+          span.set_attribute(GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(GEN_AI_PROVIDER_NAME, provider_name)
+          span.set_attribute(GEN_AI_REQUEST_MODEL, model)
+          if preamble
+            span.set_attribute(GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
+          end
+          if messages = request_messages_json
+            span.set_attribute(GEN_AI_INPUT_MESSAGES, messages)
+          end
+          span
+        end
+
         def set_attribute(key : String, value : String) : Nil
           @otel_span.try(&.set_attribute(key, value))
         end
@@ -173,6 +195,43 @@ module Crig
           end_span
         end
       end
+
+      # Set up a default OTel SDK provider with an OTLP/HTTP exporter when
+      # environment variables are present.  Call this once in application
+      # bootstrap to enable end-to-end span export.
+      def self.setup_otlp_exporter(service_name : String = "crig") : Nil
+        provider = OpenTelemetry.tracer_provider do |config|
+          config.service_name = service_name
+        end
+
+        endpoint = ENV["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"]? ||
+                   ENV["OTEL_EXPORTER_OTLP_ENDPOINT"]?
+        return unless endpoint
+
+        headers = parse_otlp_headers
+
+        exporter = OpenTelemetry::SDK::Exporters::Http.new(
+          endpoint: endpoint,
+          headers: headers,
+        )
+        provider.add_span_processor(
+          OpenTelemetry::SDK::Trace::SimpleSpanProcessor.new(exporter)
+        ) if provider.responds_to?(:add_span_processor)
+      rescue
+      end
+
+      private def self.parse_otlp_headers : Hash(String, String)
+        result = {} of String => String
+        raw = ENV["OTEL_EXPORTER_OTLP_TRACES_HEADERS"]? ||
+              ENV["OTEL_EXPORTER_OTLP_HEADERS"]?
+        return result unless raw
+
+        raw.split(',').each do |pair|
+          key, _, value = pair.partition('=')
+          result[key.strip] = value.strip
+        end
+        result
+      end
     {% else %}
       struct Span
         include SpanCombinator
@@ -182,6 +241,10 @@ module Crig
         end
 
         def self.for_tracer(name : String, operation : String) : Span
+          new
+        end
+
+        def self.chat_span(provider_name : String, model : String, preamble : String?, request_messages_json : String?) : Span
           new
         end
 
@@ -211,6 +274,9 @@ module Crig
         def in_scope(&)
           yield
         end
+      end
+
+      def self.setup_otlp_exporter(service_name : String = "crig") : Nil
       end
     {% end %}
   end
