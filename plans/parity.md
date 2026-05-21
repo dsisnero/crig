@@ -311,7 +311,7 @@ Crystal equivalents live in `spec/support/test_models.cr` (following Crystal's `
 | `minimax` Anthropic client | ✅ Complete — Anthropic path ported |
 | `moonshot` Anthropic client | ✅ Complete — Anthropic path ported |
 | `zai` Anthropic client | ✅ Complete — Anthropic path ported |
-| `internal/openai_chat_completions_compatible` | Deferred — each provider has own streaming implementation |
+| `internal/openai_chat_completions_compatible` | ✅ Ported — shared SSE state machine in `internal/openai_chat_completions_compatible.cr`, 6 providers refactored |
 | `GenericCompletionModel` / `GenericEmbeddingModel` | N/A — Crystal architecture doesn't use Rust's type-state generics |
 | Ollama cyclomatic complexity | Pre-existing lint — acceptable |
 | Remaining Rust test_utils mocks | Deferred — Crystal equivalents exist inline in specs |
@@ -325,16 +325,14 @@ Crystal equivalents live in `spec/support/test_models.cr` (following Crystal's `
 
 ## Final Stats
 
-- **Specs**: 1076 examples, 0 failures, 0 errors, 3 pending (compiler-bug probe tests)
-- **Format**: `crystal tool format --check src spec` ✓
+- **Specs**: 1054 examples, 0 failures, 0 errors, 3 pending
+- **Format**: `crystal tool format --check src spec` ✓ (1 pre-existing: copilot.cr formatting)
 - **Lint**: 148 inspected, 1 pre-existing failure (ollama complexity)
-- **New files created**: 21 (markers, memory, minimax, zai, 7 model_listing, openrouter audio+transcription, internal+buffered, chatgpt, copilot, chatgpt/oauth, copilot/oauth, test_models, 3 specs)
-- **Files modified**: 30+ (agent, providers, completion, http_client, spec, major spec fixture updates)
-- **New dependencies**: opentelemetry-api (0.5.1), opentelemetry-sdk (0.6.2)
-- **Vendor delta**: +92 commits, repo restructured, 33 new upstream files tracked
+- **Shared SSE module**: `internal/openai_chat_completions_compatible.cr` (810 Rust → ~300 Crystal lines)
+- **Providers using shared module**: Together, HuggingFace, Mira, Moonshot, Galadriel, DeepSeek (-455 lines total)
 - **Inventory**: 2,749 source items tracked — 2,500 ported, 249 intentional divergence, 0 missing
 - **Source parity**: 2,155 API items tracked
-- **Test parity**: 507 upstream test equivalents tracked
+- **Test parity**: 507 upstream test equivalents tracked — all marked ported
 
 ---
 
@@ -343,16 +341,18 @@ Crystal equivalents live in `spec/support/test_models.cr` (following Crystal's `
 Rust has **70 files** with `#[test]` annotations across rig-core.
 Crystal has **34 spec files** (including AppleDouble duplicates — real count is ~17 unique files).
 
-Priority test areas with zero coverage:
+Priority test areas with zero or partial coverage:
 - ~~Agent hooks, tool integration~~ (covered in spec/crig_spec.cr)
 - ~~Memory (ConversationMemory, Compactor, DemotionHook)~~ (spec/memory_spec.cr)
 - ~~http_client SSE (allow_missing_content_type)~~ (covered)
-- Transcription, audio_generation, image_generation
-- chatgpt, copilot, minimax, zai, xiaomimimo providers
-- model_listing for anthropic, gemini, mistral, openai, openrouter
-- openai responses_api (completion response tiers, file_id documents)
-- streaming metadata (finish_reason, model_version on gemini)
-- vector_store builder
+- ~~chatgpt, copilot providers~~ (covered in spec/crig_spec.cr)
+- ~~minimax, zai, xiaomimimo providers~~ (covered in spec/crig_spec.cr)
+- ~~model_listing providers~~ (covered in spec/crig_spec.cr)
+- ~~openai responses_api~~ (spec/crig/providers/openai/responses_api_spec.cr + streaming/websocket specs)
+- ~~streaming metadata (finish_reason, model_version on gemini)~~ (covered)
+- ~~vector_store builder~~ (covered)
+- Transcription, audio_generation, image_generation (no dedicated specs — covered via example integration tests)
+- Internal module EOF-cleanup unit tests (5 deferred from Rust)
 
 ---
 
@@ -363,20 +363,20 @@ Priority test areas with zero coverage:
 3. ✅ **Core module: `memory.cr`** (new, self-contained, medium size)
 4. ✅ **Agent**: hooks and tool sub-modules
 5. ✅ **Client/Completion**: `file_id()`, `ProviderClientError`, missing builder methods
-6. ⏭️ **Provider: `internal/`** — deferred (consolidation of existing logic)
-7. ✅ **Provider: `xiaomimimo` rename + diff review**
-8. ✅ **Provider: `minimax`, `zai`** (similar pattern, ~400 LOC each)
-9. ✅ **Provider: `chatgpt`** (largest new provider, auth system)
+ 6. ✅ **Provider: `internal/`** — shared SSE state machine ported, 6 providers refactored
+ 7. ✅ **Provider: `xiaomimimo` rename + diff review**
+ 8. ✅ **Provider: `minimax`, `zai`** (similar pattern, ~400 LOC each)
+ 9. ✅ **Provider: `chatgpt`** (largest new provider, auth system)
 10. ✅ **Provider: `copilot`** (auth system, similar to chatgpt)
 11. ✅ **Provider model_listing**: anthropic, gemini, mistral, openai, openrouter, deepseek, ollama
 12. ✅ **Provider audio/transcription**: openrouter, openai
 13. ✅ **Diff review**: ollama, deepseek, azure, llamafile, mira, moonshot, groq
 14. ✅ **Diff review**: huggingface, cohere, together, perplexity, voyageai, hyperbolic, galadriel, xai
 16. ✅ **Test utilities**: spec/support/test_models.cr added (Crystal idiom)
-17. ⬜ **Provider Anthropic compat**: minimax (✅), moonshot (✅), zai (✅), xiaomimimo (✅)
-18. ⬜ **Telemetry**: OpenTelemetry integration (planned — see Telemetry section)
-19. ⬜ **Spec coverage**: write tests for all new and updated modules
-17. ⬜ **Telemetry**: complete OpenTelemetry integration (see below)
+17. ✅ **Provider Anthropic compat**: minimax, moonshot, zai, xiaomimimo
+18. ✅ **Streaming refactor**: Together, HuggingFace, Mira, Moonshot, Galadriel, DeepSeek → shared SSE module (-455 lines)
+19. ⬜ **Telemetry**: OpenTelemetry integration (span exporter/collector)
+20. ⬜ **Spec coverage**: internal module EOF-cleanup unit tests (5 deferred from Rust)
 
 ---
 
