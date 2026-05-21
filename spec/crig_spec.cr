@@ -7208,6 +7208,48 @@ describe Crig::Model::ModelListingError do
     parsed.status_code.should eq(404)
     parsed.message.should eq("Not found")
   end
+
+  it "formats response body preview without truncation" do
+    body = "{\"ok\":true}".to_slice
+    preview = Crig::Model::ModelListingError.format_response_body_preview(body)
+    preview.should eq(%({"ok":true}))
+  end
+
+  it "formats response body preview with truncation" do
+    limit = Crig::Model::ModelListingError::RESPONSE_BODY_PREVIEW_LIMIT
+    body = Bytes.new(limit + 3, 0x61_u8) # 'a' repeated
+    preview = Crig::Model::ModelListingError.format_response_body_preview(body)
+
+    preview.starts_with?("a" * limit).should be_true
+    preview.should contain("...<truncated 3 bytes>")
+  end
+
+  it "api_error_with_context includes provider path and preview" do
+    body = "{\"error\":\"boom\"}".to_slice
+    error = Crig::Model::ModelListingError.api_error_with_context(
+      "Gemini", "/v1beta/models?pageSize=1000", 500, body
+    )
+
+    error.kind.api_error?.should be_true
+    error.status_code.should eq(500)
+    error.message.should contain("provider=Gemini")
+    error.message.should contain("path=/v1beta/models?pageSize=1000")
+    error.message.should contain("status=500")
+    error.message.should contain(%({"error":"boom"}))
+  end
+
+  it "parse_error_with_context includes parse error and preview" do
+    body = "{\"models\":[{\"displayName\":\"broken\"}]}".to_slice
+    error = Crig::Model::ModelListingError.parse_error_with_context(
+      "Gemini", "/v1beta/models?pageSize=1000", "EOF while parsing an object", body
+    )
+
+    error.kind.parse_error?.should be_true
+    error.message.should contain("provider=Gemini")
+    error.message.should contain("path=/v1beta/models?pageSize=1000")
+    error.message.should contain("parse_error=EOF while parsing an object")
+    error.message.should contain(%({"models":[{"displayName":"broken"}]}))
+  end
 end
 
 describe Crig::Completion::Message, tags: %w[completion message] do
@@ -7805,6 +7847,60 @@ describe Crig::Providers::Ollama do
     serialized = JSON.parse(ollama_request.to_json)
 
     serialized.as_h.has_key?("format").should be_false
+  end
+
+  it "extracts think level low param" do
+    req = Crig::Completion::Request::CompletionRequest.new(
+      Crig::OneOrMany(Crig::Completion::Message).one(Crig::Completion::Message.user("What is 2 + 2?")),
+      preamble: "You are a helpful assistant.",
+      temperature: 0.7,
+      max_tokens: 1024,
+      additional_params: JSON.parse(%({"think":"low","keep_alive":"-1m","num_ctx":4096}))
+    )
+    ollama = Crig::Providers::Ollama::OllamaCompletionRequest.from_request("qwen3:8b", req)
+    json = JSON.parse(ollama.to_json)
+    json["think"].as_s.should eq("low")
+    json["keep_alive"].as_s.should eq("-1m")
+    json["options"]["num_ctx"].as_i.should eq(4096)
+  end
+
+  it "extracts think level medium param" do
+    req = Crig::Completion::Request::CompletionRequest.new(
+      Crig::OneOrMany(Crig::Completion::Message).one(Crig::Completion::Message.user("What is 2 + 2?")),
+      preamble: "You are a helpful assistant.",
+      temperature: 0.7,
+      max_tokens: 1024,
+      additional_params: JSON.parse(%({"think":"medium","keep_alive":"-1m","num_ctx":4096}))
+    )
+    ollama = Crig::Providers::Ollama::OllamaCompletionRequest.from_request("qwen3:8b", req)
+    json = JSON.parse(ollama.to_json)
+    json["think"].as_s.should eq("medium")
+  end
+
+  it "extracts think level high param" do
+    req = Crig::Completion::Request::CompletionRequest.new(
+      Crig::OneOrMany(Crig::Completion::Message).one(Crig::Completion::Message.user("What is 2 + 2?")),
+      preamble: "You are a helpful assistant.",
+      temperature: 0.7,
+      max_tokens: 1024,
+      additional_params: JSON.parse(%({"think":"high","keep_alive":"-1m","num_ctx":4096}))
+    )
+    ollama = Crig::Providers::Ollama::OllamaCompletionRequest.from_request("qwen3:8b", req)
+    json = JSON.parse(ollama.to_json)
+    json["think"].as_s.should eq("high")
+  end
+
+  it "rejects invalid think param" do
+    req = Crig::Completion::Request::CompletionRequest.new(
+      Crig::OneOrMany(Crig::Completion::Message).one(Crig::Completion::Message.user("What is 2 + 2?")),
+      preamble: "You are a helpful assistant.",
+      temperature: 0.7,
+      max_tokens: 1024,
+      additional_params: JSON.parse(%({"think":"ultra","keep_alive":"-1m","num_ctx":4096}))
+    )
+    expect_raises(Crig::Completion::CompletionError, /think/) do
+      Crig::Providers::Ollama::OllamaCompletionRequest.from_request("qwen3:8b", req)
+    end
   end
 end
 
@@ -12634,6 +12730,83 @@ SSE
   end
 end
 
+describe Crig::Providers::Anthropic::DocumentSource do
+  it "serializes file_id document source" do
+    source = Crig::Providers::Anthropic::DocumentSource.file("file_abc")
+    json = JSON.parse(source.to_json)
+    json["type"].should eq("file")
+    json["file_id"].should eq("file_abc")
+  end
+
+  it "deserializes file_id document source" do
+    json = JSON.parse(%({"type":"file","file_id":"file_abc"}))
+    source = Crig::Providers::Anthropic::DocumentSource.from_json_value(json)
+    source.kind.file?.should be_true
+    source.file_id.should eq("file_abc")
+  end
+
+  it "converts rig file_id document to anthropic file content" do
+    rig_doc = Crig::Completion::UserContent.document_file_id("file_abc")
+    anthropic_content = Crig::Providers::Anthropic::Message.content_from_user(rig_doc)
+    anthropic_content.kind.document?.should be_true
+    source = anthropic_content.source.as(Crig::Providers::Anthropic::DocumentSource)
+    source.kind.file?.should be_true
+    source.file_id.should eq("file_abc")
+  end
+
+  it "converts anthropic file content to rig file_id document" do
+    anthropic_content = Crig::Providers::Anthropic::Content.document(
+      Crig::Providers::Anthropic::DocumentSource.file("file_abc")
+    )
+    rig_content = Crig::Providers::Anthropic::Message.user_content_to_core(anthropic_content)
+    rig_content.kind.document?.should be_true
+    rig_content.document.not_nil!.data.kind.file_id?.should be_true
+    rig_content.document.not_nil!.data.try_into_inner.should eq("file_abc")
+  end
+end
+
+describe Crig::Providers::Anthropic do
+  it "matches max tokens for current anthropic models" do
+    Crig::Providers::Anthropic.calculate_max_tokens(Crig::Providers::Anthropic::CLAUDE_OPUS_4_7).should eq(128_000_i64)
+    Crig::Providers::Anthropic.calculate_max_tokens(Crig::Providers::Anthropic::CLAUDE_OPUS_4_6).should eq(128_000_i64)
+    Crig::Providers::Anthropic.calculate_max_tokens(Crig::Providers::Anthropic::CLAUDE_SONNET_4_6).should eq(64_000_i64)
+    Crig::Providers::Anthropic.calculate_max_tokens(Crig::Providers::Anthropic::CLAUDE_HAIKU_4_5).should eq(64_000_i64)
+  end
+
+  it "uses conservative default max tokens fallback for unknown models" do
+    Crig::Providers::Anthropic.calculate_max_tokens("claude-unknown").should be_nil
+    Crig::Providers::Anthropic.calculate_max_tokens_custom("claude-unknown").should eq(2_048_i64)
+  end
+  it "normalizes empty end_turn response to empty text choice" do
+    response = Crig::Providers::Anthropic::CompletionResponse.new(
+      id: "msg_123",
+      model: Crig::Providers::Anthropic::CLAUDE_SONNET_4_6,
+      role: "assistant",
+      stop_reason: "end_turn",
+      content: [] of Crig::Providers::Anthropic::Content,
+      usage: Crig::Providers::Anthropic::Usage.new(input_tokens: 7, output_tokens: 2),
+    )
+    parsed = response.to_crig_response
+    parsed.choice.len.should eq(1)
+    first = parsed.choice.first
+    first.kind.text?.should be_true
+  end
+
+  it "errors on empty non-end_turn response" do
+    response = Crig::Providers::Anthropic::CompletionResponse.new(
+      id: "msg_123",
+      model: Crig::Providers::Anthropic::CLAUDE_SONNET_4_6,
+      role: "assistant",
+      stop_reason: "tool_use",
+      content: [] of Crig::Providers::Anthropic::Content,
+      usage: Crig::Providers::Anthropic::Usage.new(input_tokens: 7, output_tokens: 2),
+    )
+    expect_raises(Crig::Completion::CompletionError, /Response contained no message/) do
+      response.to_crig_response
+    end
+  end
+end
+
 describe Crig::Providers::Cohere::Client do
   it "ports the cohere client initialization and embedding helpers" do
     client = Crig::Providers::Cohere::Client.new("dummy-key")
@@ -14583,6 +14756,60 @@ describe Crig::Providers::Moonshot do
 
     client.api_key.token.should eq("dummy-key")
     built.api_key.token.should eq("dummy-key")
+
+    # Anthropic-compatible client
+    anthropic = Crig::Providers::Moonshot::AnthropicClientBuilder.new("dummy-key").build
+    anthropic.inner.api_key.token.should eq("dummy-key")
+    anthropic.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::Moonshot::MOONSHOT_ANTHROPIC_BASE_URL))
+  end
+
+  it "supports global and china entrypoints" do
+    global = Crig::Providers::Moonshot::Client.builder.api_key("key").global.build
+    china = Crig::Providers::Moonshot::Client.builder.api_key("key").china.build
+
+    global.base_url.should eq(Crig::Providers::Moonshot::MOONSHOT_GLOBAL_API_BASE_URL)
+    china.base_url.should eq(Crig::Providers::Moonshot::MOONSHOT_API_BASE_URL)
+
+    # Anthropic entrypoints
+    anthropic_global = Crig::Providers::Moonshot::AnthropicClientBuilder.new("key").global.build
+    anthropic_china = Crig::Providers::Moonshot::AnthropicClientBuilder.new("key").china.build
+
+    anthropic_global.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::Moonshot::MOONSHOT_ANTHROPIC_BASE_URL))
+    anthropic_china.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::Moonshot::MOONSHOT_CHINA_ANTHROPIC_BASE_URL))
+  end
+
+  it "normalizes openai bases to anthropic bases" do
+    Crig::Providers::Moonshot.normalize_anthropic_base_url(Crig::Providers::Moonshot::MOONSHOT_GLOBAL_API_BASE_URL)
+      .should eq("https://api.moonshot.ai/anthropic")
+    Crig::Providers::Moonshot.normalize_anthropic_base_url(Crig::Providers::Moonshot::MOONSHOT_API_BASE_URL)
+      .should eq("https://api.moonshot.cn/anthropic")
+    Crig::Providers::Moonshot.normalize_anthropic_base_url("https://proxy.example.com/v1")
+      .should eq("https://proxy.example.com/anthropic")
+  end
+
+  it "normalize preserves existing anthropic base" do
+    Crig::Providers::Moonshot.normalize_anthropic_base_url("https://proxy.example.com/anthropic")
+      .should eq("https://proxy.example.com/anthropic")
+  end
+
+  it "anthropic primary override wins" do
+    result = Crig::Providers::Moonshot.resolve_anthropic_base_override(
+      "https://primary.example.com/anthropic",
+      "https://api.moonshot.cn/v1",
+    )
+    result.should eq("https://primary.example.com/anthropic")
+  end
+
+  it "coerces required tool_choice to auto with steering message" do
+    request = Crig::Completion::Request::CompletionRequestBuilder
+      .from_prompt("Hello")
+      .model("kimi-k2.5")
+      .tool_choice(Crig::Completion::ToolChoice.required)
+      .build
+
+    payload = Crig::Providers::Moonshot::MoonshotCompletionRequest.from_request("kimi-k2.5", request).to_json_value
+
+    payload["tool_choice"].as_s.should eq("auto")
   end
 
   it "builds moonshot requests and rejects unsupported tool choice modes" do
@@ -14608,7 +14835,7 @@ describe Crig::Providers::Moonshot do
         Crig::Providers::Moonshot::KIMI_K2_5,
         Crig::Completion::Request::CompletionRequestBuilder
           .from_prompt("Hello")
-          .tool_choice(Crig::Completion::ToolChoice.required)
+          .tool_choice(Crig::Completion::ToolChoice.specific(["lookup"]))
           .build
       )
     end
@@ -14748,6 +14975,40 @@ SSE
 
     http_server.close
   end
+
+  it "supports anthropic client initialization" do
+    anthropic = Crig::Providers::XiaomiMimo::AnthropicClientBuilder.new("dummy-key").build
+    anthropic.inner.api_key.token.should eq("dummy-key")
+    anthropic.inner.base_url.should eq(
+      Crig::Providers::Anthropic.normalize_anthropic_base_url(
+        Crig::Providers::XiaomiMimo::ANTHROPIC_API_BASE_URL
+      )
+    )
+  end
+
+  it "normalizes openai bases to anthropic bases" do
+    Crig::Providers::XiaomiMimo.normalize_anthropic_base_url(
+      Crig::Providers::XiaomiMimo::XIAOMI_MIMO_API_BASE_URL
+    ).should eq(Crig::Providers::XiaomiMimo::ANTHROPIC_API_BASE_URL)
+
+    Crig::Providers::XiaomiMimo.normalize_anthropic_base_url(
+      "https://proxy.example.com/v1"
+    ).should eq("https://proxy.example.com/anthropic/v1")
+  end
+
+  it "normalize preserves existing anthropic base" do
+    Crig::Providers::XiaomiMimo.normalize_anthropic_base_url(
+      Crig::Providers::XiaomiMimo::ANTHROPIC_API_BASE_URL
+    ).should eq(Crig::Providers::XiaomiMimo::ANTHROPIC_API_BASE_URL)
+  end
+
+  it "anthropic primary override wins" do
+    result = Crig::Providers::XiaomiMimo.resolve_anthropic_base_override(
+      "https://primary.example.com/anthropic/v1",
+      Crig::Providers::XiaomiMimo::XIAOMI_MIMO_API_BASE_URL,
+    )
+    result.should eq("https://primary.example.com/anthropic/v1")
+  end
 end
 
 describe Crig::Providers::MiniMax do
@@ -14758,6 +15019,11 @@ describe Crig::Providers::MiniMax do
     client.api_key.should eq("dummy-key")
     built.api_key.should eq("dummy-key")
     built.base_url.should eq(Crig::Providers::MiniMax::GLOBAL_API_BASE_URL)
+
+    # Anthropic-compatible client
+    anthropic = Crig::Providers::MiniMax::AnthropicClientBuilder.new("dummy-key").build
+    anthropic.inner.api_key.token.should eq("dummy-key")
+    anthropic.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::MiniMax::GLOBAL_ANTHROPIC_API_BASE_URL))
   end
 
   it "supports global and china entrypoints" do
@@ -14766,6 +15032,35 @@ describe Crig::Providers::MiniMax do
 
     global.base_url.should eq(Crig::Providers::MiniMax::GLOBAL_API_BASE_URL)
     china.base_url.should eq(Crig::Providers::MiniMax::CHINA_API_BASE_URL)
+
+    # Anthropic entrypoints
+    anthropic_global = Crig::Providers::MiniMax::AnthropicClientBuilder.new("key").global.build
+    anthropic_china = Crig::Providers::MiniMax::AnthropicClientBuilder.new("key").china.build
+
+    anthropic_global.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::MiniMax::GLOBAL_ANTHROPIC_API_BASE_URL))
+    anthropic_china.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::MiniMax::CHINA_ANTHROPIC_API_BASE_URL))
+  end
+
+  it "normalizes openai bases to anthropic bases" do
+    Crig::Providers::MiniMax.normalize_anthropic_base_url(Crig::Providers::MiniMax::GLOBAL_API_BASE_URL)
+      .should eq(Crig::Providers::MiniMax::GLOBAL_ANTHROPIC_API_BASE_URL)
+    Crig::Providers::MiniMax.normalize_anthropic_base_url(Crig::Providers::MiniMax::CHINA_API_BASE_URL)
+      .should eq(Crig::Providers::MiniMax::CHINA_ANTHROPIC_API_BASE_URL)
+    Crig::Providers::MiniMax.normalize_anthropic_base_url("https://proxy.example.com/v1")
+      .should eq("https://proxy.example.com/anthropic")
+  end
+
+  it "normalize preserves existing anthropic base" do
+    Crig::Providers::MiniMax.normalize_anthropic_base_url(Crig::Providers::MiniMax::CHINA_ANTHROPIC_API_BASE_URL)
+      .should eq(Crig::Providers::MiniMax::CHINA_ANTHROPIC_API_BASE_URL)
+  end
+
+  it "anthropic primary override wins" do
+    result = Crig::Providers::MiniMax.resolve_anthropic_base_override(
+      "https://primary.example.com/anthropic",
+      Crig::Providers::MiniMax::CHINA_API_BASE_URL,
+    )
+    result.should eq("https://primary.example.com/anthropic")
   end
 
   it "builds completion requests and rejects specific tool choice" do
@@ -14806,6 +15101,11 @@ describe Crig::Providers::ZAI do
     client.api_key.should eq("dummy-key")
     built.api_key.should eq("dummy-key")
     built.base_url.should eq(Crig::Providers::ZAI::GENERAL_API_BASE_URL)
+
+    # Anthropic-compatible client
+    anthropic = Crig::Providers::ZAI::AnthropicClientBuilder.new("dummy-key").build
+    anthropic.inner.api_key.token.should eq("dummy-key")
+    anthropic.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::ZAI::ANTHROPIC_API_BASE_URL))
   end
 
   it "supports general and coding entrypoints" do
@@ -14814,6 +15114,37 @@ describe Crig::Providers::ZAI do
 
     general.base_url.should eq(Crig::Providers::ZAI::GENERAL_API_BASE_URL)
     coding.base_url.should eq(Crig::Providers::ZAI::CODING_API_BASE_URL)
+
+    # Anthropic entrypoints
+    anthropic_general = Crig::Providers::ZAI::AnthropicClientBuilder.new("key").general.build
+    anthropic_coding = Crig::Providers::ZAI::AnthropicClientBuilder.new("key").coding.build
+
+    anthropic_general.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::ZAI::ANTHROPIC_API_BASE_URL))
+    anthropic_coding.inner.base_url.should eq(Crig::Providers::Anthropic.normalize_anthropic_base_url(Crig::Providers::ZAI::ANTHROPIC_API_BASE_URL))
+  end
+
+  it "normalizes openai style bases to anthropic base" do
+    Crig::Providers::ZAI.normalize_anthropic_base_url(Crig::Providers::ZAI::GENERAL_API_BASE_URL)
+      .should eq(Crig::Providers::ZAI::ANTHROPIC_API_BASE_URL)
+    Crig::Providers::ZAI.normalize_anthropic_base_url(Crig::Providers::ZAI::CODING_API_BASE_URL)
+      .should eq(Crig::Providers::ZAI::ANTHROPIC_API_BASE_URL)
+    Crig::Providers::ZAI.normalize_anthropic_base_url("https://proxy.example.com/api/paas/v4")
+      .should eq("https://proxy.example.com/api/anthropic")
+    Crig::Providers::ZAI.normalize_anthropic_base_url("https://proxy.example.com/api/coding/paas/v4")
+      .should eq("https://proxy.example.com/api/anthropic")
+  end
+
+  it "normalize preserves existing anthropic base" do
+    Crig::Providers::ZAI.normalize_anthropic_base_url("https://proxy.example.com/api/anthropic")
+      .should eq("https://proxy.example.com/api/anthropic")
+  end
+
+  it "anthropic primary override wins" do
+    result = Crig::Providers::ZAI.resolve_anthropic_base_override(
+      "https://primary.example.com/api/anthropic",
+      Crig::Providers::ZAI::GENERAL_API_BASE_URL,
+    )
+    result.should eq("https://primary.example.com/api/anthropic")
   end
 
   it "builds completion requests and rejects specific tool choice" do
@@ -18982,6 +19313,126 @@ describe "JSONUtils::NullOrVecConverter", tags: %w[json null_or_vec] do
   it "deserializes an array into an array" do
     result = DummyNullOrVec.from_json(%({"items":["a","b"]}))
     result.items.should eq(["a", "b"])
+  end
+end
+
+struct SerializeOnlySerializer
+  include JSON::Serializable
+  getter value : String
+
+  def initialize(@value : String = "")
+  end
+end
+
+struct DeserializeOnlyParser
+  include JSON::Serializable
+  getter value : String
+
+  def initialize(@value : String = "")
+  end
+end
+
+describe "TypedPromptResponse serde", tags: %w[agent typed_prompt_response] do
+  it "serializes with serialize-only output" do
+    response = Crig::TypedPromptResponse(SerializeOnlySerializer).new(
+      SerializeOnlySerializer.new("ok"),
+      Crig::Completion::Usage.new(input_tokens: 1, output_tokens: 2, total_tokens: 3),
+    )
+    json = response.to_json
+    json.should contain(%("value":"ok"))
+  end
+
+  it "deserializes with deserialize-only output" do
+    json = %({"output":{"value":"ok"},"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3,"cached_input_tokens":0,"cache_creation_input_tokens":0,"reasoning_tokens":0}})
+    response = Crig::TypedPromptResponse(DeserializeOnlyParser).from_json(json)
+    response.output.value.should eq("ok")
+    response.usage.input_tokens.should eq(1)
+    response.usage.output_tokens.should eq(2)
+    response.usage.total_tokens.should eq(3)
+  end
+end
+
+describe "tool_result_to_user_message multimodal", tags: %w[streaming tool_result] do
+  it "preserves multimodal tool output with response and image parts" do
+    tool_output_json = %({
+      "response": {
+        "instruction": "Use the image part to answer."
+      },
+      "parts": [
+        {
+          "type": "image",
+          "data": "base64data==",
+          "mimeType": "image/png"
+        }
+      ]
+    })
+
+    message = Crig.tool_result_to_user_message("tool_call_1", "call_1", tool_output_json)
+
+    message.role.user?.should be_true
+    user_contents = message.content.to_a
+    user_contents.size.should eq(1)
+
+    first_content = user_contents.first.as(Crig::Completion::UserContent)
+    first_content.kind.tool_result?.should be_true
+
+    tool_result = first_content.tool_result.not_nil!
+    tool_result.id.should eq("tool_call_1")
+    tool_result.call_id.should eq("call_1")
+    tool_result.content.size.should eq(2)
+
+    items = tool_result.content.to_a
+    items[0].kind.text?.should be_true
+    items[0].text.not_nil!.text.should contain("Use the image part to answer.")
+
+    items[1].kind.image?.should be_true
+    image = items[1].image.not_nil!
+    image.data.kind.base64?.should be_true
+    image.data.string_value.should eq("base64data==")
+    image.media_type.should eq(Crig::Completion::ImageMediaType::PNG)
+  end
+end
+
+describe Crig::Providers::Mistral::Usage, tags: %w[mistral usage] do
+  it "deserializes prompt_tokens_details.cached_tokens" do
+    json = %({"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"prompt_tokens_details":{"cached_tokens":42}})
+    usage = Crig::Providers::Mistral::Usage.from_json(json)
+    usage.prompt_tokens.should eq(100)
+    usage.completion_tokens.should eq(20)
+    usage.total_tokens.should eq(120)
+    usage.prompt_tokens_details.not_nil!.cached_tokens.should eq(42)
+    usage.cached_tokens.should eq(42)
+  end
+
+  it "accepts singular prompt_token_details alias" do
+    json = %({"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"prompt_token_details":{"cached_tokens":7}})
+    usage = Crig::Providers::Mistral::Usage.from_json(json)
+    usage.prompt_token_details_alias.not_nil!.cached_tokens.should eq(7)
+    usage.cached_tokens.should eq(7)
+  end
+
+  it "falls back to num_cached_tokens" do
+    json = %({"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"num_cached_tokens":13})
+    usage = Crig::Providers::Mistral::Usage.from_json(json)
+    usage.num_cached_tokens.should eq(13)
+    usage.prompt_tokens_details.should be_nil
+    usage.cached_tokens.should eq(13)
+  end
+
+  it "prefers prompt_tokens_details over num_cached_tokens" do
+    json = %({"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"num_cached_tokens":1,"prompt_tokens_details":{"cached_tokens":99}})
+    usage = Crig::Providers::Mistral::Usage.from_json(json)
+    usage.cached_tokens.should eq(99)
+  end
+
+  it "threads cached tokens into Completion::Usage" do
+    json = %({"id":"cmpl-x","object":"chat.completion","model":"mistral-small-latest","created":1700000000,"choices":[{"index":0,"message":{"content":"hi","role":"assistant","prefix":false,"tool_calls":[]},"finish_reason":"stop"}],"usage":{"prompt_tokens":100,"completion_tokens":20,"total_tokens":120,"prompt_tokens_details":{"cached_tokens":42}}})
+    response = Crig::Providers::Mistral::CompletionResponse.from_json(json)
+    usage = response.token_usage.not_nil!
+    usage.input_tokens.should eq(100)
+    usage.output_tokens.should eq(20)
+    usage.total_tokens.should eq(120)
+    usage.cached_input_tokens.should eq(42)
   end
 end
 
