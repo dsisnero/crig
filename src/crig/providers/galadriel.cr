@@ -475,6 +475,14 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
+          span = Crig::Span.current
+          span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "chat")
+          span.set_attribute(Crig::Telemetry::GEN_AI_PROVIDER_NAME, "galadriel")
+          span.set_attribute(Crig::Telemetry::GEN_AI_REQUEST_MODEL, @model)
+          if preamble = request.preamble
+            span.set_attribute(Crig::Telemetry::GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
+          end
+
           payload = GaladrielCompletionRequest.from_request(@model, request)
           response = @client.post_json("/chat/completions", payload.to_json)
           body = response.body
@@ -486,7 +494,12 @@ module Crig
             raise Crig::Completion::CompletionError.new(error.message)
           end
           completion_response = envelope.ok || raise Crig::Completion::CompletionError.new("Galadriel response did not include a success payload")
-          completion_response.to_completion_response
+          result = completion_response.to_completion_response
+          if response = result.raw_response
+            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
+            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
+          end
+          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

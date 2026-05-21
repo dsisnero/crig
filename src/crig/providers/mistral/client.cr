@@ -49,6 +49,8 @@ module Crig
         getter num_cached_tokens : Int64?
         @[JSON::Field(key: "prompt_tokens_details")]
         getter prompt_tokens_details : PromptTokensDetails?
+        @[JSON::Field(key: "prompt_token_details")]
+        getter prompt_token_details_alias : PromptTokensDetails?
 
         def initialize(
           @completion_tokens : Int32,
@@ -56,11 +58,12 @@ module Crig
           @total_tokens : Int32,
           @num_cached_tokens : Int64? = nil,
           @prompt_tokens_details : PromptTokensDetails? = nil,
+          @prompt_token_details_alias : PromptTokensDetails? = nil,
         )
         end
 
         def cached_tokens : Int64
-          if details = @prompt_tokens_details
+          if details = @prompt_tokens_details || @prompt_token_details_alias
             details.cached_tokens
           elsif cached = @num_cached_tokens
             cached
