@@ -1012,6 +1012,10 @@ module Crig
         new(Kind::Document, document: Document.new(DocumentSourceKind.string(data), media_type))
       end
 
+      def self.document_file_id(file_id : String) : self
+        new(Kind::Document, document: Document.new(DocumentSourceKind.file_id(file_id), nil))
+      end
+
       def self.document_raw(data : Bytes, media_type : DocumentMediaType? = nil) : self
         new(Kind::Document, document: Document.new(DocumentSourceKind.raw(data), media_type))
       end

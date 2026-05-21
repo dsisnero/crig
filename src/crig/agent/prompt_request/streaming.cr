@@ -469,9 +469,7 @@ module Crig
     call_id : String?,
     tool_result : String,
   ) : Crig::Completion::Message
-    content = Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
-      Crig::Completion::ToolResultContent.text(tool_result)
-    )
+    content = Crig::Completion::ToolResultContent.from_tool_output(tool_result)
     user_content = if call_id
                      Crig::Completion::UserContent.tool_result_with_call_id(id, call_id, content)
                    else

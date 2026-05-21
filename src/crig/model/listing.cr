@@ -155,6 +155,33 @@ module Crig
         new(Kind::UnknownError, message)
       end
 
+      RESPONSE_BODY_PREVIEW_LIMIT = 2048
+
+      def self.api_error_with_context(provider : String, path : String, status_code : Int32, body : Bytes) : self
+        message = format_response_context(provider, path, "status=#{status_code}", body)
+        api_error(status_code, message)
+      end
+
+      def self.parse_error_with_context(provider : String, path : String, parse_error : String, body : Bytes) : self
+        message = format_response_context(provider, path, "parse_error=#{parse_error}", body)
+        parse_error(message)
+      end
+
+      def self.format_response_body_preview(body : Bytes) : String
+        preview_len = {body.size, RESPONSE_BODY_PREVIEW_LIMIT}.min
+        preview = String.new(body[0, preview_len])
+
+        if body.size > RESPONSE_BODY_PREVIEW_LIMIT
+          preview += "\n...<truncated #{body.size - RESPONSE_BODY_PREVIEW_LIMIT} bytes>"
+        end
+
+        preview
+      end
+
+      private def self.format_response_context(provider : String, path : String, details : String, body : Bytes) : String
+        "provider=#{provider}\npath=#{path}\n#{details}\nbody_bytes=#{body.size}\nresponse_body_preview:\n#{format_response_body_preview(body)}"
+      end
+
       def to_s(io : IO) : Nil
         case @kind
         in .api_error?

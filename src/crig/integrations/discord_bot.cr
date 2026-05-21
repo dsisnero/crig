@@ -17,6 +17,27 @@ module Crig
     module DiscordBot
       DEFAULT_ERROR_MESSAGE = "Sorry, I encountered an error processing your message."
 
+      class DiscordBotError < Exception
+        enum Kind
+          MissingToken
+          ClientBuild
+        end
+
+        getter kind : Kind
+
+        def initialize(@kind : Kind, message : String = "", cause : Exception? = nil)
+          super(message, cause: cause)
+        end
+
+        def self.missing_token(message : String, cause : Exception? = nil) : self
+          new(Kind::MissingToken, message: message, cause: cause)
+        end
+
+        def self.client_build(message : String, cause : Exception? = nil) : self
+          new(Kind::ClientBuild, message: message, cause: cause)
+        end
+      end
+
       struct MessageContext
         getter channel_id : UInt64
         getter content : String

@@ -135,6 +135,8 @@ module Crig
   end
 
   struct TypedPromptResponse(T)
+    include JSON::Serializable
+
     getter output : T
     getter usage : Crig::Completion::Usage
 

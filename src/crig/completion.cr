@@ -210,18 +210,27 @@ module Crig
 
     struct Usage
       include JSON::Serializable
+      include GetTokenUsage
 
       getter input_tokens : Int64
       getter output_tokens : Int64
       getter total_tokens : Int64
       getter cached_input_tokens : Int64
+      getter cache_creation_input_tokens : Int64
+      getter reasoning_tokens : Int64
 
       def initialize(
         @input_tokens : Int64 = 0,
         @output_tokens : Int64 = 0,
         @total_tokens : Int64 = 0,
         @cached_input_tokens : Int64 = 0,
+        @cache_creation_input_tokens : Int64 = 0,
+        @reasoning_tokens : Int64 = 0,
       )
+      end
+
+      def token_usage : Usage?
+        self
       end
 
       def +(other : self) : self
