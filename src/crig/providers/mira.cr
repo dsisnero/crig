@@ -422,33 +422,46 @@ module Crig
           text = response.body
           raise Crig::Completion::CompletionError.new("API error: #{response.status_code} - #{text}") if response.status_code >= 400
 
-          raw_choices = [] of Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse)
-          final_usage = Usage.new(0, 0)
-          message_id = nil.as(String?)
+          profile = StreamingProfile.new
+          raw_choices, final_response = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(
+            text, profile
+          )
+          raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).final_response(final_response)
+          Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
+        end
 
-          text.each_line do |line|
-            next unless line.starts_with?("data:")
-            data = line.lchop("data:").strip
-            next if data.empty? || data == "[DONE]"
+        private struct StreamingProfile
+          def normalize_chunk(data : String) : Crig::Providers::Internal::OpenAICompatible::CompatibleChunk(Usage)?
+            json = JSON.parse(data)
+            chunk = StreamingCompletionChunk.from_json_value(json)
 
-            chunk = StreamingCompletionChunk.from_json_value(JSON.parse(data))
-            unless message_id
-              message_id = chunk.id
-              raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).message_id(chunk.id)
-            end
-            if usage = chunk.usage
-              final_usage = usage
-            end
             choice = chunk.choices.first?
-            content = choice.try(&.delta.content)
-            next if content.nil? || content.empty?
-            raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).message(content)
+            Crig::Providers::Internal::OpenAICompatible::CompatibleChunk(Usage).new(
+              response_id: chunk.id,
+              choice: choice ? Crig::Providers::Internal::OpenAICompatible::CompatibleChoice.new(
+                text: choice.delta.content,
+              ) : nil,
+              usage: chunk.usage,
+            )
           end
 
-          raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).final_response(
-            Crig::Client::FinalCompletionResponse.new(final_usage.token_usage)
-          )
-          Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
+          def build_final_response(usage : Usage?) : Crig::Client::FinalCompletionResponse
+            Crig::Client::FinalCompletionResponse.new(usage.try(&.token_usage))
+          end
+
+          def should_evict(
+            existing : Crig::RawStreamingToolCall,
+            incoming : Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk,
+          ) : Bool
+            false
+          end
+
+          def should_emit_completed_tool_call_immediately(
+            tool_call : Crig::RawStreamingToolCall,
+            incoming : Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk,
+          ) : Bool
+            false
+          end
         end
 
         def into_agent_builder : Crig::AgentBuilder(self)
