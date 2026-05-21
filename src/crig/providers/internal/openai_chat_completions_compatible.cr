@@ -86,7 +86,7 @@ module Crig
           current_args = if tool_call.arguments.raw.nil?
                            ""
                          elsif (str = tool_call.arguments.as_s?)
-                            if str.strip == "null" && !chunk.strip.empty?
+                           if str.strip == "null" && !chunk.strip.empty?
                              ""
                            else
                              str
@@ -109,7 +109,7 @@ module Crig
           tool_call
         end
 
-      def self.finalize_completed_streaming_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall
+        def self.finalize_completed_streaming_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall
           if tool_call.arguments.raw.nil?
             tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
           end
