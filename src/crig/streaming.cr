@@ -65,11 +65,11 @@ module Crig
   end
 
   struct RawStreamingToolCall
-    getter id : String
-    getter internal_call_id : String
-    getter call_id : String?
-    getter name : String
-    getter arguments : JSON::Any
+    property id : String
+    property internal_call_id : String
+    property call_id : String?
+    property name : String
+    property arguments : JSON::Any
     getter signature : String?
     getter additional_params : JSON::Any?
 

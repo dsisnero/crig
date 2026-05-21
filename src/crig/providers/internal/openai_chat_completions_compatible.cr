@@ -79,18 +79,16 @@ module Crig
         end
 
         def self.append_tool_call_arguments(tool_call : Crig::RawStreamingToolCall, chunk : String) : Nil
-          current_args = case arg = tool_call.arguments
-                         when .null?
+          current_args = if tool_call.arguments.raw.nil?
                            ""
-                         when .string?
-                           str = arg.as_s
+                         elsif (str = tool_call.arguments.as_s?)
                            if str.strip == "null" && !chunk.strip.empty?
                              ""
                            else
                              str
                            end
                          else
-                           arg.to_json
+                           tool_call.arguments.to_json
                          end
 
           combined = current_args + chunk
@@ -105,7 +103,7 @@ module Crig
         end
 
         def self.finalize_completed_streaming_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall
-          if tool_call.arguments.null?
+          if tool_call.arguments.raw.nil?
             tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
           end
           tool_call
@@ -114,12 +112,12 @@ module Crig
         def self.finalize_pending_tool_call(tool_call : Crig::RawStreamingToolCall) : Crig::RawStreamingToolCall?
           return nil if tool_call.name.empty?
 
-          case arg = tool_call.arguments
-          when .null?
+          if tool_call.arguments.raw.nil?
             tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
             return tool_call
-          when .string?
-            str = arg.as_s
+          end
+
+          if (str = tool_call.arguments.as_s?)
             if str.strip.empty?
               tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
               return tool_call
@@ -128,9 +126,9 @@ module Crig
             return nil unless parsed
             tool_call.arguments = parsed
             return tool_call
-          else
-            return tool_call
           end
+
+          return tool_call
         end
 
         private def self.drain_finalized_tool_calls(
@@ -155,20 +153,41 @@ module Crig
           drain_finalized_tool_calls(tool_calls)
         end
 
+        # Intermediate items produced by the SSE stream processor.  Callers
+        # convert these to their specific RawStreamingChoice(T) variant.
+        struct StreamItem
+          getter message_id : String?
+          getter text : String?
+          getter reasoning : String?
+          getter tool_call_delta_id : String?
+          getter tool_call_delta_internal_id : String?
+          getter tool_call_delta_content : Crig::ToolCallDeltaContent?
+          getter tool_call : Crig::RawStreamingToolCall?
+
+          def initialize(
+            @message_id : String? = nil,
+            @text : String? = nil,
+            @reasoning : String? = nil,
+            @tool_call_delta_id : String? = nil,
+            @tool_call_delta_internal_id : String? = nil,
+            @tool_call_delta_content : Crig::ToolCallDeltaContent? = nil,
+            @tool_call : Crig::RawStreamingToolCall? = nil,
+          )
+          end
+        end
+
         # Common SSE stream processor shared by all OpenAI Chat Completions-compatible
-        # providers. Each provider supplies a profile with normalize_chunk and
+        # providers.  Each provider supplies a profile with normalize_chunk and
         # build_final_response callables to handle provider-specific chunk parsing.
         #
-        # Process an SSE text body line by line, accumulating tool calls via the
-        # shared state machine, and return an array of RawStreamingChoice items plus
-        # the final response. Callers wrap these with
-        # StreamingCompletionResponse(R).stream_raw_choices(raw_choices) after
-        # appending the final response.
+        # Returns an array of intermediate StreamItems plus the accumulated usage
+        # value.  Callers convert StreamItems to their concrete RawStreamingChoice(T)
+        # and append build_final_response(usage) as the final response.
         def self.process_compatible_sse_stream(
           text : String,
           profile,
-        ) : {Array(Crig::RawStreamingChoice(T)), T} forall T
-          raw_choices = [] of Crig::RawStreamingChoice(T)
+        )
+          items = [] of StreamItem
           tool_calls = Hash(Int32, Crig::RawStreamingToolCall).new
           final_usage = nil
           seen_response_id = false
@@ -191,7 +210,7 @@ module Crig
             if rid = chunk.response_id
               unless seen_response_id
                 seen_response_id = true
-                raw_choices << Crig::RawStreamingChoice(T).message_id(rid)
+                items << StreamItem.new(message_id: rid)
               end
             end
 
@@ -208,7 +227,7 @@ module Crig
                  profile.should_evict(existing, incoming)
                 if evicted = tool_calls.delete(incoming.index)
                   finalized = OpenAICompatible.finalize_completed_streaming_tool_call(evicted)
-                  raw_choices << Crig::RawStreamingChoice(T).tool_call(finalized)
+                  items << StreamItem.new(tool_call: finalized)
                 end
               end
 
@@ -224,26 +243,26 @@ module Crig
 
               if (name = incoming.name) && !name.empty?
                 existing_tc.name = name
-                raw_choices << Crig::RawStreamingChoice(T).tool_call_delta(
-                  existing_tc.id,
-                  existing_tc.id.empty? ? incoming.index.to_s : existing_tc.id,
-                  Crig::ToolCallDeltaContent.name(name),
+                items << StreamItem.new(
+                  tool_call_delta_id: existing_tc.id,
+                  tool_call_delta_internal_id: existing_tc.id.empty? ? incoming.index.to_s : existing_tc.id,
+                  tool_call_delta_content: Crig::ToolCallDeltaContent.name(name),
                 )
               end
 
               if (arguments = incoming.arguments) && !arguments.empty?
                 OpenAICompatible.append_tool_call_arguments(existing_tc, arguments)
                 internal_id = existing_tc.id.empty? ? incoming.index.to_s : existing_tc.id
-                raw_choices << Crig::RawStreamingChoice(T).tool_call_delta(
-                  existing_tc.id,
-                  internal_id,
-                  Crig::ToolCallDeltaContent.delta(arguments),
+                items << StreamItem.new(
+                  tool_call_delta_id: existing_tc.id,
+                  tool_call_delta_internal_id: internal_id,
+                  tool_call_delta_content: Crig::ToolCallDeltaContent.delta(arguments),
                 )
               end
 
               if profile.should_emit_completed_tool_call_immediately(existing_tc, incoming)
                 tool_calls.delete(incoming.index)
-                raw_choices << Crig::RawStreamingChoice(T).tool_call(existing_tc)
+                items << StreamItem.new(tool_call: existing_tc)
               end
             end
 
@@ -252,27 +271,47 @@ module Crig
             end
 
             if (reasoning = choice.reasoning) && !reasoning.empty?
-              raw_choices << Crig::RawStreamingChoice(T).reasoning_delta(nil, reasoning)
+              items << StreamItem.new(reasoning: reasoning)
             end
 
             if (text = choice.text) && !text.empty?
-              raw_choices << Crig::RawStreamingChoice(T).message(text)
+              items << StreamItem.new(text: text)
             end
 
             if choice.finish_reason.tool_calls?
               OpenAICompatible.take_finalized_tool_calls(tool_calls).each do |tc|
-                raw_choices << Crig::RawStreamingChoice(T).tool_call(tc)
+                items << StreamItem.new(tool_call: tc)
               end
             end
           end
 
           OpenAICompatible.take_finalized_tool_calls(tool_calls).each do |tc|
-            raw_choices << Crig::RawStreamingChoice(T).tool_call(tc)
+            items << StreamItem.new(tool_call: tc)
           end
 
-          final_response = profile.build_final_response(final_usage)
+          {items, final_usage}
+        end
 
-          {raw_choices, final_response}
+        # Convert a StreamItem into a RawStreamingChoice(T).  Callers use
+        # raw_choices = items.map { |item| OpenAICompatible.convert(item) }
+        def self.convert_to_raw_choice(item : StreamItem, return_type : T.class) : Crig::RawStreamingChoice(T) forall T
+          if mid = item.message_id
+            Crig::RawStreamingChoice(T).message_id(mid)
+          elsif content = item.text
+            Crig::RawStreamingChoice(T).message(content)
+          elsif content = item.reasoning
+            Crig::RawStreamingChoice(T).reasoning_delta(nil, content)
+          elsif content = item.tool_call_delta_content
+            Crig::RawStreamingChoice(T).tool_call_delta(
+              item.tool_call_delta_id || "",
+              item.tool_call_delta_internal_id || "",
+              content,
+            )
+          elsif tc = item.tool_call
+            Crig::RawStreamingChoice(T).tool_call(tc)
+          else
+            Crig::RawStreamingChoice(T).message("")
+          end
         end
       end
     end

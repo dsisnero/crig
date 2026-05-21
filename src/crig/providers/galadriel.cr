@@ -522,10 +522,13 @@ module Crig
           raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
 
           profile = StreamingProfile.new
-          raw_choices, final_response = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(
+          items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(
             body, profile
           )
-          raw_choices << Crig::RawStreamingChoice(Crig::Providers::OpenAI::Chat::Streaming::CompletionResponse).final_response(final_response)
+          raw_choices = items.map { |item| Crig::Providers::Internal::OpenAICompatible.convert_to_raw_choice(item, Crig::Providers::OpenAI::Chat::Streaming::CompletionResponse) }
+          raw_choices << Crig::RawStreamingChoice(Crig::Providers::OpenAI::Chat::Streaming::CompletionResponse).final_response(
+            profile.build_final_response(final_usage)
+          )
           Crig::StreamingCompletionResponse(Crig::Providers::OpenAI::Chat::Streaming::CompletionResponse).stream_raw_choices(raw_choices)
         end
 
