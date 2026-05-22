@@ -176,6 +176,91 @@ describe Crig::Memory::HeuristicTokenCounter do
     counter = Crig::Memory::HeuristicTokenCounter.anthropic
     counter.bytes_per_token.should eq(3.5)
   end
+
+  it "charges per-message overhead" do
+    counter = Crig::Memory::HeuristicTokenCounter.new(4.0, 4, 256)
+    empty = counter.count(Crig::Completion::Message.user(""))
+    empty.should be >= 4
+  end
+
+  it "is monotonic in text length" do
+    counter = Crig::Memory::HeuristicTokenCounter.new(4.0, 4, 256)
+    small = counter.count(Crig::Completion::Message.user("hi"))
+    big = counter.count(Crig::Completion::Message.user("x" * 400))
+    big.should be > small
+  end
+
+  it "counts system messages via text length" do
+    counter = Crig::Memory::HeuristicTokenCounter.new(4.0, 4, 256)
+    sys = Crig::Completion::Message.system("you are helpful")
+    cost = counter.count(sys)
+    cost.should be > 0
+  end
+
+  it "clamps invalid bytes_per_token" do
+    zero = Crig::Memory::HeuristicTokenCounter.new(0.0, 0, 0)
+    zero.count(Crig::Completion::Message.user("abcd")).should be >= 4
+
+    nan = Crig::Memory::HeuristicTokenCounter.new(Float64::NAN, 0, 0)
+    nan.count(Crig::Completion::Message.user("abcd")).should be >= 4
+  end
+
+  it "drives TokenWindowMemory" do
+    policy = Crig::Memory::TokenWindowMemory.new(100, Crig::Memory::HeuristicTokenCounter.openai)
+    out = policy.apply([
+      Crig::Completion::Message.user("a" * 2000),
+      Crig::Completion::Message.user("short"),
+    ])
+    out.should_not be_nil
+    out.not_nil!.size.should eq(1)
+  end
+end
+
+describe Crig::Memory::TokenWindowMemory do
+  it "keeps messages within budget" do
+    counter = FixedTokenCounter.new(1)
+    policy = Crig::Memory::TokenWindowMemory.new(2, counter)
+    result = policy.apply([
+      Crig::Completion::Message.user("a"),
+      Crig::Completion::Message.assistant("b"),
+      Crig::Completion::Message.user("c"),
+      Crig::Completion::Message.assistant("d"),
+    ])
+    result.should_not be_nil
+    result.not_nil!.size.should eq(2)
+  end
+
+  it "passes through when under budget" do
+    counter = FixedTokenCounter.new(1)
+    policy = Crig::Memory::TokenWindowMemory.new(Int32::MAX, counter)
+    result = policy.apply([
+      Crig::Completion::Message.user("a"),
+      Crig::Completion::Message.assistant("b"),
+    ])
+    result.should_not be_nil
+    result.not_nil!.size.should eq(2)
+  end
+
+  it "skips message larger than budget" do
+    counter = FixedTokenCounter.new(10)
+    policy = Crig::Memory::TokenWindowMemory.new(5, counter)
+    result = policy.apply([Crig::Completion::Message.user("anything")])
+    result.should_not be_nil
+    result.not_nil!.should be_empty
+  end
+
+  it "reports demoted prefix" do
+    counter = FixedTokenCounter.new(1)
+    policy = Crig::Memory::TokenWindowMemory.new(2, counter)
+    kept, demoted = policy.apply_with_demoted([
+      Crig::Completion::Message.user("a"),
+      Crig::Completion::Message.assistant("b"),
+      Crig::Completion::Message.user("c"),
+      Crig::Completion::Message.assistant("d"),
+    ])
+    kept.size.should eq(2)
+    demoted.size.should eq(2)
+  end
 end
 
 describe Crig::Memory::TemplateCompactor do
@@ -275,6 +360,72 @@ describe Crig::Memory::DemotingPolicyMemory do
     i.should be_a(Crig::Memory::InMemoryConversationMemory)
     p.should be_a(Crig::Memory::NoopMemoryPolicy)
     h.should be_a(Crig::Memory::NoopDemotionHook)
+  end
+
+  it "only reports newly demoted messages on subsequent appends" do
+    delivered = [] of Crig::Completion::Message
+    hook = DemotingHookSpy.new(delivered)
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    inner.append("c1", [
+      Crig::Completion::Message.user("1"),
+      Crig::Completion::Message.assistant("2"),
+      Crig::Completion::Message.user("3"),
+      Crig::Completion::Message.assistant("4"),
+    ])
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.load("c1")
+    first_count = delivered.size
+    first_count.should eq(2)
+
+    inner.append("c1", [Crig::Completion::Message.user("5")])
+    mem.load("c1")
+    (delivered.size - first_count).should eq(1)
+  end
+
+  it "skips hook when nothing evicted" do
+    delivered = [] of Crig::Completion::Message
+    hook = DemotingHookSpy.new(delivered)
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    inner.append("c1", [Crig::Completion::Message.user("1"), Crig::Completion::Message.assistant("2")])
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.load("c1")
+    delivered.size.should eq(0)
+  end
+
+  it "clear resets watermark so hook fires again" do
+    delivered = [] of Crig::Completion::Message
+    hook = DemotingHookSpy.new(delivered)
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    inner.append("c1", [Crig::Completion::Message.user("1"), Crig::Completion::Message.assistant("2")])
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(1)
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.load("c1")  # demotes 1, delivered = 1
+    mem.clear("c1")
+    inner.append("c1", [Crig::Completion::Message.user("3"), Crig::Completion::Message.assistant("4")])
+    mem.load("c1")  # demotes 1 again, delivered = 2
+    delivered.size.should eq(2)
+  end
+
+  it "forget drops in-process watermark" do
+    delivered = [] of Crig::Completion::Message
+    hook = DemotingHookSpy.new(delivered)
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    inner.append("c1", [Crig::Completion::Message.user("1"), Crig::Completion::Message.assistant("2")])
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(1)
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.load("c1")
+    mem.tracked_conversations.should eq(1)
+    mem.forget("c1")
+    mem.tracked_conversations.should eq(0)
+    # Re-load re-delivers since watermark was forgotten
+    mem.load("c1")
+    delivered.size.should eq(2)
   end
 
   it "raises MemoryError on hook failure" do
@@ -389,5 +540,18 @@ private class DemotingHookSpy
 
   def on_demote(conversation_id : String, messages : Array(Crig::Completion::Message)) : Nil
     @received.concat(messages)
+  end
+end
+
+private class FixedTokenCounter
+  include Crig::Memory::TokenCounter
+
+  getter value : Int32
+
+  def initialize(@value : Int32)
+  end
+
+  def count(message : Crig::Completion::Message) : Int32
+    @value
   end
 end
