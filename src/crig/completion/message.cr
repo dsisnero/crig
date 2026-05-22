@@ -1102,8 +1102,7 @@ module Crig
       end
 
       def self.user(contents : Crig::OneOrMany(UserContent)) : self
-        mixed = contents.to_a.map(&.as(UserContent | AssistantContent))
-        new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).many(mixed))
+        new(Role::User, contents.map_one_or_many(&.as(UserContent | AssistantContent)))
       end
 
       def self.assistant(text : String) : self
@@ -1155,13 +1154,11 @@ module Crig
       end
 
       def self.from(content : Crig::OneOrMany(UserContent)) : self
-        content = content.to_a.map(&.as(UserContent | AssistantContent))
-        new(Role::User, Crig::OneOrMany(UserContent | AssistantContent).many(content))
+        new(Role::User, content.map_one_or_many(&.as(UserContent | AssistantContent)))
       end
 
       def self.from(content : Crig::OneOrMany(AssistantContent)) : self
-        content = content.to_a.map(&.as(UserContent | AssistantContent))
-        new(Role::Assistant, Crig::OneOrMany(UserContent | AssistantContent).many(content))
+        new(Role::Assistant, content.map_one_or_many(&.as(UserContent | AssistantContent)))
       end
 
       def self.from(tool_call : ToolCall) : self

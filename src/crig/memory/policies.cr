@@ -43,7 +43,7 @@ module Crig
         if window.size > 0 && window[0].role.user?
           first_content = window[0].content.first?
           if first_content && first_content.as?(Crig::Completion::UserContent).try(&.kind.tool_result?)
-            demoted = demoted + [window[0]]
+            demoted << window[0]
             window = window[1..]
           end
         end
