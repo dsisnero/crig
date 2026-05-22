@@ -256,39 +256,45 @@ module Crig
       private def render_message_line(msg : Crig::Completion::Message) : String
         case msg.role
         when .user?
-          parts = [] of String
+          io = IO::Memory.new
           msg.content.each do |c|
             uc = c.as?(Crig::Completion::UserContent)
             next unless uc
             case uc.kind
             when .text?
-              parts << uc.text.try(&.text).to_s
+              val = uc.text.try(&.text)
+              io << ' ' unless io.empty? || val.to_s.empty?
+              io << val if val
             when .tool_result?
-              parts << "[tool result]"
+              io << ' ' unless io.empty?
+              io << "[tool result]"
             else
-              parts << "[attachment]"
+              io << ' ' unless io.empty?
+              io << "[attachment]"
             end
           end
-          text = parts.reject(&.empty?).join(' ')
-          text.empty? ? "" : "user: #{text}"
+          io.empty? ? "" : "user: #{io}"
         when .assistant?
-          parts = [] of String
+          io = IO::Memory.new
           msg.content.each do |c|
             uc = c.as?(Crig::Completion::AssistantContent)
             next unless uc
             case uc.kind
             when .text?
-              parts << uc.text.try(&.text).to_s
+              val = uc.text.try(&.text)
+              io << ' ' unless io.empty? || val.to_s.empty?
+              io << val if val
             when .tool_call?
               if tc = uc.tool_call
-                parts << "[tool call: #{tc.function.name}]"
+                io << ' ' unless io.empty?
+                io << "[tool call: #{tc.function.name}]"
               end
             else
-              parts << "[reasoning]"
+              io << ' ' unless io.empty?
+              io << "[reasoning]"
             end
           end
-          text = parts.reject(&.empty?).join(' ')
-          text.empty? ? "" : "assistant: #{text}"
+          io.empty? ? "" : "assistant: #{io}"
         else
           text = msg.rag_text
           text && !text.empty? ? "system: #{text}" : ""

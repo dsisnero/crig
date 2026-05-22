@@ -258,7 +258,7 @@ module Crig
           if message.role.user?
             tool_results = [] of self
             other_content = [] of UserContent
-            message.content.to_a.each do |item|
+            message.content.each do |item|
               content = item.as(Crig::Completion::UserContent)
               if content.kind.tool_result?
                 tool_result = content.tool_result || raise Crig::Completion::MessageError.new("Missing tool result content")
@@ -282,7 +282,7 @@ module Crig
 
           text_content = [] of AssistantContent
           tool_calls = [] of ToolCall
-          message.content.to_a.each do |item|
+          message.content.each do |item|
             content = item.as(Crig::Completion::AssistantContent)
             case content.kind
             in .text?
@@ -610,7 +610,7 @@ module Crig
           if docs = req.normalized_documents
             Message.from_core_message(docs).each { |item| full_history << item }
           end
-          req.chat_history.to_a.each do |message|
+          req.chat_history.each do |message|
             Message.from_core_message(message).each { |item| full_history << item }
           end
           raise Crig::Completion::CompletionError.new("HuggingFace request has no provider-compatible messages after conversion") if full_history.empty?

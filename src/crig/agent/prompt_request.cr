@@ -318,21 +318,11 @@ module Crig
       tool_calls : Array(Crig::Completion::AssistantContent),
       chat_history : Array(Crig::Completion::Message),
     ) : Array(Crig::Completion::UserContent)
-      results = [] of ToolExecutionResult
-      limit = Math.max(@concurrency, 1)
+      return [] of Crig::Completion::UserContent if tool_calls.empty?
 
-      tool_calls.each_slice(limit) do |batch|
-        channels = batch.each_with_index.map do |choice, index|
-          global_index = (results.size + index).to_i32
-          Crig::Concurrency.run do
-            execute_tool_call(choice, chat_history.dup, global_index)
-          end
-        end
-
-        batch_results = channels.map do |channel|
-          channel.receive.unwrap
-        end
-        results.concat(batch_results)
+      indexed = tool_calls.map_with_index { |choice, index| {choice, index} }
+      results = Crig::Concurrency.map_ordered(indexed) do |(choice, index)|
+        execute_tool_call(choice, chat_history, index)
       end
 
       results.sort_by!(&.index)

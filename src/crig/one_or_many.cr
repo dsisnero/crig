@@ -195,7 +195,10 @@ module Crig
     end
 
     def to_a : Array(T)
-      [@first] + @rest
+      result = Array(T).new(@rest.size + 1)
+      result << @first
+      result.concat(@rest)
+      result
     end
 
     # Transforms each item to a new type, returning a new OneOrMany.

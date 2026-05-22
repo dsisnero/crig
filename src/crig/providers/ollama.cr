@@ -483,7 +483,7 @@ module Crig
           thinking = nil
           tool_calls = [] of ToolCall
 
-          message.content.to_a.each do |item|
+          message.content.each do |item|
             content = item.as(Crig::Completion::AssistantContent)
             case content.kind
             in .text?

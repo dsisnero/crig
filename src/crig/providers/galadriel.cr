@@ -175,7 +175,7 @@ module Crig
 
           text_content = nil
           tool_calls = [] of Crig::Providers::OpenAI::Chat::ToolCall
-          message.content.to_a.each do |item|
+          message.content.each do |item|
             assistant_content = item.as(Crig::Completion::AssistantContent)
             case assistant_content.kind
             in .text?
