@@ -146,6 +146,27 @@ describe Crig::Memory::SlidingWindowMemory do
     kept.size.should eq(2)
     demoted.size.should eq(1)
   end
+
+  it "drops leading orphan tool result into demoted set" do
+    tc = tool_call_message("call_1", "t")
+    tr = tool_result_message("call_1")
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(3)
+    messages = [tc, tr, Crig::Completion::Message.user("after"), Crig::Completion::Message.assistant("done")]
+    result = policy.apply(messages)
+    result.should_not be_nil
+    result.not_nil!.size.should eq(2)
+    result.not_nil![0].rag_text.should eq("after")
+  end
+
+  it "demotes orphan tool result with prefix in apply_with_demoted" do
+    tc = tool_call_message("call_1", "t")
+    tr = tool_result_message("call_1")
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    kept, demoted = policy.apply_with_demoted([tc, tr, Crig::Completion::Message.user("after"), Crig::Completion::Message.assistant("done")])
+    kept.size.should eq(2)
+    kept[0].rag_text.should eq("after")
+    demoted.size.should eq(2)
+  end
 end
 
 describe Crig::Memory::NoopMemoryPolicy do
@@ -214,6 +235,13 @@ describe Crig::Memory::HeuristicTokenCounter do
     out.should_not be_nil
     out.not_nil!.size.should eq(1)
   end
+
+  it "counts tool call messages" do
+    counter = Crig::Memory::HeuristicTokenCounter.new(4.0, 4, 256)
+    tc = tool_call_message("call_1", "search")
+    cost = counter.count(tc)
+    cost.should be > 0
+  end
 end
 
 describe Crig::Memory::TokenWindowMemory do
@@ -260,6 +288,17 @@ describe Crig::Memory::TokenWindowMemory do
     ])
     kept.size.should eq(2)
     demoted.size.should eq(2)
+  end
+
+  it "drops leading orphan tool result" do
+    tc = tool_call_message("call_1", "t")
+    tr = tool_result_message("call_1")
+    counter = FixedTokenCounter.new(10)
+    policy = Crig::Memory::TokenWindowMemory.new(25, counter)
+    result = policy.apply([tc, tr, Crig::Completion::Message.user("after")])
+    result.should_not be_nil
+    result.not_nil!.size.should eq(1)
+    result.not_nil![0].rag_text.should eq("after")
   end
 end
 
@@ -554,4 +593,27 @@ private class FixedTokenCounter
   def count(message : Crig::Completion::Message) : Int32
     @value
   end
+end
+
+private def tool_call_message(id : String, name : String) : Crig::Completion::Message
+  items = Array(Crig::Completion::UserContent | Crig::Completion::AssistantContent).new
+  items << Crig::Completion::AssistantContent.tool_call(id, name, JSON.parse("{}"))
+  Crig::Completion::Message.new(
+    Crig::Completion::Message::Role::Assistant,
+    Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(items),
+  )
+end
+
+private def tool_result_message(call_id : String) : Crig::Completion::Message
+  items = Array(Crig::Completion::UserContent | Crig::Completion::AssistantContent).new
+  items << Crig::Completion::UserContent.tool_result(
+    call_id,
+    Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
+      Crig::Completion::ToolResultContent.text("ok"),
+    ),
+  )
+  Crig::Completion::Message.new(
+    Crig::Completion::Message::Role::User,
+    Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(items),
+  )
 end
