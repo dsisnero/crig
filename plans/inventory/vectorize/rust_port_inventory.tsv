@@ -1,0 +1,47 @@
+# source_id	kind	status	crystal_refs	notes
+src/lib.rs::struct::VectorizeVectorStore	struct	ported	src/crig/vector_store/vectorize.cr	Ported as VectorizeVectorStore(M) with model generic, HTTP client delegation
+src/lib.rs::method::VectorizeVectorStore.new	method	ported	src/crig/vector_store/vectorize.cr	Constructor takes model, account_id, index_name, api_token
+src/lib.rs::impl::VectorStoreIndex for VectorizeVectorStore	trait_impl	ported	src/crig/vector_store/vectorize.cr	top_n and top_n_ids methods ported as direct methods (no trait impl in Crystal)
+src/lib.rs::method::VectorizeVectorStore.top_n	method	ported	src/crig/vector_store/vectorize.cr	Embeds query locally, queries Vectorize API, returns (score, id, metadata) tuples
+src/lib.rs::method::VectorizeVectorStore.top_n_ids	method	ported	src/crig/vector_store/vectorize.cr	Embeds query locally, queries Vectorize API, returns (score, id) tuples
+src/lib.rs::impl::InsertDocuments for VectorizeVectorStore	trait_impl	ported	src/crig/vector_store/vectorize.cr	insert_documents method ported as direct method
+src/lib.rs::method::VectorizeVectorStore.insert_documents	method	ported	src/crig/vector_store/vectorize.cr	Batches embeddings into VectorInput with UUIDs, calls client.upsert
+src/lib.rs::fn::From<VectorizeError> for VectorStoreError	func	ported	src/crig/vector_store/vectorize.cr	Ported as to_vector_store_error instance method on VectorizeError
+src/client/mod.rs::struct::VectorizeClient	struct	ported	src/crig/vector_store/vectorize.cr	HTTP client wrapping Crystal HTTP::Client
+src/client/mod.rs::method::VectorizeClient.new	method	ported	src/crig/vector_store/vectorize.cr	Constructor takes account_id, index_name, api_token
+src/client/mod.rs::method::VectorizeClient.index_url	method	ported	src/crig/vector_store/vectorize.cr	Built from account_id and index_name
+src/client/mod.rs::method::VectorizeClient.query	method	ported	src/crig/vector_store/vectorize.cr	POST /query, returns QueryResult
+src/client/mod.rs::method::VectorizeClient.upsert	method	ported	src/crig/vector_store/vectorize.cr	POST /upsert, returns UpsertResult
+src/client/mod.rs::method::VectorizeClient.delete_by_ids	method	ported	src/crig/vector_store/vectorize.cr	POST /delete_by_ids, returns DeleteResult
+src/client/mod.rs::method::VectorizeClient.list_vectors	method	ported	src/crig/vector_store/vectorize.cr	GET /list?count=N&cursor=X, returns ListVectorsResult
+src/client/error.rs::enum::VectorizeError	enum	ported	src/crig/vector_store/vectorize.cr	Ported as class with Kind enum: HttpError, ApiError, SerializationError, UnsupportedFilterOperation
+src/client/types.rs::struct::QueryRequest	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with vector, top_k, return_values, return_metadata, filter
+src/client/types.rs::struct::QueryResult	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with count, matches
+src/client/types.rs::struct::VectorMatch	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with id, score, values, metadata, namespace
+src/client/types.rs::struct::VectorInput	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with id, values, metadata, namespace
+src/client/types.rs::struct::UpsertRequest	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with vectors
+src/client/types.rs::struct::UpsertResult	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with mutation_id (camelCase mapping)
+src/client/types.rs::struct::DeleteByIdsRequest	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with ids
+src/client/types.rs::struct::DeleteResult	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with mutation_id (camelCase mapping)
+src/client/types.rs::struct::ListVectorsResult	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with count, is_truncated, total_count, vectors, next_cursor (camelCase mapping)
+src/client/types.rs::struct::VectorIdEntry	struct	ported	src/crig/vector_store/vectorize.cr	JSON-serializable struct with id
+src/client/types.rs::struct::ApiResponse	struct	ported	src/crig/vector_store/vectorize.cr	Private: Cloudflare API envelope with success, result, errors, messages
+src/client/types.rs::struct::ApiErrorDetail	struct	ported	src/crig/vector_store/vectorize.cr	Private: error detail with code, message
+src/client/types.rs::struct::ApiMessage	struct	ported	src/crig/vector_store/vectorize.cr	Private: API message with code, message
+src/client/types.rs::enum::ReturnMetadata	enum	ported	src/crig/vector_store/vectorize.cr	Ported as Crystal enum: None, Indexed, All (default: None)
+src/client/filter.rs::struct::VectorizeFilter	struct	ported	src/crig/vector_store/vectorize.cr	Newtype over JSON::Any, implements all Vectorize filter operators
+src/client/filter.rs::method::VectorizeFilter.new	method	ported	src/crig/vector_store/vectorize.cr	Empty filter (default JSON object)
+src/client/filter.rs::method::VectorizeFilter.eq	method	ported	src/crig/vector_store/vectorize.cr	$eq operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.ne	method	ported	src/crig/vector_store/vectorize.cr	$ne operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.gt	method	ported	src/crig/vector_store/vectorize.cr	$gt operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.gte	method	ported	src/crig/vector_store/vectorize.cr	$gte operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.lt	method	ported	src/crig/vector_store/vectorize.cr	$lt operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.lte	method	ported	src/crig/vector_store/vectorize.cr	$lte operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.in_values	method	ported	src/crig/vector_store/vectorize.cr	$in operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.nin	method	ported	src/crig/vector_store/vectorize.cr	$nin operator on metadata key
+src/client/filter.rs::method::VectorizeFilter.and	method	ported	src/crig/vector_store/vectorize.cr	Merges filter JSON objects (implicit AND)
+src/client/filter.rs::method::VectorizeFilter.or	method	ported	src/crig/vector_store/vectorize.cr	Returns empty filter (Vectorize does not support OR)
+src/client/filter.rs::method::VectorizeFilter.validate	method	ported	src/crig/vector_store/vectorize.cr	Raises error on invalid filter structure
+src/client/filter.rs::method::VectorizeFilter.into_inner	method	ported	src/crig/vector_store/vectorize.cr	Returns inner JSON::Any
+src/client/filter.rs::method::VectorizeFilter.as_value	method	ported	src/crig/vector_store/vectorize.cr	Returns reference to inner JSON::Any
+src/client/filter.rs::method::VectorizeFilter.is_empty	method	ported	src/crig/vector_store/vectorize.cr	Checks if filter JSON object is empty

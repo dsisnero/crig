@@ -2,6 +2,7 @@ require "./vector_store/request"
 require "./vector_store/builder"
 require "./vector_store/in_memory_store"
 require "./vector_store/lsh"
+require "./vector_store/vectorize"
 
 module Crig
   module VectorStore
