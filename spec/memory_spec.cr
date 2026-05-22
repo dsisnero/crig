@@ -197,3 +197,174 @@ describe Crig::Memory::TemplateCompactor do
     result.role.user?.should be_true
   end
 end
+
+describe Crig::Memory::DemotingPolicyMemory do
+  it "delegates load/append/clear to inner" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::NoopMemoryPolicy.new
+    hook = Crig::Memory::NoopDemotionHook.new
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.append("c1", [Crig::Completion::Message.user("hello")])
+    mem.load("c1").size.should eq(1)
+    mem.clear("c1")
+    mem.load("c1").size.should eq(0)
+  end
+
+  it "exposes inner, policy, hook accessors" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::NoopMemoryPolicy.new
+    hook = Crig::Memory::NoopDemotionHook.new
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.inner.should be_a(Crig::Memory::InMemoryConversationMemory)
+    mem.policy.should be_a(Crig::Memory::NoopMemoryPolicy)
+    mem.hook.should be_a(Crig::Memory::NoopDemotionHook)
+  end
+
+  it "runs policy on loaded messages" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    10.times { |i| inner.append("c1", [Crig::Completion::Message.user("msg#{i}")]) }
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(3)
+    hook = Crig::Memory::NoopDemotionHook.new
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    loaded = mem.load("c1")
+    loaded.size.should eq(3)
+  end
+
+  it "delivers demoted messages to hook on first load" do
+    delivered_messages = [] of Crig::Completion::Message
+
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    5.times { |i| inner.append("c1", [Crig::Completion::Message.user("msg#{i}")]) }
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    hook = DemotingHookSpy.new(delivered_messages)
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.load("c1")
+    # First 3 messages should have been demoted
+    delivered_messages.size.should eq(3)
+  end
+
+  it "does not re-deliver already delivered messages" do
+    delivered = [] of Crig::Completion::Message
+
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    5.times { |i| inner.append("c1", [Crig::Completion::Message.user("msg#{i}")]) }
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    hook = DemotingHookSpy.new(delivered)
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    mem.load("c1")
+    first_delivery = delivered.size
+    delivered.clear
+    mem.load("c1")
+    # Second load should not re-deliver
+    delivered.size.should eq(0)
+    first_delivery.should eq(3)
+  end
+
+  it "returns decomposition via into_inner" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::NoopMemoryPolicy.new
+    hook = Crig::Memory::NoopDemotionHook.new
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    i, p, h = mem.into_inner
+    i.should be_a(Crig::Memory::InMemoryConversationMemory)
+    p.should be_a(Crig::Memory::NoopMemoryPolicy)
+    h.should be_a(Crig::Memory::NoopDemotionHook)
+  end
+end
+
+describe Crig::Memory::CompactingMemory do
+  it "delegates load/append/clear to inner" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::NoopMemoryPolicy.new
+    compactor = Crig::Memory::TemplateCompactor.new
+    mem = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    mem.append("c1", [Crig::Completion::Message.user("hello")])
+    mem.load("c1").size.should eq(1)
+    mem.clear("c1")
+    mem.load("c1").size.should eq(0)
+  end
+
+  it "splices summary when messages are evicted" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    5.times { |i| inner.append("c1", [Crig::Completion::Message.user("msg#{i}")]) }
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    compactor = Crig::Memory::TemplateCompactor.new
+    mem = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    loaded = mem.load("c1")
+    # Should have summary + kept messages
+    loaded.size.should eq(3) # summary + 2 kept
+    loaded[0].rag_text.try(&.includes?("Conversation summary")).should be_true
+  end
+
+  it "returns only kept messages when nothing evicted" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    inner.append("c1", [Crig::Completion::Message.user("hello")])
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    compactor = Crig::Memory::TemplateCompactor.new
+    mem = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    loaded = mem.load("c1")
+    loaded.size.should eq(1)
+  end
+
+  it "uses previous summary as carry_over" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    3.times { |i| inner.append("c1", [Crig::Completion::Message.user("batch1-msg#{i}")]) }
+
+    # First load evicts 1 (keeps 2), creates summary
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    compactor = Crig::Memory::TemplateCompactor.new
+    mem = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+    mem.load("c1")
+
+    # Add more messages
+    2.times { |i| inner.append("c1", [Crig::Completion::Message.user("batch2-msg#{i}")]) }
+    loaded = mem.load("c1")
+    # Should have summary + kept messages
+    loaded[0].rag_text.try(&.includes?("Conversation summary")).should be_true
+  end
+
+  it "exposes inner, policy, compactor accessors" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::NoopMemoryPolicy.new
+    compactor = Crig::Memory::TemplateCompactor.new
+    mem = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    mem.inner.should be_a(Crig::Memory::InMemoryConversationMemory)
+    mem.policy.should be_a(Crig::Memory::NoopMemoryPolicy)
+    mem.compactor.should be_a(Crig::Memory::TemplateCompactor)
+  end
+
+  it "returns decomposition via into_inner" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::NoopMemoryPolicy.new
+    compactor = Crig::Memory::TemplateCompactor.new
+    mem = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    i, p, c = mem.into_inner
+    i.should be_a(Crig::Memory::InMemoryConversationMemory)
+    p.should be_a(Crig::Memory::NoopMemoryPolicy)
+    c.should be_a(Crig::Memory::TemplateCompactor)
+  end
+end
+
+private class DemotingHookSpy
+  include Crig::Memory::DemotionHook
+
+  getter received : Array(Crig::Completion::Message)
+
+  def initialize(@received : Array(Crig::Completion::Message))
+  end
+
+  def on_demote(conversation_id : String, messages : Array(Crig::Completion::Message)) : Nil
+    @received.concat(messages)
+  end
+end
