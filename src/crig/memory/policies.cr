@@ -68,7 +68,7 @@ module Crig
         @per_message_overhead : Int32 = 4,
         @per_attachment_tokens : Int32 = 256,
       )
-        @bytes_per_token = {@bytes_per_token, 1.0}.max
+        @bytes_per_token = @bytes_per_token.nan? || @bytes_per_token < 1.0 ? 1.0 : @bytes_per_token
       end
 
       def self.openai : self
@@ -90,7 +90,7 @@ module Crig
                  when .assistant?
                    message.content.sum { |c| count_assistant_content(c.as(Crig::Completion::AssistantContent)) }
                  else
-                   0
+                   bytes_to_tokens(message.rag_text.try(&.bytesize) || 0)
                  end
         tokens + @per_message_overhead
       end
@@ -250,7 +250,7 @@ module Crig
           buf = truncate_summary(buf, cap) if buf.bytesize > cap
         end
 
-        Crig::Completion::Message.user(buf)
+        Crig::Completion::Message.system(buf)
       end
 
       private def render_message_line(msg : Crig::Completion::Message) : String
@@ -290,7 +290,8 @@ module Crig
           text = parts.reject(&.empty?).join(' ')
           text.empty? ? "" : "assistant: #{text}"
         else
-          ""
+          text = msg.rag_text
+          text && !text.empty? ? "system: #{text}" : ""
         end
       end
 
@@ -305,16 +306,17 @@ module Crig
         return "#{buf[0...header_prefix_len]}#{marker}" if keep_bytes <= 0
 
         body_start = header_prefix_len
-        body = buf[body_start..]?
+        body = buf.byte_slice(body_start)
         return buf unless body
 
         cut = body.bytesize - keep_bytes
         cut = 0 if cut < 0
 
-        # Walk forward to a UTF-8 char boundary to avoid splitting multi-byte chars.
+        # Walk forward past UTF-8 continuation bytes (0x80-0xBF) to find
+        # the next character boundary, matching Rust's is_char_boundary loop.
         while cut < body.bytesize
-          char_at = body.byte_slice?(cut, 4)
-          break if char_at
+          byte = body.byte_at(cut)
+          break unless byte && byte & 0xC0 == 0x80
           cut += 1
         end
 

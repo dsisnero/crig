@@ -276,6 +276,21 @@ describe Crig::Memory::DemotingPolicyMemory do
     p.should be_a(Crig::Memory::NoopMemoryPolicy)
     h.should be_a(Crig::Memory::NoopDemotionHook)
   end
+
+  it "raises MemoryError on hook failure" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    5.times { |i| inner.append("c1", [Crig::Completion::Message.user("msg#{i}")]) }
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(2)
+    hook = FailingDemotionHook.new
+    mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    begin
+      mem.load("c1")
+      fail("expected MemoryError")
+    rescue e : Crig::Memory::MemoryError
+      e.message.try(&.includes?("demotion hook failed")).should be_true
+    end
+  end
 end
 
 describe Crig::Memory::CompactingMemory do
@@ -353,6 +368,14 @@ describe Crig::Memory::CompactingMemory do
     i.should be_a(Crig::Memory::InMemoryConversationMemory)
     p.should be_a(Crig::Memory::NoopMemoryPolicy)
     c.should be_a(Crig::Memory::TemplateCompactor)
+  end
+end
+
+private class FailingDemotionHook
+  include Crig::Memory::DemotionHook
+
+  def on_demote(conversation_id : String, messages : Array(Crig::Completion::Message)) : Nil
+    raise "simulated hook failure"
   end
 end
 

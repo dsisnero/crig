@@ -193,7 +193,13 @@ module Crig
 
         begin
           @hook.on_demote(conversation_id, pending)
-        rescue
+        rescue error
+          @mutex.synchronize do
+            if entry = @state[conversation_id]?
+              entry.in_flight = false
+            end
+          end
+          raise MemoryError.internal("demotion hook failed: #{error.message}")
         end
 
         @mutex.synchronize do
@@ -300,13 +306,13 @@ module Crig
 
         begin
           summary = @compactor.compact(conversation_id, new_slice, carry_over)
-        rescue
+        rescue error
           @mutex.synchronize do
             if entry = @state[conversation_id]?
               entry.in_flight = false
             end
           end
-          return splice_summary(carry_over, kept)
+          raise MemoryError.internal("compactor failed: #{error.message}")
         end
 
         @mutex.synchronize do
