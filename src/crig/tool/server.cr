@@ -279,11 +279,19 @@ module Crig
     end
 
     def get_tool_definitions(text : String?) : Array(Crig::Completion::ToolDefinition)
+      # Snapshot everything needed under one lock to avoid lock-storm.
+      # The vector search runs outside the lock since it may involve I/O.
+      dynamic_tools_snapshot, static_defs = @lock.synchronize do
+        {
+          @dynamic_tools.dup,
+          @static_tool_names.map { |name| {name, @toolset.get(name)} }.to_a,
+        }
+      end
+
       tools = [] of Crig::Completion::ToolDefinition
 
       if query = text
-        dynamic_tools = @lock.synchronize { @dynamic_tools.dup }
-        dynamic_tool_ids = Crig::Concurrency.flat_map_ordered(dynamic_tools) do |sample, index|
+        dynamic_tool_ids = Crig::Concurrency.flat_map_ordered(dynamic_tools_snapshot) do |sample, index|
           request = Crig::VectorSearchRequest.builder
             .query(query)
             .samples(sample.to_u64)
@@ -292,15 +300,15 @@ module Crig
         end
 
         dynamic_tool_ids.each do |id|
+          # Re-check under lock since tool definitions may have changed during search.
           if tool = @lock.synchronize { @toolset.get(id) }
             tools << tool.definition(query)
           end
         end
       end
 
-      static_tool_names = @lock.synchronize { @static_tool_names.dup }
-      static_tool_names.each do |tool_name|
-        if tool = @lock.synchronize { @toolset.get(tool_name) }
+      static_defs.each do |_, tool|
+        if tool
           tools << tool.definition("")
         end
       end
