@@ -234,38 +234,96 @@ module Crig
         evicted : Array(Crig::Completion::Message),
         carry_over : Crig::Completion::Message?,
       ) : Crig::Completion::Message
-        parts = [@header]
-
-        if prev = carry_over
-          prev_text = prev.rag_text
-          parts << prev_text if prev_text
-        end
-
-        evicted.each do |msg|
-          text = msg.rag_text
-          parts << text if text
-        end
-
-        body = parts.join("\n")
-
-        if cap = @max_bytes
-          if body.bytesize > cap
-            header_len = @header.bytesize
-            marker = "[...truncated...]"
-            available = cap - header_len - marker.bytesize - 2
-            if available > 0
-              suffix = body[header_len + 1..]
-              if suffix
-                truncated = suffix.size > available ? suffix[-(available)..] : suffix
-                body = "#{@header}\n#{marker}\n#{truncated}"
-              end
-            else
-              body = "#{@header}\n#{marker}"
-            end
+        buf = String.build do |io|
+          io << @header << '\n'
+          if prev = carry_over
+            prev_text = prev.rag_text
+            io << prev_text << '\n' if prev_text
+          end
+          evicted.each do |msg|
+            line = render_message_line(msg)
+            io << line << '\n' unless line.empty?
           end
         end
 
-        Crig::Completion::Message.user(body)
+        if cap = @max_bytes
+          buf = truncate_summary(buf, cap) if buf.bytesize > cap
+        end
+
+        Crig::Completion::Message.user(buf)
+      end
+
+      private def render_message_line(msg : Crig::Completion::Message) : String
+        case msg.role
+        when .user?
+          parts = [] of String
+          msg.content.each do |c|
+            uc = c.as?(Crig::Completion::UserContent)
+            next unless uc
+            case uc.kind
+            when .text?
+              parts << uc.text.try(&.text).to_s
+            when .tool_result?
+              parts << "[tool result]"
+            else
+              parts << "[attachment]"
+            end
+          end
+          text = parts.reject(&.empty?).join(' ')
+          text.empty? ? "" : "user: #{text}"
+        when .assistant?
+          parts = [] of String
+          msg.content.each do |c|
+            uc = c.as?(Crig::Completion::AssistantContent)
+            next unless uc
+            case uc.kind
+            when .text?
+              parts << uc.text.try(&.text).to_s
+            when .tool_call?
+              if tc = uc.tool_call
+                parts << "[tool call: #{tc.function.name}]"
+              end
+            else
+              parts << "[reasoning]"
+            end
+          end
+          text = parts.reject(&.empty?).join(' ')
+          text.empty? ? "" : "assistant: #{text}"
+        else
+          ""
+        end
+      end
+
+      private def truncate_summary(buf : String, cap : Int32) : String
+        marker = "[\u{2026}truncated\u{2026}]\n"
+        header_prefix_len = buf.index('\n').try { |i| i + 1 } || return buf
+
+        return buf if buf.bytesize <= header_prefix_len
+
+        preserved = header_prefix_len + marker.bytesize
+        keep_bytes = cap - preserved
+        return "#{buf[0...header_prefix_len]}#{marker}" if keep_bytes <= 0
+
+        body_start = header_prefix_len
+        body = buf[body_start..]?
+        return buf unless body
+
+        cut = body.bytesize - keep_bytes
+        cut = 0 if cut < 0
+
+        # Walk forward to a UTF-8 char boundary to avoid splitting multi-byte chars.
+        while cut < body.bytesize
+          char_at = body.byte_slice?(cut, 4)
+          break if char_at
+          cut += 1
+        end
+
+        suffix = body.byte_slice(cut) || ""
+        String.build do |io|
+          io << buf[0...header_prefix_len]
+          io << marker
+          io << suffix
+        end
       end
     end
   end
