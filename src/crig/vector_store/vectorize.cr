@@ -1,6 +1,6 @@
 require "http/client"
 require "json"
-require "uuid"
+require "random/secure"
 
 module Crig
   module VectorStore
@@ -27,32 +27,23 @@ module Crig
           @api_code : UInt32? = nil,
           @api_message : String? = nil,
         )
-          super(message || build_message)
+          super(message)
         end
 
         def self.http_error(error : Exception) : self
-          new(Kind::HttpError, error.message)
+          new(Kind::HttpError, "HTTP request failed: #{error.message}")
         end
 
-        def self.api_error(code : UInt32, message : String) : self
-          new(Kind::ApiError, api_code: code, api_message: message)
+        def self.api_error(code : UInt32, msg : String) : self
+          new(Kind::ApiError, "Vectorize API error (code: #{code}): #{msg}", api_code: code, api_message: msg)
         end
 
         def self.serialization_error(error : Exception) : self
-          new(Kind::SerializationError, error.message)
+          new(Kind::SerializationError, "JSON serialization error: #{error.message}")
         end
 
         def self.unsupported_filter(operation : String) : self
           new(Kind::UnsupportedFilterOperation, "Unsupported filter operation: #{operation}")
-        end
-
-        private def build_message : String
-          case @kind
-          when .http_error?       then "HTTP request failed: #{super || ""}"
-          when .api_error?        then "Vectorize API error (code: #{@api_code}): #{@api_message}"
-          when .serialization?    then "JSON serialization error: #{super || ""}"
-          when .unsupported_filter? then @api_message || "Unsupported filter operation"
-          end
         end
 
         def to_vector_store_error : Crig::VectorStore::VectorStoreError
@@ -72,8 +63,11 @@ module Crig
         include JSON::Serializable
 
         property vector : Array(Float64)
+        @[JSON::Field(key: "topK")]
         property top_k : UInt64
+        @[JSON::Field(key: "returnValues")]
         property return_values : Bool?
+        @[JSON::Field(key: "returnMetadata")]
         property return_metadata : ReturnMetadata?
         property filter : JSON::Any?
 
@@ -253,10 +247,6 @@ module Crig
         def initialize(@raw : JSON::Any = JSON.parse("{}"))
         end
 
-        def self.new : self
-          new
-        end
-
         def into_inner : JSON::Any
           @raw
         end
@@ -266,7 +256,7 @@ module Crig
         end
 
         def is_empty : Bool
-          @raw.as_h?.try(&.empty?)
+          !!@raw.as_h?.try(&.empty?)
         end
 
         def eq(key : String, value : JSON::Any) : self
@@ -484,7 +474,7 @@ module Crig
           vectors = documents.flat_map do |document, embeddings|
             embeddings.map do |embedding|
               VectorInput.new(
-                id: UUID.random.to_s,
+                id: generate_uuid_v4,
                 values: embedding.vec,
                 metadata: document,
               )
@@ -494,6 +484,19 @@ module Crig
           @client.upsert(UpsertRequest.new(vectors))
         rescue ex : VectorizeError
           raise ex.to_vector_store_error
+        end
+      end
+
+      # UUID v4 generator using Crystal's Random::Secure.
+      def self.generate_uuid_v4 : String
+        bytes = Random::Secure.random_bytes(16)
+        bytes[6] = (bytes[6] & 0x0f) | 0x40  # version 4
+        bytes[8] = (bytes[8] & 0x3f) | 0x80  # variant 1
+        String.build(36) do |io|
+          bytes.each_with_index do |byte, i|
+            io << '-' if {4, 6, 8, 10}.includes?(i)
+            io << byte.to_s(16, upcase: true).rjust(2, '0')
+          end
         end
       end
     end
