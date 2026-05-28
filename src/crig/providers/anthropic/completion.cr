@@ -740,8 +740,9 @@ module Crig
         getter name : String
         getter description : String?
         getter input_schema : JSON::Any
+        getter cache_control : CacheControl?
 
-        def initialize(@name : String, @input_schema : JSON::Any, @description : String? = nil)
+        def initialize(@name : String, @input_schema : JSON::Any, @description : String? = nil, @cache_control : CacheControl? = nil)
         end
 
         def to_json(json : JSON::Builder) : Nil
@@ -749,6 +750,17 @@ module Crig
             json.field "name", @name
             json.field "description", @description unless @description.nil?
             json.field "input_schema" { @input_schema.to_json(json) }
+            json.field "cache_control" { @cache_control.not_nil!.to_json(json) } if @cache_control
+          end
+        end
+
+        def to_json_value : JSON::Any
+          JSON.parse(to_json_build)
+        end
+
+        private def to_json_build : String
+          JSON.build do |json|
+            to_json(json)
           end
         end
       end

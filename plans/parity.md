@@ -56,7 +56,7 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - Applied in both streaming and non-streaming tool invocation
   - Estimated: ~30 lines
 
-- [ ] **Anthropic Tool Cache Control**
+- [x] **Anthropic Tool Cache Control**
   - Upstream: `src/providers/anthropic/completion.rs`, `src/providers/anthropic/streaming.rs`
   - `ToolDefinition` gains `cache_control: Option<CacheControl>` field
   - `build_tool_definitions` factors out tool construction from streaming
