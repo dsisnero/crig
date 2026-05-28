@@ -11,8 +11,24 @@ module Crig
       include JSON::Serializable
 
       getter text : String
+      getter additional_params : JSON::Any?
 
-      def initialize(@text : String)
+      def initialize(@text : String, @additional_params : JSON::Any? = nil)
+      end
+
+      def self.new(pull : JSON::PullParser)
+        text = ""
+        add_params = nil.as(JSON::Any?)
+
+        pull.read_object do |key|
+          case key
+          when "text"              then text = pull.read_string
+          when "additional_params" then add_params = JSON::Any.new(pull)
+          else                          pull.skip
+          end
+        end
+
+        new(text, add_params)
       end
 
       def self.from(text : String) : self
