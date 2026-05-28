@@ -31,7 +31,7 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - All providers (anthropic, gemini, openai, ollama, etc.) updated to map provider-specific field
   - Estimated: ~150 lines across 12+ files
 
-- [ ] **CompletionCall Tracking in Agent Responses**
+- [x] **CompletionCall Tracking in Agent Responses**
   - Upstream: `src/agent/completion.rs`, `src/agent/prompt_request/mod.rs`, `src/agent/prompt_request/streaming.rs`
   - New `CompletionCall` struct: `call_index`, `usage: Option<Usage>`
   - `PromptResponse` and `TypedPromptResponse<T>` gain `completion_calls: Vec<CompletionCall>`

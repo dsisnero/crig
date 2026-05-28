@@ -113,20 +113,36 @@ module Crig
     include PromptType
   end
 
+  struct CompletionCall
+    include JSON::Serializable
+
+    getter call_index : Int32
+    getter usage : Crig::Completion::Usage?
+
+    def initialize(@call_index : Int32, @usage : Crig::Completion::Usage?)
+    end
+  end
+
   struct PromptResponse
     getter output : String
     getter usage : Crig::Completion::Usage
     getter messages : Array(Crig::Completion::Message)?
+    getter completion_calls : Array(CompletionCall)
 
     def initialize(
       @output : String,
       @usage : Crig::Completion::Usage,
       @messages : Array(Crig::Completion::Message)? = nil,
+      @completion_calls : Array(CompletionCall) = [] of CompletionCall,
     )
     end
 
     def with_messages(messages : Array(Crig::Completion::Message)) : self
-      self.class.new(@output, @usage, messages)
+      self.class.new(@output, @usage, messages, @completion_calls)
+    end
+
+    def with_completion_calls(calls : Array(CompletionCall)) : self
+      self.class.new(@output, @usage, @messages, calls)
     end
 
     def to_s(io : IO) : Nil
@@ -139,8 +155,17 @@ module Crig
 
     getter output : T
     getter usage : Crig::Completion::Usage
+    getter completion_calls : Array(CompletionCall)
 
-    def initialize(@output : T, @usage : Crig::Completion::Usage)
+    def initialize(
+      @output : T,
+      @usage : Crig::Completion::Usage,
+      @completion_calls : Array(CompletionCall) = [] of CompletionCall,
+    )
+    end
+
+    def with_completion_calls(calls : Array(CompletionCall)) : self
+      self.class.new(@output, @usage, calls)
     end
   end
 
@@ -203,6 +228,10 @@ module Crig
       self.class.new(@agent, @prompt, @chat_history, @max_turns, @concurrency, @hook, nil, nil)
     end
 
+    private def reported_usage(usage : Crig::Completion::Usage) : Crig::Completion::Usage?
+      usage.input_tokens == 0 && usage.output_tokens == 0 && usage.total_tokens == 0 ? nil : usage
+    end
+
     def send
       {% if S == Crig::Extended %}
         chat_history = (@chat_history || [] of Crig::Completion::Message).dup
@@ -224,6 +253,8 @@ module Crig
 
         current_max_turns = 0
         usage = Crig::Completion::Usage.new
+        completion_calls = [] of Crig::CompletionCall
+        zero_usage = Crig::Completion::Usage.new
 
         output = nil
         begin
@@ -239,6 +270,7 @@ module Crig
             run_completion_call_hook(prompt, chat_history[0...-1])
 
             response = @agent.completion(prompt, chat_history[0...-1]).send(@agent.model)
+            completion_calls << Crig::CompletionCall.new(completion_calls.size, reported_usage(response.usage))
             usage += response.usage
 
             run_completion_response_hook(prompt, response, chat_history)
@@ -272,7 +304,7 @@ module Crig
             output = text_parts.join
             agent_span.set_attribute(Crig::Telemetry::GEN_AI_COMPLETION, output)
             agent_span.record_token_usage(usage)
-            return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup)
+            return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup).with_completion_calls(completion_calls)
           end
         ensure
           unless output
@@ -442,7 +474,7 @@ module Crig
     def send
       {% if S == Crig::Extended %}
         response = @inner.send
-        Crig::TypedPromptResponse(T).new(T.from_json(response.output), response.usage)
+        Crig::TypedPromptResponse(T).new(T.from_json(response.output), response.usage, response.completion_calls)
       {% else %}
         T.from_json(@inner.send)
       {% end %}
