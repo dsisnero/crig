@@ -106,6 +106,21 @@ module Crig
       end
     end
 
+    module NullOrDefault(T)
+      def self.from_json(pull : JSON::PullParser) : T
+        if pull.kind.null?
+          pull.read_null
+          T.from_json(%({}))
+        else
+          T.new(pull)
+        end
+      end
+
+      def self.to_json(value : T, json : JSON::Builder) : Nil
+        value.to_json(json)
+      end
+    end
+
     module NullOrVecConverter(T)
       def self.from_json(pull : JSON::PullParser) : Array(T)
         if pull.kind.null?

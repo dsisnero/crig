@@ -5,7 +5,7 @@
 - This repository ports Rust upstream behavior from `https://github.com/0xPlaygrounds/rig.git`.
 - The pinned upstream checkout lives at `vendor/rig`.
 - Current parity work targets the Rust crate at `vendor/rig/crates/rig-core`.
-- The pinned upstream commit for this baseline is `f77a5819ec2a71e98583480a68a341f816a75c8a`.
+- The pinned upstream commit for this baseline is `a0cd8a8f505af70f10918e994bd45d8241ee4f37`.
 
 ## Required Workflow
 

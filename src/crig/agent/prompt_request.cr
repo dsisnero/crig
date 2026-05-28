@@ -168,7 +168,7 @@ module Crig
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
+      new(agent, prompt_message, nil, agent.default_max_turns || 0, hook: agent.hook, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
     def extended_details : PromptRequest(Crig::Extended, M)
@@ -269,7 +269,7 @@ module Crig
               next
             end
 
-            output = text_parts.join("\n")
+            output = text_parts.join
             agent_span.set_attribute(Crig::Telemetry::GEN_AI_COMPLETION, output)
             agent_span.record_token_usage(usage)
             return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup)

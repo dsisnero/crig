@@ -40,20 +40,24 @@ src/agent/prompt_request/hooks.rs::func::terminate	missing	-	baseline
 src/agent/prompt_request/hooks.rs::method::HookAction.cont	missing	-	baseline
 src/agent/prompt_request/hooks.rs::method::ToolCallHookAction.cont	missing	-	baseline
 src/agent/prompt_request/hooks.rs::trait::PromptHook	missing	-	baseline
+src/agent/prompt_request/mod.rs::func::completion_calls	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::conversation	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::extended_details	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::from_agent	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::max_turns	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::new	missing	-	baseline
+src/agent/prompt_request/mod.rs::func::with_completion_calls	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::with_messages	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::with_tool_concurrency	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::without_memory	missing	-	baseline
+src/agent/prompt_request/mod.rs::method::CompletionCall.new	missing	-	baseline
 src/agent/prompt_request/mod.rs::method::PromptRequest.extended_details	missing	-	baseline
 src/agent/prompt_request/mod.rs::method::PromptRequest.from_agent	missing	-	baseline
 src/agent/prompt_request/mod.rs::method::PromptResponse.new	missing	-	baseline
 src/agent/prompt_request/mod.rs::method::TypedPromptRequest.extended_details	missing	-	baseline
 src/agent/prompt_request/mod.rs::method::TypedPromptRequest.from_agent	missing	-	baseline
 src/agent/prompt_request/mod.rs::method::TypedPromptResponse.new	missing	-	baseline
+src/agent/prompt_request/mod.rs::struct::CompletionCall	missing	-	baseline
 src/agent/prompt_request/mod.rs::struct::Extended	missing	-	baseline
 src/agent/prompt_request/mod.rs::struct::PromptRequest	missing	-	baseline
 src/agent/prompt_request/mod.rs::struct::PromptResponse	missing	-	baseline
@@ -63,6 +67,9 @@ src/agent/prompt_request/mod.rs::struct::TypedPromptResponse	missing	-	baseline
 src/agent/prompt_request/mod.rs::trait::PromptType	missing	-	baseline
 src/agent/prompt_request/streaming.rs::enum::MultiTurnStreamItem	missing	-	baseline
 src/agent/prompt_request/streaming.rs::enum::StreamingError	missing	-	baseline
+src/agent/prompt_request/streaming.rs::func::assistant_content	missing	-	baseline
+src/agent/prompt_request/streaming.rs::func::completion_calls	missing	-	baseline
+src/agent/prompt_request/streaming.rs::func::content	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::conversation	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::empty	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::final_response	missing	-	baseline
@@ -198,7 +205,7 @@ src/completion/message.rs::method::DocumentMediaType.is_code	missing	-	baseline
 src/completion/message.rs::method::DocumentSourceKind.url	missing	-	baseline
 src/completion/message.rs::method::Image.try_into_url	missing	-	baseline
 src/completion/message.rs::method::Reasoning.new	missing	-	baseline
-src/completion/message.rs::method::Text.text	missing	-	baseline
+src/completion/message.rs::method::Text.new	missing	-	baseline
 src/completion/message.rs::method::ToolCall.new	missing	-	baseline
 src/completion/message.rs::method::ToolFunction.new	missing	-	baseline
 src/completion/message.rs::method::ToolResultContent.text	missing	-	baseline
@@ -537,6 +544,7 @@ src/providers/anthropic/completion.rs::const::CLAUDE_OPUS_4_7	missing	-	baseline
 src/providers/anthropic/completion.rs::const::CLAUDE_SONNET_4_6	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::CacheControl	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::CacheTtl	missing	-	baseline
+src/providers/anthropic/completion.rs::enum::Citation	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::Content	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::DocumentFormat	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::DocumentSource	missing	-	baseline
@@ -548,6 +556,7 @@ src/providers/anthropic/completion.rs::enum::SourceType	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::SystemContent	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::ToolChoice	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::ToolResultContent	missing	-	baseline
+src/providers/anthropic/completion.rs::func::anthropic_citations	missing	-	baseline
 src/providers/anthropic/completion.rs::func::apply_cache_control	missing	-	baseline
 src/providers/anthropic/completion.rs::func::ephemeral	missing	-	baseline
 src/providers/anthropic/completion.rs::func::ephemeral_1h	missing	-	baseline
@@ -559,6 +568,7 @@ src/providers/anthropic/completion.rs::func::with_prompt_caching	missing	-	basel
 src/providers/anthropic/completion.rs::method::CacheControl.ephemeral	missing	-	baseline
 src/providers/anthropic/completion.rs::method::GenericCompletionModel.new	missing	-	baseline
 src/providers/anthropic/completion.rs::struct::AnthropicRequestParams	missing	-	baseline
+src/providers/anthropic/completion.rs::struct::CitationsConfig	missing	-	baseline
 src/providers/anthropic/completion.rs::struct::CompletionResponse	missing	-	baseline
 src/providers/anthropic/completion.rs::struct::GenericCompletionModel	missing	-	baseline
 src/providers/anthropic/completion.rs::struct::Message	missing	-	baseline
@@ -1557,8 +1567,10 @@ src/providers/openrouter/audio_generation.rs::const::VOXTRAL_MINI_TTS	missing	-	
 src/providers/openrouter/audio_generation.rs::func::new	missing	-	baseline
 src/providers/openrouter/audio_generation.rs::method::AudioGenerationModel.new	missing	-	baseline
 src/providers/openrouter/audio_generation.rs::struct::AudioGenerationModel	missing	-	baseline
+src/providers/openrouter/client.rs::func::with_app_identity	missing	-	baseline
 src/providers/openrouter/client.rs::struct::OpenRouterExt	missing	-	baseline
 src/providers/openrouter/client.rs::struct::OpenRouterExtBuilder	missing	-	baseline
+src/providers/openrouter/client.rs::struct::PromptTokensDetails	missing	-	baseline
 src/providers/openrouter/client.rs::struct::Usage	missing	-	baseline
 src/providers/openrouter/client.rs::type::Client	missing	-	baseline
 src/providers/openrouter/client.rs::type::ClientBuilder	missing	-	baseline
@@ -1646,6 +1658,7 @@ src/providers/openrouter/embedding.rs::struct::EmbeddingModel	missing	-	baseline
 src/providers/openrouter/embedding.rs::struct::EmbeddingResponse	missing	-	baseline
 src/providers/openrouter/model_listing.rs::struct::OpenRouterModelLister	missing	-	baseline
 src/providers/openrouter/streaming.rs::enum::FinishReason	missing	-	baseline
+src/providers/openrouter/streaming.rs::struct::PromptTokensDetails	missing	-	baseline
 src/providers/openrouter/streaming.rs::struct::StreamingCompletionResponse	missing	-	baseline
 src/providers/openrouter/streaming.rs::struct::Usage	missing	-	baseline
 src/providers/openrouter/transcription.rs::const::CHIRP_3	missing	-	baseline
@@ -2005,6 +2018,8 @@ src/test_utils/streaming.rs::func::final_response_with_total_tokens	missing	-	ba
 src/test_utils/streaming.rs::func::message_id	missing	-	baseline
 src/test_utils/streaming.rs::func::new	missing	-	baseline
 src/test_utils/streaming.rs::func::text	missing	-	baseline
+src/test_utils/streaming.rs::func::text_additional_params	missing	-	baseline
+src/test_utils/streaming.rs::func::text_start	missing	-	baseline
 src/test_utils/streaming.rs::func::tool_call	missing	-	baseline
 src/test_utils/streaming.rs::func::tool_call_arguments_delta	missing	-	baseline
 src/test_utils/streaming.rs::func::tool_call_name_delta	missing	-	baseline

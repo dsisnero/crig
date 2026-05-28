@@ -1066,6 +1066,9 @@ module Crig
 
             getter name : String?
             getter arguments : String?
+
+            def initialize(@name : String? = nil, @arguments : String? = nil)
+            end
           end
 
           struct ToolCall
@@ -1074,6 +1077,34 @@ module Crig
             getter index : Int32
             getter id : String?
             getter function : Function
+
+            def initialize(@index : Int32, @id : String? = nil, @function : Function = Function.new)
+            end
+
+            def initialize(pull : JSON::PullParser)
+              idx = 0
+              fid : String? = nil
+              func = Function.new
+              pull.read_object do |key|
+                case key
+                when "index"
+                  idx = pull.read_int.to_i
+                when "id"
+                  fid = pull.read_string_or_null
+                when "function"
+                  if pull.kind.null?
+                    pull.read_null
+                  else
+                    func = Function.new(pull)
+                  end
+                else
+                  pull.skip
+                end
+              end
+              @index = idx
+              @id = fid
+              @function = func
+            end
           end
 
           struct Delta

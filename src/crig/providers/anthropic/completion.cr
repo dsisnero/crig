@@ -1307,7 +1307,7 @@ module Crig
           texts = @content.to_a.compact_map do |c|
             c.text if c.kind.text?
           end
-          joined = texts.join('\n')
+          joined = texts.join
           joined.empty? ? nil : joined
         end
 

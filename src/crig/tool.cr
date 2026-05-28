@@ -484,8 +484,16 @@ module Crig
     def call(args : String) : String
       parsed_args = begin
         Args.from_json(args)
-      rescue ex
-        raise Crig::ToolError.json_error(ex)
+      rescue original_ex
+        if args.strip == "null"
+          begin
+            Args.from_json("{}")
+          rescue _fallback_ex
+            raise Crig::ToolError.json_error(original_ex)
+          end
+        else
+          raise Crig::ToolError.json_error(original_ex)
+        end
       end
 
       output = begin
