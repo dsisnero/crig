@@ -218,6 +218,7 @@ module Crig
       getter cached_input_tokens : Int64
       getter cache_creation_input_tokens : Int64
       getter reasoning_tokens : Int64
+      getter tool_use_prompt_tokens : Int64
 
       def initialize(
         @input_tokens : Int64 = 0,
@@ -226,6 +227,7 @@ module Crig
         @cached_input_tokens : Int64 = 0,
         @cache_creation_input_tokens : Int64 = 0,
         @reasoning_tokens : Int64 = 0,
+        @tool_use_prompt_tokens : Int64 = 0,
       )
       end
 
@@ -236,6 +238,7 @@ module Crig
         cached_input_tokens = 0_i64
         cache_creation = 0_i64
         reasoning = 0_i64
+        tool_use_prompt_tokens = 0_i64
 
         pull.read_object do |key|
           case key
@@ -245,6 +248,7 @@ module Crig
           when "cached_input_tokens"   then cached_input_tokens = pull.read_int.to_i64
           when "cache_creation_input_tokens" then cache_creation = pull.read_int.to_i64
           when "reasoning_tokens"      then reasoning = pull.read_int.to_i64
+          when "tool_use_prompt_tokens" then tool_use_prompt_tokens = pull.read_int.to_i64
           else pull.skip
           end
         end
@@ -256,6 +260,7 @@ module Crig
           cached_input_tokens: cached_input_tokens,
           cache_creation_input_tokens: cache_creation,
           reasoning_tokens: reasoning,
+          tool_use_prompt_tokens: tool_use_prompt_tokens,
         )
       end
 
@@ -269,6 +274,9 @@ module Crig
           output_tokens: @output_tokens + other.output_tokens,
           total_tokens: @total_tokens + other.total_tokens,
           cached_input_tokens: @cached_input_tokens + other.cached_input_tokens,
+          cache_creation_input_tokens: @cache_creation_input_tokens + other.cache_creation_input_tokens,
+          reasoning_tokens: @reasoning_tokens + other.reasoning_tokens,
+          tool_use_prompt_tokens: @tool_use_prompt_tokens + other.tool_use_prompt_tokens,
         )
       end
 
@@ -277,6 +285,9 @@ module Crig
         @output_tokens += other.output_tokens
         @total_tokens += other.total_tokens
         @cached_input_tokens += other.cached_input_tokens
+        @cache_creation_input_tokens += other.cache_creation_input_tokens
+        @reasoning_tokens += other.reasoning_tokens
+        @tool_use_prompt_tokens += other.tool_use_prompt_tokens
         self
       end
     end

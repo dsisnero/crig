@@ -23,7 +23,7 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - `Content::Document` gains `title`, `context`, `citations` fields
   - Estimated: ~3,500 lines of diff across streaming, message, anthropic completion, anthropic streaming
 
-- [ ] **tool_use_prompt_tokens on Usage**
+- [x] **tool_use_prompt_tokens on Usage**
   - Upstream: `src/completion/request.rs`, `src/telemetry/mod.rs`, all provider files
   - `Usage` gains `tool_use_prompt_tokens: UInt64` field (serde default)
   - `Usage::new()`, `Add`, `AddAssign` updated

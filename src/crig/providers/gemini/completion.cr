@@ -1237,6 +1237,8 @@ module Crig
         getter total_token_count : Int32
         @[JSON::Field(key: "thoughtsTokenCount")]
         getter thoughts_token_count : Int32?
+        @[JSON::Field(key: "toolUsePromptTokenCount")]
+        getter tool_use_prompt_token_count : Int32?
 
         def initialize(
           @prompt_token_count : Int32,
@@ -1244,6 +1246,7 @@ module Crig
           @candidates_token_count : Int32? = nil,
           @total_token_count : Int32 = 0,
           @thoughts_token_count : Int32? = nil,
+          @tool_use_prompt_token_count : Int32? = nil,
         )
         end
 
@@ -1257,6 +1260,7 @@ module Crig
             output_tokens: output_tokens,
             total_tokens: input_tokens + output_tokens,
             cached_input_tokens: (@cached_content_token_count || 0).to_i64,
+            tool_use_prompt_tokens: (@tool_use_prompt_token_count || 0).to_i64,
           )
         end
       end
