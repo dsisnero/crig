@@ -391,12 +391,12 @@ module Crig
           raw = JSON::Any.new(pull)
           kind = if hash = raw.as_h?
                    case hash["type"]?.try(&.as_s?)
-                   when "char_location"            then Kind::CharLocation
-                   when "page_location"            then Kind::PageLocation
-                   when "content_block_location"   then Kind::ContentBlockLocation
-                   when "search_result_location"   then Kind::SearchResultLocation
+                   when "char_location"              then Kind::CharLocation
+                   when "page_location"              then Kind::PageLocation
+                   when "content_block_location"     then Kind::ContentBlockLocation
+                   when "search_result_location"     then Kind::SearchResultLocation
                    when "web_search_result_location" then Kind::WebSearchResultLocation
-                   else Kind::Unknown
+                   else                                   Kind::Unknown
                    end
                  else
                    Kind::Unknown

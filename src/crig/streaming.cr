@@ -612,10 +612,10 @@ module Crig
         existing = @assistant_items[index]?
         if existing && existing.kind.reasoning?
           reasoning = existing.reasoning
-            if reasoning && (content = reasoning.content.last?) && content.kind.text?
-              new_content = reasoning.content.dup
-              new_content[-1] = Crig::Completion::ReasoningContent.text("#{content.text}#{text}", content.signature)
-              updated = Crig::Completion::Reasoning.new(new_content, reasoning.id)
+          if reasoning && (content = reasoning.content.last?) && content.kind.text?
+            new_content = reasoning.content.dup
+            new_content[-1] = Crig::Completion::ReasoningContent.text("#{content.text}#{text}", content.signature)
+            updated = Crig::Completion::Reasoning.new(new_content, reasoning.id)
             @assistant_items[index] = Crig::Completion::AssistantContent.new(
               Crig::Completion::AssistantContent::Kind::Reasoning,
               reasoning: updated
