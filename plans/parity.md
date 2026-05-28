@@ -73,7 +73,7 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - Gemini role alias: `Assistant` gains `#[serde(alias = "model")]` for Gemini `"role": "model"`
   - Estimated: ~250 lines
 
-- [ ] **Gemini Tool Protocol & Streaming Metadata**
+- [x] **Gemini Tool Protocol & Streaming Metadata**
   - Upstream: `src/providers/gemini/completion.rs`, `src/providers/gemini/streaming.rs`
   - `FinishReason` gains: `UnexpectedToolCall`, `MissingThoughtSignature`, `TooManyToolCalls`, `MalformedResponse`
   - `function_call_finish_reason_error` converts to `CompletionError::ResponseError`

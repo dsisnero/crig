@@ -1045,6 +1045,10 @@ module Crig
         ProhibitedContent
         Spii
         MalformedFunctionCall
+        UnexpectedToolCall
+        MissingThoughtSignature
+        TooManyToolCalls
+        MalformedResponse
 
         def self.new(pull : JSON::PullParser)
           parse(pull.read_string)
@@ -1412,8 +1416,22 @@ module Crig
         )
         end
 
+        def self.tool_protocol_error?(finish_reason : FinishReason?, finish_message : String?) : Crig::Completion::CompletionError?
+          return unless finish_reason
+
+          if finish_reason.malformed_function_call? || finish_reason.unexpected_tool_call? || finish_reason.missing_thought_signature? || finish_reason.too_many_tool_calls? || finish_reason.malformed_response?
+            message = finish_message || "no finish message provided"
+            Crig::Completion::CompletionError.new("Gemini stopped with finish_reason=#{finish_reason}: #{message}", Crig::Completion::CompletionError::Kind::ResponseError)
+          end
+        end
+
         def to_completion_response : Crig::Completion::CompletionResponse(self)
           candidate = @candidates.first? || raise Crig::Completion::CompletionError.new("No response candidates in response")
+
+          if error = GenerateContentResponse.tool_protocol_error?(candidate.finish_reason, candidate.finish_message)
+            raise error
+          end
+
           content = candidate.content || raise Crig::Completion::CompletionError.new(
             "Gemini candidate missing content (finish_reason=#{candidate.finish_reason || "unknown"}, finish_message=#{candidate.finish_message || "no finish message provided"})"
           )

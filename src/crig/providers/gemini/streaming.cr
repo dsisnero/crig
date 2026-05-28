@@ -64,8 +64,19 @@ module Crig
 
         @[JSON::Field(key: "usageMetadata")]
         getter usage_metadata : PartialUsage
+        @[JSON::Field(key: "finishReason")]
+        getter finish_reason : Crig::Providers::Gemini::FinishReason?
+        @[JSON::Field(key: "finishMessage")]
+        getter finish_message : String?
+        @[JSON::Field(key: "modelVersion")]
+        getter model_version : String?
 
-        def initialize(@usage_metadata : PartialUsage = PartialUsage.new)
+        def initialize(
+          @usage_metadata : PartialUsage = PartialUsage.new,
+          @finish_reason : Crig::Providers::Gemini::FinishReason? = nil,
+          @finish_message : String? = nil,
+          @model_version : String? = nil,
+        )
         end
 
         def token_usage : Crig::Completion::Usage
@@ -92,6 +103,10 @@ module Crig
         private def parse_streaming_choices(text : String) : Array(Crig::RawStreamingChoice(StreamingCompletionResponse))
           raw_choices = [] of Crig::RawStreamingChoice(StreamingCompletionResponse)
           final_usage = nil.as(PartialUsage?)
+          final_finish_reason : Crig::Providers::Gemini::FinishReason? = nil
+          final_finish_message : String? = nil
+          final_model_version : String? = nil
+          stream_failed = false
 
           text.each_line do |line|
             next unless line.starts_with?("data:")
@@ -102,13 +117,34 @@ module Crig
             data = begin
               StreamGenerateContentResponse.from_json(data_str)
             rescue ex
-              raise Crig::Completion::CompletionError.new("Failed to parse Gemini SSE message: #{ex.message}")
+              raise Crig::Completion::CompletionError.json_error(ex)
             end
 
             choice = data.candidates.first?
             next unless choice
+
+            if data.model_version
+              final_model_version = data.model_version
+            end
+            if choice.finish_reason
+              final_finish_reason = choice.finish_reason
+              final_finish_message = choice.finish_message
+            end
+
+            if error = tool_protocol_finish_reason_error(choice)
+              stream_failed = true
+              raise error
+            end
+
             content = choice.content
-            next unless content
+
+            unless content
+              if choice.finish_reason
+                final_usage = data.usage_metadata
+                break
+              end
+              next
+            end
 
             content.parts.each do |part|
               append_stream_part(raw_choices, part)
@@ -120,10 +156,29 @@ module Crig
             end
           end
 
-          raw_choices << Crig::RawStreamingChoice(StreamingCompletionResponse).final_response(
-            StreamingCompletionResponse.new(final_usage || PartialUsage.new)
-          )
+          unless stream_failed
+            raw_choices << Crig::RawStreamingChoice(StreamingCompletionResponse).final_response(
+              StreamingCompletionResponse.new(
+                usage_metadata: final_usage || PartialUsage.new,
+                finish_reason: final_finish_reason,
+                finish_message: final_finish_message,
+                model_version: final_model_version,
+              )
+            )
+          end
           raw_choices
+        end
+
+        private def tool_protocol_finish_reason_error(choice : ContentCandidate) : Crig::Completion::CompletionError?
+          return unless (reason = choice.finish_reason)
+
+          if reason.malformed_function_call? || reason.unexpected_tool_call? || reason.missing_thought_signature? || reason.too_many_tool_calls? || reason.malformed_response?
+            message = choice.finish_message || "no finish message provided"
+            Crig::Completion::CompletionError.new(
+              "Gemini stopped with finish_reason=#{reason}: #{message}",
+              Crig::Completion::CompletionError::Kind::ResponseError,
+            )
+          end
         end
 
         private def append_stream_part(
