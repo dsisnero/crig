@@ -516,7 +516,7 @@ module Crig
                   in .base64?
                     media_type = image.media_type.try { |value| Crig::Completion::MimeType.image_to_mime_type(value) } ||
                                  raise Crig::Completion::CompletionError.new("OpenAI Image URI must have media type")
-                    detail = image.detail || raise Crig::Completion::CompletionError.new("OpenAI image URI must have image detail")
+                    detail = image.detail || Crig::Completion::ImageDetail::Auto
                     data = image.data.string_value || raise Crig::Completion::CompletionError.new("OpenAI base64 image is missing")
                     other_content << UserContent.image("data:#{media_type};base64,#{data}", detail.to_s.downcase)
                   in .raw?, .string?, .file_id?, .unknown?
