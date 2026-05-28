@@ -39,7 +39,7 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - Streaming: `MultiTurnStreamItem::CompletionCall` variant + `FinalResponse` gains content and completion_calls
   - Estimated: ~500 lines
 
-- [ ] **Tool Call Validation (agent-side)**
+- [x] **Tool Call Validation (agent-side)**
   - Upstream: `src/agent/completion.rs`, `src/agent/prompt_request/mod.rs`, `src/agent/prompt_request/streaming.rs`
   - `PreparedCompletionRequest` with `executable_tool_names` + `allowed_tool_names: BTreeSet<String>`
   - `allowed_tool_names_for_choice()` computes allowed set from `ToolChoice`

@@ -52,6 +52,7 @@ module Crig
         ToolServerError
         MaxTurnsError
         PromptCancelled
+        UnknownToolCall
         Other
       end
 
@@ -63,6 +64,9 @@ module Crig
       getter completion_error : CompletionError?
       getter tool_error : Crig::ToolSetError?
       getter tool_server_error : Crig::ToolServerError?
+      getter tool_name : String?
+      getter available_tools : Array(String)?
+      getter allowed_tools : Array(String)?
 
       def initialize(
         message : String,
@@ -74,6 +78,9 @@ module Crig
         @completion_error : CompletionError? = nil,
         @tool_error : Crig::ToolSetError? = nil,
         @tool_server_error : Crig::ToolServerError? = nil,
+        @tool_name : String? = nil,
+        @available_tools : Array(String)? = nil,
+        @allowed_tools : Array(String)? = nil,
       )
         super(message)
       end
@@ -103,6 +110,23 @@ module Crig
           prompt: prompt,
           max_turns: max_turns,
           reason: reason,
+        )
+      end
+
+      def self.unknown_tool_call(
+        tool_name : String,
+        available_tools : Array(String),
+        allowed_tools : Array(String),
+        chat_history : Array(Message),
+      ) : self
+        msg = "UnknownToolCall: #{tool_name} (available: #{available_tools.join(", ")}, allowed: #{allowed_tools.join(", ")})"
+        new(
+          msg,
+          Kind::UnknownToolCall,
+          chat_history: chat_history,
+          tool_name: tool_name,
+          available_tools: available_tools,
+          allowed_tools: allowed_tools,
         )
       end
     end
@@ -305,6 +329,35 @@ module Crig
         @message_id : String? = nil,
       )
       end
+    end
+    def self.allowed_tool_names_for_choice(executable_tool_names : Enumerable(String), tool_choice : ToolChoice?) : Set(String)
+      case tool_choice
+      when nil
+        Set.new(executable_tool_names)
+      when .none?
+        Set(String).new
+      when .auto?, .required?
+        Set.new(executable_tool_names)
+      when .specific?
+        names = tool_choice.function_names
+        Set.new(names)
+      end
+    end
+
+    def self.validate_tool_call_name?(
+      tool_name : String,
+      executable_tool_names : Enumerable(String),
+      allowed_tool_names : Enumerable(String),
+      chat_history : Array(Message),
+    ) : PromptError?
+      return nil if allowed_tool_names.includes?(tool_name)
+
+      PromptError.unknown_tool_call(
+        tool_name,
+        executable_tool_names.to_a,
+        allowed_tool_names.to_a,
+        chat_history,
+      )
     end
   end
 end
