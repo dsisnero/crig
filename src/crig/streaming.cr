@@ -124,6 +124,8 @@ module Crig
       ReasoningDelta
       FinalResponse
       MessageId
+      TextStart
+      TextAdditionalParams
     end
 
     getter kind : Kind
@@ -137,6 +139,7 @@ module Crig
     getter reasoning_delta : String?
     getter final_response : R?
     getter message_id : String?
+    getter additional_params : JSON::Any?
 
     def initialize(
       @kind : Kind,
@@ -150,6 +153,7 @@ module Crig
       @reasoning_delta : String? = nil,
       @final_response : R? = nil,
       @message_id : String? = nil,
+      @additional_params : JSON::Any? = nil,
     )
     end
 
@@ -179,6 +183,14 @@ module Crig
 
     def self.message_id(id : String) : self
       new(Kind::MessageId, message_id: id)
+    end
+
+    def self.text_start(additional_params : JSON::Any? = nil) : self
+      new(Kind::TextStart, additional_params: additional_params)
+    end
+
+    def self.text_additional_params(params : JSON::Any) : self
+      new(Kind::TextAdditionalParams, additional_params: params)
     end
   end
 
@@ -482,6 +494,18 @@ module Crig
         append_text_chunk(text)
         finalize_choice
         StreamedAssistantContent(R).text(text)
+      in .text_start?
+        @reasoning_item_index = nil
+        @text_item_index = nil
+        if params = choice.additional_params
+          append_text_additional_params(params)
+        end
+        next_item
+      in .text_additional_params?
+        if params = choice.additional_params
+          append_text_additional_params(params)
+        end
+        next_item
       in .tool_call_delta?
         finalize_choice
         StreamedAssistantContent(R).tool_call_delta(
@@ -538,7 +562,12 @@ module Crig
         if existing && existing.kind.text?
           existing_text = existing.text
           if existing_text
-            @assistant_items[index] = Crig::Completion::AssistantContent.text("#{existing_text.text}#{text}")
+            combined_text = "#{existing_text.text}#{text}"
+            params = existing_text.additional_params
+            @assistant_items[index] = Crig::Completion::AssistantContent.new(
+              Crig::Completion::AssistantContent::Kind::Text,
+              text: Crig::Completion::Text.new(combined_text, params),
+            )
             return
           end
         end
@@ -546,6 +575,36 @@ module Crig
 
       @assistant_items << Crig::Completion::AssistantContent.text(text)
       @text_item_index = @assistant_items.size - 1
+    end
+
+    private def append_text_additional_params(additional_params : JSON::Any) : Nil
+      return if additional_params.raw.is_a?(Nil)
+
+      index = if idx = @text_item_index
+                existing = @assistant_items[idx]?
+                existing && existing.kind.text? ? idx : nil
+              end
+
+      unless index
+        @assistant_items << Crig::Completion::AssistantContent.text("")
+        index = @assistant_items.size - 1
+        @text_item_index = index
+      end
+
+      existing = @assistant_items[index]?
+      return unless existing && existing.kind.text?
+
+      text = existing.text
+      return unless text
+
+      if current = text.additional_params
+        Crig::JSONUtils.merge_text_additional_params(current, additional_params)
+      else
+        @assistant_items[index] = Crig::Completion::AssistantContent.new(
+          Crig::Completion::AssistantContent::Kind::Text,
+          text: Crig::Completion::Text.new(text.text, additional_params),
+        )
+      end
     end
 
     private def append_reasoning_chunk(id : String?, text : String) : Nil

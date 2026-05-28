@@ -15,9 +15,13 @@ These features exist in the latest upstream but not in the pinned baseline or th
 - [x] **Text::additional_params & Citation Support**
   - Upstream: `src/completion/message.rs`, `src/streaming.rs`, `src/providers/anthropic/completion.rs`, `src/providers/anthropic/streaming.rs`
   - `Text` struct gains `additional_params: Option<JSON::Any>` for provider-specific metadata
-  - `Text::new(text)` / `Text.from(text)` constructors with default nil additional_params
-  - Custom JSON deserializer handles `additional_params` field
-  - Note: Full Anthropic citations (Citation enum, server tool use, web search, document title/context) deferred to future PR
+  - Anthropic: `Citation` enum (6 variants), `CitationsConfig` struct, `ANTHROPIC_RAW_CONTENT_KEY` constant
+  - Anthropic: `Content::ServerToolUse` and `Content::WebSearchToolResult` content types
+  - Anthropic: `Content::Document` parses `title`, `context`, `citations.enabled` fields
+  - Anthropic: `Content::Text` parses `citations` array from response JSON
+  - Streaming: `RawStreamingChoice::TextStart` and `TextAdditionalParams` variants
+  - Streaming: `append_text_additional_params` + `merge_text_additional_params` recursive merge
+  - Streaming: `append_text_chunk` preserves `additional_params` during text concatenation
 
 - [x] **tool_use_prompt_tokens on Usage**
   - Upstream: `src/completion/request.rs`, `src/telemetry/mod.rs`, all provider files

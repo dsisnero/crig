@@ -358,6 +358,53 @@ module Crig
         end
       end
 
+      ANTHROPIC_RAW_CONTENT_KEY = "anthropic_content"
+
+      struct CitationsConfig
+        include JSON::Serializable
+
+        getter enabled : Bool
+
+        def initialize(@enabled : Bool)
+        end
+      end
+
+      struct Citation
+        include JSON::Serializable
+
+        enum Kind
+          CharLocation
+          PageLocation
+          ContentBlockLocation
+          SearchResultLocation
+          WebSearchResultLocation
+          Unknown
+        end
+
+        getter kind : Kind
+        getter raw : JSON::Any
+
+        def initialize(@kind : Kind, @raw : JSON::Any)
+        end
+
+        def self.new(pull : JSON::PullParser)
+          raw = JSON::Any.new(pull)
+          kind = if hash = raw.as_h?
+                   case hash["type"]?.try(&.as_s?)
+                   when "char_location"            then Kind::CharLocation
+                   when "page_location"            then Kind::PageLocation
+                   when "content_block_location"   then Kind::ContentBlockLocation
+                   when "search_result_location"   then Kind::SearchResultLocation
+                   when "web_search_result_location" then Kind::WebSearchResultLocation
+                   else Kind::Unknown
+                   end
+                 else
+                   Kind::Unknown
+                 end
+          new(kind, raw)
+        end
+      end
+
       struct Content
         enum Kind
           Text
@@ -367,6 +414,8 @@ module Crig
           Document
           Thinking
           RedactedThinking
+          ServerToolUse
+          WebSearchToolResult
         end
 
         getter kind : Kind
@@ -382,6 +431,10 @@ module Crig
         getter thinking : String?
         getter signature : String?
         getter data : String?
+        getter citations : Array(Citation)?
+        getter document_title : String?
+        getter document_context : String?
+        getter document_citations_enabled : Bool?
 
         def initialize(
           @kind : Kind,
@@ -397,6 +450,10 @@ module Crig
           @thinking : String? = nil,
           @signature : String? = nil,
           @data : String? = nil,
+          @citations : Array(Citation)? = nil,
+          @document_title : String? = nil,
+          @document_context : String? = nil,
+          @document_citations_enabled : Bool? = nil,
         )
         end
 
@@ -428,6 +485,14 @@ module Crig
           new(Kind::RedactedThinking, data: data)
         end
 
+        def self.server_tool_use(id : String, name : String, input : JSON::Any = JSON.parse(%({}))) : self
+          new(Kind::ServerToolUse, id: id, name: name, input: input)
+        end
+
+        def self.web_search_tool_result(tool_use_id : String) : self
+          new(Kind::WebSearchToolResult, tool_use_id: tool_use_id)
+        end
+
         def self.from_json_value(value : JSON::Any) : self
           if string = value.as_s?
             return text(string)
@@ -436,7 +501,8 @@ module Crig
           hash = value.as_h
           case hash["type"].as_s
           when "text"
-            text(hash["text"].as_s, parse_cache_control(hash["cache_control"]?))
+            citations = hash["citations"]?.try(&.as_a?).try(&.map { |c| Citation.from_json(c.to_json) })
+            new(Kind::Text, text: hash["text"].as_s, cache_control: parse_cache_control(hash["cache_control"]?), citations: citations)
           when "image"
             image(ImageSource.from_json_value(hash["source"]), parse_cache_control(hash["cache_control"]?))
           when "tool_use"
@@ -450,11 +516,22 @@ module Crig
                       end
             tool_result(hash["tool_use_id"].as_s, content, hash["is_error"]?.try(&.as_bool), parse_cache_control(hash["cache_control"]?))
           when "document"
-            document(DocumentSource.from_json_value(hash["source"]), parse_cache_control(hash["cache_control"]?))
+            new(
+              Kind::Document,
+              source: DocumentSource.from_json_value(hash["source"]),
+              cache_control: parse_cache_control(hash["cache_control"]?),
+              document_title: hash["title"]?.try(&.as_s?),
+              document_context: hash["context"]?.try(&.as_s?),
+              document_citations_enabled: hash["citations"]?.try(&.as_h?).try(&.["enabled"]?.try(&.as_bool?)),
+            )
           when "thinking"
             thinking(hash["thinking"].as_s, hash["signature"]?.try(&.as_s?))
           when "redacted_thinking"
             redacted_thinking(hash["data"].as_s)
+          when "server_tool_use"
+            server_tool_use(hash["id"].as_s, hash["name"].as_s, hash["input"]? || JSON.parse(%({})))
+          when "web_search_tool_result"
+            web_search_tool_result(hash["tool_use_id"].as_s)
           else
             raise Crig::Completion::MessageError.new("Unsupported Anthropic content type: #{hash["type"].as_s}")
           end

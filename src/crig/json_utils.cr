@@ -135,5 +135,25 @@ module Crig
         value.to_json(json)
       end
     end
+
+    def self.merge_text_additional_params(existing : JSON::Any, incoming : JSON::Any) : Nil
+      existing_h = existing.as_h?
+      incoming_h = incoming.as_h?
+      return unless existing_h && incoming_h
+
+      incoming_h.each do |key, incoming_value|
+        if curr = existing_h[key]?
+          if curr.as_a? && incoming_value.as_a?
+            curr.as_a.concat(incoming_value.as_a)
+          elsif curr.as_h? && incoming_value.as_h?
+            merge_text_additional_params(curr, incoming_value)
+          else
+            existing_h[key] = incoming_value
+          end
+        else
+          existing_h[key] = incoming_value
+        end
+      end
+    end
   end
 end
