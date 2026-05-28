@@ -19,6 +19,7 @@ module Crig
     GEN_AI_USAGE_OUTPUT_TOKENS  = "gen_ai.usage.output_tokens"
     GEN_AI_USAGE_CACHED_INPUT   = "gen_ai.usage.cache_read.input_tokens"
     GEN_AI_USAGE_CACHE_CREATION = "gen_ai.usage.cache_creation.input_tokens"
+    GEN_AI_USAGE_TOOL_USE_PROMPT = "gen_ai.usage.tool_use_prompt_tokens"
     GEN_AI_USAGE_REASONING      = "gen_ai.usage.reasoning_tokens"
     GEN_AI_AGENT_NAME           = "gen_ai.agent.name"
     GEN_AI_PROMPT               = "gen_ai.prompt"
@@ -151,6 +152,7 @@ module Crig
             set_attribute(GEN_AI_USAGE_OUTPUT_TOKENS, token_usage.output_tokens)
             set_attribute(GEN_AI_USAGE_CACHED_INPUT, token_usage.cached_input_tokens)
             set_attribute(GEN_AI_USAGE_CACHE_CREATION, token_usage.cache_creation_input_tokens)
+            set_attribute(GEN_AI_USAGE_TOOL_USE_PROMPT, token_usage.tool_use_prompt_tokens)
             set_attribute(GEN_AI_USAGE_REASONING, token_usage.reasoning_tokens)
           end
         end
