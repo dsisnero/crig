@@ -917,7 +917,7 @@ module Crig
                              Crig::OneOrMany(UserContent).many(hash["content"].as_a.map { |entry| UserContent.from_json_value(entry) })
                            end
             new(Kind::User, user_content: user_content, name: hash["name"]?.try(&.as_s?))
-          when "assistant"
+          when "assistant", "model"
             assistant_content = if content = hash["content"]?
                                   if text = content.as_s?
                                     [Crig::Providers::OpenAI::Chat::AssistantContent.text(text)]

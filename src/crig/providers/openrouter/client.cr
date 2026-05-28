@@ -12,21 +12,38 @@ module Crig
       struct ClientBuilder
         getter api_key : String?
         getter base_url : String
+        getter app_title : String?
+        getter app_url : String?
+        getter app_categories : Array(String)?
 
-        def initialize(@api_key : String? = nil, @base_url : String = OPENROUTER_API_BASE_URL)
+        def initialize(
+          @api_key : String? = nil,
+          @base_url : String = OPENROUTER_API_BASE_URL,
+          @app_title : String? = nil,
+          @app_url : String? = nil,
+          @app_categories : Array(String)? = nil,
+        )
         end
 
         def api_key(api_key : String) : self
-          self.class.new(api_key, @base_url)
+          self.class.new(api_key, @base_url, @app_title, @app_url, @app_categories)
         end
 
         def base_url(base_url : String) : self
-          self.class.new(@api_key, base_url)
+          self.class.new(@api_key, base_url, @app_title, @app_url, @app_categories)
+        end
+
+        def with_app_identity(title : String, url : String) : self
+          self.class.new(@api_key, @base_url, title, url, @app_categories)
+        end
+
+        def with_app_categories(categories : Array(String)) : self
+          self.class.new(@api_key, @base_url, @app_title, @app_url, categories.first(2))
         end
 
         def build : Client
           api_key = @api_key || raise "OPENROUTER_API_KEY not set"
-          Client.new(api_key, @base_url)
+          Client.new(api_key, @base_url, @app_title, @app_url, @app_categories)
         end
       end
 
@@ -55,6 +72,16 @@ module Crig
         end
       end
 
+      struct PromptTokensDetails
+        include JSON::Serializable
+
+        getter cached_tokens : Int32 = 0
+        getter cache_write_tokens : Int32 = 0
+
+        def initialize(@cached_tokens : Int32 = 0, @cache_write_tokens : Int32 = 0)
+        end
+      end
+
       struct Usage
         include JSON::Serializable
         include Crig::Completion::GetTokenUsage
@@ -66,20 +93,30 @@ module Crig
         @[JSON::Field(key: "total_tokens")]
         getter total_tokens : Int32
         getter cost : Float64 = 0.0
+        @[JSON::Field(key: "prompt_tokens_details")]
+        getter prompt_tokens_details : PromptTokensDetails?
 
         def initialize(
           @prompt_tokens : Int32,
           @total_tokens : Int32,
           @completion_tokens : Int32 = 0,
           @cost : Float64 = 0.0,
+          @prompt_tokens_details : PromptTokensDetails? = nil,
         )
         end
 
         def token_usage : Crig::Completion::Usage?
+          cached_input, cache_creation = if details = @prompt_tokens_details
+                                           {details.cached_tokens.to_i64, details.cache_write_tokens.to_i64}
+                                         else
+                                           {0_i64, 0_i64}
+                                         end
           Crig::Completion::Usage.new(
             input_tokens: @prompt_tokens.to_i64,
             output_tokens: @completion_tokens.to_i64,
             total_tokens: @total_tokens.to_i64,
+            cached_input_tokens: cached_input,
+            cache_creation_input_tokens: cache_creation,
           )
         end
       end
@@ -87,8 +124,17 @@ module Crig
       struct Client
         getter api_key : Crig::BearerAuth
         getter base_url : String
+        getter app_title : String?
+        getter app_url : String?
+        getter app_categories : Array(String)?
 
-        def initialize(@api_key : Crig::BearerAuth, @base_url : String = OPENROUTER_API_BASE_URL)
+        def initialize(
+          @api_key : Crig::BearerAuth,
+          @base_url : String = OPENROUTER_API_BASE_URL,
+          @app_title : String? = nil,
+          @app_url : String? = nil,
+          @app_categories : Array(String)? = nil,
+        )
         end
 
         def self.new(api_key : String, base_url : String = OPENROUTER_API_BASE_URL) : self
@@ -114,6 +160,15 @@ module Crig
             "Content-Type"  => "application/json",
             "Accept"        => headers["Accept"]? || "application/json",
           }
+          if title = @app_title
+            all_headers["X-OpenRouter-Title"] = title
+            all_headers["HTTP-Referer"] = @app_url if @app_url
+          end
+          if categories = @app_categories
+            unless categories.empty?
+              all_headers["X-OpenRouter-Categories"] = categories.join(",")
+            end
+          end
           headers.each { |key, value| all_headers[key] = value }
           HTTP::Client.exec("POST", build_uri(path), headers: all_headers, body: body)
         end

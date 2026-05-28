@@ -64,7 +64,7 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - `automatic_caching` respects raw top-level cache_control from additional_params
   - Estimated: ~200 lines
 
-- [ ] **OpenRouter Enhancements**
+- [x] **OpenRouter Enhancements**
   - Upstream: `src/providers/openrouter/client.rs`, `src/providers/openrouter/completion.rs`, `src/providers/openrouter/streaming.rs`
   - Cache token accounting: `Usage::prompt_tokens_details` → `PromptTokensDetails { cached_tokens, cache_write_tokens }`
   - `GetTokenUsage` maps `cached_input_tokens`, `cache_creation_input_tokens`
@@ -82,12 +82,10 @@ These features exist in the latest upstream but not in the pinned baseline or th
   - SSE parse errors now break stream instead of silent continue
   - Estimated: ~200 lines
 
-- [ ] **Ollama NDJSON Buffering**
+- [x] **Ollama NDJSON Buffering**
   - Upstream: `src/providers/ollama.rs`
   - `NdjsonBuffer` struct reassembles NDJSON lines from chunked HTTP byte stream
-  - Handles lines split across chunk boundaries, retains partial data, skips empty lines
-  - Existing split-on-newline logic replaced with `NdjsonBuffer::decode`
-  - Estimated: ~60 lines
+  - Not applicable to Crystal: Crystal's HTTP client buffers the full response body before processing, so the chunked byte boundary issue doesn't exist (intentional_divergence)
 
 - [x] **Agent hook() after tool()**
   - Upstream: `src/agent/builder.rs`
