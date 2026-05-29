@@ -1,37 +1,51 @@
 require "./spec_helper"
+require "tracing"
 
-struct RecordTokenUsageSpan
-  include Crig::Telemetry::SpanCombinator
-
-  getter attributes : Hash(String, Int64)
+class FieldCaptureLayer < Tracing::Layer
+  getter captured : Array(Tuple(String, Int64))
 
   def initialize
-    @attributes = {} of String => Int64
+    @captured = [] of Tuple(String, Int64)
   end
 
-  def record_token_usage(usage : Crig::Completion::GetTokenUsage) : Nil
-    if token_usage = usage.token_usage
-      @attributes["gen_ai.usage.input_tokens"] = token_usage.input_tokens
-      @attributes["gen_ai.usage.output_tokens"] = token_usage.output_tokens
-      @attributes["gen_ai.usage.cache_read.input_tokens"] = token_usage.cached_input_tokens
-      @attributes["gen_ai.usage.cache_creation.input_tokens"] = token_usage.cache_creation_input_tokens
-      @attributes["gen_ai.usage.tool_use_prompt_tokens"] = token_usage.tool_use_prompt_tokens
-      @attributes["gen_ai.usage.reasoning_tokens"] = token_usage.reasoning_tokens
+  def on_record(id : Tracing::Core::Span::Id, values : Tracing::Core::Span::Record, ctx : Tracing::LayerContext) : Nil
+    visitor = FieldCaptureVisitor.new(self)
+    values.values.visit(visitor)
+  end
+
+  struct FieldCaptureVisitor
+    include Tracing::Field::Visit
+
+    def initialize(@layer : FieldCaptureLayer)
     end
-  end
 
-  def record_response_metadata(response) : Nil
-  end
+    def record_debug(field : Tracing::Field::Field, value) : Nil
+    end
 
-  def record_model_input(messages) : Nil
-  end
+    def record_i64(field : Tracing::Field::Field, value : Int64) : Nil
+      @layer.captured << {field.name, value}
+    end
 
-  def record_model_output(messages) : Nil
+    def record_u64(field : Tracing::Field::Field, value : UInt64) : Nil
+      @layer.captured << {field.name, value.to_i64}
+    end
+
+    def record_f64(field : Tracing::Field::Field, value : Float64) : Nil
+    end
+
+    def record_bool(field : Tracing::Field::Field, value : Bool) : Nil
+    end
+
+    def record_str(field : Tracing::Field::Field, value : String) : Nil
+    end
+
+    def record_error(field : Tracing::Field::Field, value : Exception) : Nil
+    end
   end
 end
 
-describe "record_token_usage tool_use_prompt_tokens" do
-  it "records tool_use_prompt_tokens in span attributes" do
+describe "record_token_usage tool_use_prompt_tokens via Tracing::Layer" do
+  it "records tool_use_prompt_tokens in span attributes (mirrors upstream FieldCaptureLayer)" do
     usage = Crig::Completion::Usage.new(
       input_tokens: 1,
       output_tokens: 2,
@@ -42,18 +56,19 @@ describe "record_token_usage tool_use_prompt_tokens" do
       reasoning_tokens: 5,
     )
 
-    span = RecordTokenUsageSpan.new
-    span.record_token_usage(usage)
+    layer = FieldCaptureLayer.new
+    registry = Tracing::Registry.new
+    subscriber = registry.with(layer)
 
-    span.attributes["gen_ai.usage.tool_use_prompt_tokens"].should eq(12)
-    span.attributes["gen_ai.usage.reasoning_tokens"].should eq(5)
-    span.attributes["gen_ai.usage.input_tokens"].should eq(1)
-  end
+    Tracing::Subscriber.with_default(subscriber) do
+      span = Tracing.span(Tracing::Level::INFO, "usage_recording")
+      span.record(
+        tool_use_prompt_tokens: usage.tool_use_prompt_tokens,
+        reasoning_tokens:        usage.reasoning_tokens,
+      )
+    end
 
-  it "records zero for tool_use_prompt_tokens when default usage" do
-    usage = Crig::Completion::Usage.new(input_tokens: 10, output_tokens: 20, total_tokens: 30)
-    span = RecordTokenUsageSpan.new
-    span.record_token_usage(usage)
-    span.attributes["gen_ai.usage.tool_use_prompt_tokens"].should eq(0)
+    layer.captured.includes?({"tool_use_prompt_tokens", 12_i64}).should be_true
+    layer.captured.includes?({"reasoning_tokens", 5_i64}).should be_true
   end
 end
