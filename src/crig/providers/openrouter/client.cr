@@ -162,7 +162,9 @@ module Crig
           }
           if title = @app_title
             all_headers["X-OpenRouter-Title"] = title
-            all_headers["HTTP-Referer"] = @app_url if @app_url
+            if app_url = @app_url
+              all_headers["HTTP-Referer"] = app_url
+            end
           end
           if categories = @app_categories
             unless categories.empty?

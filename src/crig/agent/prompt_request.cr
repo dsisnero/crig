@@ -240,7 +240,7 @@ module Crig
         agent_name = @agent.name || "Unnamed Agent"
         preamble_text = @agent.preamble
 
-        agent_span = Crig::Span.current.is_disabled ? Crig::Span.for_tracer("crig", "invoke_agent") : Crig::Span.current
+        agent_span = Crig::Span.current.disabled? ? Crig::Span.for_tracer("crig", "invoke_agent") : Crig::Span.current
         agent_span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "invoke_agent")
         agent_span.set_attribute(Crig::Telemetry::GEN_AI_AGENT_NAME, agent_name)
         if preamble_text

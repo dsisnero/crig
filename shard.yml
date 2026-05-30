@@ -23,10 +23,8 @@ dependencies:
     github: dsisnero/crig-postgres
   cml:
     github: dsisnero/cml
-  opentelemetry-api:
-    github: wyhaines/opentelemetry-api.cr
-  opentelemetry-sdk:
-    github: wyhaines/opentelemetry-sdk.cr
+  tracing:
+    github: dsisnero/tracing.cr
 development_dependencies:
   ameba:
     github: crystal-ameba/ameba
