@@ -66,7 +66,7 @@
   - Previously, tools added via `append_toolset` were callable but invisible to `get_tool_defs`
   - Estimated: ~5 lines (1 line fix + test)
 
-- [ ] **JSON Utils deserialize_json_string_or_value**
+- [x] **JSON Utils deserialize_json_string_or_value**
   - Upstream: `src/json_utils.rs`
   - New function `deserialize_json_string_or_value` — deserializes a field as either a JSON-encoded string or any other JSON value into `Option<String>`
   - Tolerates OpenAI-compatible gateways that stream tool-call arguments as objects `{}` instead of strings `"{}"`

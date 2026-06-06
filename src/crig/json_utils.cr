@@ -4,6 +4,21 @@ module Crig
       value.nil? || value.empty?
     end
 
+    def self.deserialize_json_string_or_value(raw : String) : String?
+      return nil if raw.strip.empty?
+
+      value = JSON.parse(raw)
+      inner = value.raw
+
+      case inner
+      when Nil then nil
+      when String then inner
+      else JSONUtils.value_to_json_string(value)
+      end
+    rescue JSON::ParseException
+      nil
+    end
+
     def self.merge(a : JSON::Any, b : JSON::Any) : JSON::Any
       left = a.as_h?
       right = b.as_h?
