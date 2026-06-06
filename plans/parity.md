@@ -60,7 +60,7 @@
   - Providers can override to expose real token usage from embedding API
   - Estimated: ~100 lines
 
-- [ ] **Tool Server append_toolset Tool Visibility Fix**
+- [x] **Tool Server append_toolset Tool Visibility Fix**
   - Upstream: `src/tool/server.rs`
   - `ToolServerHandle::append_toolset` now extends `static_tool_names` so merged tools are visible to LLM
   - Previously, tools added via `append_toolset` were callable but invisible to `get_tool_defs`
