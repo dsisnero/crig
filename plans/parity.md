@@ -74,7 +74,7 @@
   - Applied to OpenAI streaming `tool_calls[].function.arguments`
   - Estimated: ~30 lines
 
-- [ ] **Gemini tool_parameters_to_schema Improvements**
+- [x] **Gemini tool_parameters_to_schema Improvements**
   - Upstream: `src/providers/gemini/completion.rs`
   - New `tool_parameters_to_schema(parameters)` extracts Gemini-compatible Schema from JSON params
   - Handles nullable type arrays, `$defs`/`$ref` resolution, composition objects
