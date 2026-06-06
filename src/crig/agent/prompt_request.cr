@@ -46,6 +46,64 @@ module Crig
     end
   end
 
+  struct InvalidToolCallContext
+    getter tool_name : String
+    getter tool_call_id : String?
+    getter internal_call_id : String?
+    getter args : String?
+    getter available_tools : Array(String)
+    getter allowed_tools : Array(String)
+    getter tool_choice : Crig::Completion::ToolChoice?
+    getter chat_history : Array(Crig::Completion::Message)
+    getter? is_streaming : Bool
+
+    def initialize(
+      @tool_name : String,
+      @available_tools : Array(String),
+      @allowed_tools : Array(String),
+      @chat_history : Array(Crig::Completion::Message),
+      @tool_call_id : String? = nil,
+      @internal_call_id : String? = nil,
+      @args : String? = nil,
+      @tool_choice : Crig::Completion::ToolChoice? = nil,
+      @is_streaming : Bool = false,
+    )
+    end
+  end
+
+  struct InvalidToolCallHookAction
+    enum Kind
+      Fail
+      Retry
+      Repair
+      Skip
+    end
+
+    getter kind : Kind
+    getter feedback : String?
+    getter reason : String?
+    getter tool_name : String?
+
+    def initialize(@kind : Kind, @feedback : String? = nil, @reason : String? = nil, @tool_name : String? = nil)
+    end
+
+    def self.fail : self
+      new(Kind::Fail)
+    end
+
+    def self.retry(feedback : String) : self
+      new(Kind::Retry, feedback: feedback)
+    end
+
+    def self.repair(tool_name : String) : self
+      new(Kind::Repair, tool_name: tool_name)
+    end
+
+    def self.skip(reason : String) : self
+      new(Kind::Skip, reason: reason)
+    end
+  end
+
   abstract class PromptHook
     def on_completion_call(
       prompt : Crig::Completion::Message,
@@ -79,6 +137,11 @@ module Crig
       result : String,
     ) : Crig::HookAction
       Crig::HookAction.cont
+    end
+
+    def on_invalid_tool_call(context : Crig::InvalidToolCallContext) : Crig::InvalidToolCallHookAction
+      _ = context
+      Crig::InvalidToolCallHookAction.fail
     end
 
     def on_text_delta(text_delta : String, aggregated_text : String) : Crig::HookAction

@@ -25,7 +25,7 @@
 
 ### Feature Progress
 
-- [ ] **Invalid Tool Call Recovery Hooks**
+- [x] **Invalid Tool Call Recovery Hooks**
   - Upstream: `src/agent/prompt_request/hooks.rs`, `src/agent/prompt_request/mod.rs`, `src/agent/prompt_request/streaming.rs`
   - New `InvalidToolCallContext` struct: tool_name, tool_call_id, internal_call_id, args, available_tools, allowed_tools, tool_choice, chat_history, is_streaming
   - New `InvalidToolCallHookAction` enum: Fail, Retry { feedback }, Repair { tool_name }, Skip { reason }
