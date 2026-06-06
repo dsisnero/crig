@@ -191,6 +191,37 @@ module Crig
           Crig::Providers::OpenRouter::EmbeddingModel.make(self, model, ndims)
         end
       end
+
+      def self.apply_prompt_caching(body : JSON::Any) : Nil
+        body_h = body.as_h?
+        return unless body_h
+
+        messages = body_h["messages"]?.try(&.as_a?)
+        return unless messages
+
+        system_msg = messages.find { |m| m.as_h?.try(&.["role"]?.try(&.as_s?)) == "system" }
+        return unless system_msg
+
+        system_h = system_msg.as_h
+        content = system_h["content"]?
+
+        case content.try(&.raw)
+        when String
+          text = content.not_nil!.as_s
+          system_h["content"] = JSON::Any.new([
+            JSON::Any.new(Hash(String, JSON::Any){
+              "type"           => JSON::Any.new("text"),
+              "text"           => JSON::Any.new(text),
+              "cache_control"  => JSON::Any.new(Hash(String, JSON::Any){"type" => JSON::Any.new("ephemeral")}),
+            })
+          ] of JSON::Any)
+        when Array
+          arr = content.not_nil!.as_a
+          if last = arr.last?
+            last.as_h["cache_control"] = JSON::Any.new(Hash(String, JSON::Any){"type" => JSON::Any.new("ephemeral")})
+          end
+        end
+      end
     end
   end
 end

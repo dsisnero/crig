@@ -43,7 +43,7 @@
   - New model: `claude-opus-4-8`
   - Estimated: ~200 lines
 
-- [ ] **OpenRouter Prompt Caching**
+- [x] **OpenRouter Prompt Caching**
   - Upstream: `src/providers/openrouter/completion.rs`
   - `CompletionModelBuilder::with_prompt_caching()` — enables cache_control on system prompt
   - `apply_prompt_caching(body)` — inserts `"cache_control": {"type": "ephemeral"}` on system message
@@ -52,7 +52,7 @@
   - `openrouter_response_image_params()` — identifies OpenRouter response images via additional_params
   - Estimated: ~300 lines
 
-- [ ] **Embeddings with Usage**
+- [x] **Embeddings with Usage**
   - Upstream: `src/embeddings/embedding.rs`, `src/embeddings/builder.rs`
   - New `EmbeddingResponse` struct: `embeddings: Vec<Embedding>`, `usage: Usage`
   - `EmbeddingModel::embed_texts_with_usage(texts)` — default delegates to `embed_texts`, returns zero Usage
@@ -81,7 +81,7 @@
   - Improved enum extraction from both top-level and nested property sources
   - Estimated: ~200 lines
 
-- [ ] **OpenAI Responses API Token Usage Details**
+- [x] **OpenAI Responses API Token Usage Details**
   - Upstream: `src/providers/openai/responses_api/mod.rs`
   - Token usage details (input_tokens_details, output_tokens_details) made optional
   - Handle missing details gracefully without panicking
