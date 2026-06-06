@@ -1091,6 +1091,7 @@ module Crig
       enum Role
         User
         Assistant
+        System
       end
 
       getter role : Role
@@ -1105,7 +1106,7 @@ module Crig
       end
 
       def self.system(text : String) : self
-        user(text)
+        new(Role::System, Crig::OneOrMany(UserContent | AssistantContent).one(UserContent.text(text)))
       end
 
       def self.user(content : UserContent) : self
@@ -1193,7 +1194,7 @@ module Crig
       end
 
       def rag_text : String?
-        return unless @role.user?
+        return unless @role.user? || @role.system?
         @content.each do |item|
           if item.is_a?(UserContent) && item.kind.text?
             text = item.text

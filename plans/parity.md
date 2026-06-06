@@ -34,7 +34,7 @@
   - Streaming: validates tool calls against allowed names, applies hook recovery similarly
   - Estimated: ~1,600 lines of diff across hooks + prompt_request + streaming
 
-- [ ] **Anthropic Mid-Conversation System Messages**
+- [x] **Anthropic Mid-Conversation System Messages**
   - Upstream: `src/providers/anthropic/completion.rs`
   - `Message::System { content }` variant accepted in chat history for Claude Opus 4.8+
   - `supports_mid_conversation_system_messages(model)` checks model compatibility
