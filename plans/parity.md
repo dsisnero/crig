@@ -2,107 +2,90 @@
 
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
 - **Crates**: `crates/rig-core`
-- **Pinned commit**: `f77a5819ec2a71e98583480a68a341f816a75c8a`
-- **Latest upstream**: `a0cd8a8f505af70f10918e994bd45d8241ee4f37` (rig-core v0.37.0)
-- **Commits behind**: 21 commits spanning v0.36.0 → v0.37.0
+- **Previous baseline**: `a0cd8a8f505af70f10918e994bd45d8241ee4f37` (rig-core v0.37.0)
+- **Latest upstream**: `536c44f9f3ef8cac10ead3535528c7ceab3497f9` (rig-core v0.38.x)
+- **Commits behind**: 31 commits spanning v0.37.0 → v0.38.x
 
-## v0.37.0 New Features (pending port)
+## v0.37.0 Features (completed)
 
-These features exist in the latest upstream but not in the pinned baseline or the Crystal port.
+- [x] Text::additional_params & Citation Support
+- [x] tool_use_prompt_tokens on Usage
+- [x] CompletionCall Tracking in Agent Responses
+- [x] Tool Call Validation (agent-side)
+- [x] Null Tool Args Normalization
+- [x] Anthropic Tool Cache Control
+- [x] OpenRouter Enhancements
+- [x] Gemini Tool Protocol & Streaming Metadata
+- [x] Ollama NDJSON Buffering (intentional_divergence)
+- [x] Agent hook() after tool()
+- [x] Text Concatenation Fix
+- [x] null_or_default JSON Deserializer
+
+## v0.38.x New Features (pending port)
 
 ### Feature Progress
 
-- [x] **Text::additional_params & Citation Support**
-  - Upstream: `src/completion/message.rs`, `src/streaming.rs`, `src/providers/anthropic/completion.rs`, `src/providers/anthropic/streaming.rs`
-  - `Text` struct gains `additional_params: Option<JSON::Any>` for provider-specific metadata
-  - Anthropic: `Citation` enum (6 variants), `CitationsConfig` struct, `ANTHROPIC_RAW_CONTENT_KEY` constant
-  - Anthropic: `Content::ServerToolUse` and `Content::WebSearchToolResult` content types
-  - Anthropic: `Content::Document` parses `title`, `context`, `citations.enabled` fields
-  - Anthropic: `Content::Text` parses `citations` array from response JSON
-  - Streaming: `RawStreamingChoice::TextStart` and `TextAdditionalParams` variants
-  - Streaming: `append_text_additional_params` + `merge_text_additional_params` recursive merge
-  - Streaming: `append_text_chunk` preserves `additional_params` during text concatenation
+- [ ] **Invalid Tool Call Recovery Hooks**
+  - Upstream: `src/agent/prompt_request/hooks.rs`, `src/agent/prompt_request/mod.rs`, `src/agent/prompt_request/streaming.rs`
+  - New `InvalidToolCallContext` struct: tool_name, tool_call_id, internal_call_id, args, available_tools, allowed_tools, tool_choice, chat_history, is_streaming
+  - New `InvalidToolCallHookAction` enum: Fail, Retry { feedback }, Repair { tool_name }, Skip { reason }
+  - New `on_invalid_tool_call` method on `PromptHook` trait (default: fail-fast)
+  - Non-streaming: `InvalidToolCallResolution` enum drives recovery flow; retry adds corrective user message, repair rewrites tool name, skip returns synthetic tool result
+  - Streaming: validates tool calls against allowed names, applies hook recovery similarly
+  - Estimated: ~1,600 lines of diff across hooks + prompt_request + streaming
 
-- [x] **tool_use_prompt_tokens on Usage**
-  - Upstream: `src/completion/request.rs`, `src/telemetry/mod.rs`, all provider files
-  - `Usage` gains `tool_use_prompt_tokens: UInt64` field (serde default)
-  - `Usage::new()`, `Add`, `AddAssign` updated
-  - `SpanCombinator::record_token_usage` records new field in traces
-  - All providers (anthropic, gemini, openai, ollama, etc.) updated to map provider-specific field
-  - Estimated: ~150 lines across 12+ files
+- [ ] **Anthropic Mid-Conversation System Messages**
+  - Upstream: `src/providers/anthropic/completion.rs`
+  - `Message::System { content }` variant accepted in chat history for Claude Opus 4.8+
+  - `supports_mid_conversation_system_messages(model)` checks model compatibility
+  - `is_valid_mid_conversation_system_message` + `assistant_ends_in_server_tool_block` helpers
+  - System messages hoisted to top-level `system` array for older models
+  - New model: `claude-opus-4-8`
+  - Estimated: ~200 lines
 
-- [x] **CompletionCall Tracking in Agent Responses**
-  - Upstream: `src/agent/completion.rs`, `src/agent/prompt_request/mod.rs`, `src/agent/prompt_request/streaming.rs`
-  - New `CompletionCall` struct: `call_index`, `usage: Option<Usage>`
-  - `PromptResponse` and `TypedPromptResponse<T>` gain `completion_calls: Vec<CompletionCall>`
-  - Non-streaming: `build_prepared_completion_request` returns executable/allowed tool names
-  - Streaming: `MultiTurnStreamItem::CompletionCall` variant + `FinalResponse` gains content and completion_calls
-  - Estimated: ~500 lines
+- [ ] **OpenRouter Prompt Caching**
+  - Upstream: `src/providers/openrouter/completion.rs`
+  - `CompletionModelBuilder::with_prompt_caching()` — enables cache_control on system prompt
+  - `apply_prompt_caching(body)` — inserts `"cache_control": {"type": "ephemeral"}` on system message
+  - `final_request_body()` handles prompt_caching + stream flags in additional_params
+  - `ResponseImage` struct + `response_image_to_assistant_content` — avoids replaying generated images
+  - `openrouter_response_image_params()` — identifies OpenRouter response images via additional_params
+  - Estimated: ~300 lines
 
-- [x] **Tool Call Validation (agent-side)**
-  - Upstream: `src/agent/completion.rs`, `src/agent/prompt_request/mod.rs`, `src/agent/prompt_request/streaming.rs`
-  - `PreparedCompletionRequest` with `executable_tool_names` + `allowed_tool_names: BTreeSet<String>`
-  - `allowed_tool_names_for_choice()` computes allowed set from `ToolChoice`
-  - `validate_tool_call_name()` checks tool calls against allowed set
-  - New `PromptError::UnknownToolCall { tool_name, available_tools, allowed_tools, chat_history }`
-  - Streaming: `ToolCallDeltaState` buffers arguments until name validated, `build_tool_call_validation_history` for diagnostics
-  - `build_completion_request` becomes thin wrapper around `build_prepared_completion_request`
-  - Estimated: ~600 lines
+- [ ] **Embeddings with Usage**
+  - Upstream: `src/embeddings/embedding.rs`, `src/embeddings/builder.rs`
+  - New `EmbeddingResponse` struct: `embeddings: Vec<Embedding>`, `usage: Usage`
+  - `EmbeddingModel::embed_texts_with_usage(texts)` — default delegates to `embed_texts`, returns zero Usage
+  - `EmbeddingModel::embed_text_with_usage(text)` — single-text convenience
+  - Providers can override to expose real token usage from embedding API
+  - Estimated: ~100 lines
 
-- [x] **Null Tool Args Normalization**
-  - Upstream: `src/tool/mod.rs` (`ToolDyn::call`)
-  - When LLM sends `null` for tool arguments: fall back from `from_str("null")` → `from_str("{}")`
-  - Only triggers when original parse fails AND input was `"null"`
-  - Applied in both streaming and non-streaming tool invocation
+- [ ] **Tool Server append_toolset Tool Visibility Fix**
+  - Upstream: `src/tool/server.rs`
+  - `ToolServerHandle::append_toolset` now extends `static_tool_names` so merged tools are visible to LLM
+  - Previously, tools added via `append_toolset` were callable but invisible to `get_tool_defs`
+  - Estimated: ~5 lines (1 line fix + test)
+
+- [ ] **JSON Utils deserialize_json_string_or_value**
+  - Upstream: `src/json_utils.rs`
+  - New function `deserialize_json_string_or_value` — deserializes a field as either a JSON-encoded string or any other JSON value into `Option<String>`
+  - Tolerates OpenAI-compatible gateways that stream tool-call arguments as objects `{}` instead of strings `"{}"`
+  - null and missing fields become None
+  - Applied to OpenAI streaming `tool_calls[].function.arguments`
   - Estimated: ~30 lines
 
-- [x] **Anthropic Tool Cache Control**
-  - Upstream: `src/providers/anthropic/completion.rs`, `src/providers/anthropic/streaming.rs`
-  - `ToolDefinition` gains `cache_control: Option<CacheControl>` field
-  - `build_tool_definitions` factors out tool construction from streaming
-  - Streaming: last tool in list gets cache_control marker for breakpoint budgeting
-  - `automatic_caching` respects raw top-level cache_control from additional_params
+- [ ] **Gemini tool_parameters_to_schema Improvements**
+  - Upstream: `src/providers/gemini/completion.rs`
+  - New `tool_parameters_to_schema(parameters)` extracts Gemini-compatible Schema from JSON params
+  - Handles nullable type arrays, `$defs`/`$ref` resolution, composition objects
+  - Improved enum extraction from both top-level and nested property sources
   - Estimated: ~200 lines
 
-- [x] **OpenRouter Enhancements**
-  - Upstream: `src/providers/openrouter/client.rs`, `src/providers/openrouter/completion.rs`, `src/providers/openrouter/streaming.rs`
-  - Cache token accounting: `Usage::prompt_tokens_details` → `PromptTokensDetails { cached_tokens, cache_write_tokens }`
-  - `GetTokenUsage` maps `cached_input_tokens`, `cache_creation_input_tokens`
-  - App identity: `ClientBuilder::with_app_identity(title, url)` → `X-OpenRouter-Title` + `HTTP-Referer`
-  - App categories: `ClientBuilder::with_app_categories(categories)` → `X-OpenRouter-Categories` (max 2)
-  - Gemini role alias: `Assistant` gains `#[serde(alias = "model")]` for Gemini `"role": "model"`
-  - Estimated: ~250 lines
-
-- [x] **Gemini Tool Protocol & Streaming Metadata**
-  - Upstream: `src/providers/gemini/completion.rs`, `src/providers/gemini/streaming.rs`
-  - `FinishReason` gains: `UnexpectedToolCall`, `MissingThoughtSignature`, `TooManyToolCalls`, `MalformedResponse`
-  - `function_call_finish_reason_error` converts to `CompletionError::ResponseError`
-  - `tool_use_prompt_token_count` mapping to `Usage::tool_use_prompt_tokens`
-  - Streaming: `finish_message: Option<String>` on response, `tool_protocol_finish_reason_error`, `stream_failed` guard
-  - SSE parse errors now break stream instead of silent continue
-  - Estimated: ~200 lines
-
-- [x] **Ollama NDJSON Buffering**
-  - Upstream: `src/providers/ollama.rs`
-  - `NdjsonBuffer` struct reassembles NDJSON lines from chunked HTTP byte stream
-  - Not applicable to Crystal: Crystal's HTTP client buffers the full response body before processing, so the chunked byte boundary issue doesn't exist (intentional_divergence)
-
-- [x] **Agent hook() after tool()**
-  - Upstream: `src/agent/builder.rs`
-  - `.hook()` builder method moved from `NoToolConfig` impl to generic `ToolState` impl
-  - `.tool(...).hook(...)` call chain now works
-  - Estimated: ~10 lines (method move + test)
-
-- [x] **Text Concatenation Fix**
-  - Upstream: `src/providers/anthropic/completion.rs`, `src/agent/prompt_request/mod.rs`
-  - `get_text_response` uses `.collect::<String>()` instead of `.join("\n")`
-  - `assistant_text_from_choice` concatenates without inserting `\n` between blocks
-  - Estimated: ~5 lines
-
-- [x] **null_or_default JSON Deserializer**
-  - Upstream: `src/json_utils.rs`
-  - `null_or_default` deserializer: `null` → `T::default()` via `Option::<T>::deserialize().unwrap_or_default()`
-  - Estimated: ~10 lines
+- [ ] **OpenAI Responses API Token Usage Details**
+  - Upstream: `src/providers/openai/responses_api/mod.rs`
+  - Token usage details (input_tokens_details, output_tokens_details) made optional
+  - Handle missing details gracefully without panicking
+  - Estimated: ~15 lines
 
 ## Companion Crates Ported
 

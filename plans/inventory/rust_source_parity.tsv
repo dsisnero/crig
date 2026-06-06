@@ -33,17 +33,24 @@ src/agent/builder.rs::struct::WithToolServerHandle	missing	-	baseline
 src/agent/completion.rs::struct::Agent	missing	-	baseline
 src/agent/completion.rs::type::DynamicContextStore	missing	-	baseline
 src/agent/prompt_request/hooks.rs::enum::HookAction	missing	-	baseline
+src/agent/prompt_request/hooks.rs::enum::InvalidToolCallHookAction	missing	-	baseline
 src/agent/prompt_request/hooks.rs::enum::ToolCallHookAction	missing	-	baseline
 src/agent/prompt_request/hooks.rs::func::cont	missing	-	baseline
+src/agent/prompt_request/hooks.rs::func::fail	missing	-	baseline
+src/agent/prompt_request/hooks.rs::func::repair	missing	-	baseline
+src/agent/prompt_request/hooks.rs::func::retry	missing	-	baseline
 src/agent/prompt_request/hooks.rs::func::skip	missing	-	baseline
 src/agent/prompt_request/hooks.rs::func::terminate	missing	-	baseline
 src/agent/prompt_request/hooks.rs::method::HookAction.cont	missing	-	baseline
+src/agent/prompt_request/hooks.rs::method::InvalidToolCallHookAction.fail	missing	-	baseline
 src/agent/prompt_request/hooks.rs::method::ToolCallHookAction.cont	missing	-	baseline
+src/agent/prompt_request/hooks.rs::struct::InvalidToolCallContext	missing	-	baseline
 src/agent/prompt_request/hooks.rs::trait::PromptHook	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::completion_calls	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::conversation	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::extended_details	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::from_agent	missing	-	baseline
+src/agent/prompt_request/mod.rs::func::max_invalid_tool_call_retries	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::max_turns	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::new	missing	-	baseline
 src/agent/prompt_request/mod.rs::func::with_completion_calls	missing	-	baseline
@@ -75,6 +82,7 @@ src/agent/prompt_request/streaming.rs::func::empty	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::final_response	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::final_response_with_history	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::history	missing	-	baseline
+src/agent/prompt_request/streaming.rs::func::max_invalid_tool_call_retries	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::multi_turn	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::new	missing	-	baseline
 src/agent/prompt_request/streaming.rs::func::response	missing	-	baseline
@@ -283,6 +291,7 @@ src/embeddings/embed.rs::struct::TextEmbedder	missing	-	baseline
 src/embeddings/embed.rs::trait::Embed	missing	-	baseline
 src/embeddings/embedding.rs::enum::EmbeddingError	missing	-	baseline
 src/embeddings/embedding.rs::struct::Embedding	missing	-	baseline
+src/embeddings/embedding.rs::struct::EmbeddingResponse	missing	-	baseline
 src/embeddings/embedding.rs::trait::EmbeddingModel	missing	-	baseline
 src/embeddings/embedding.rs::trait::ImageEmbeddingModel	missing	-	baseline
 src/embeddings/tool.rs::func::try_from	missing	-	baseline
@@ -541,6 +550,7 @@ src/providers/anthropic/completion.rs::const::ANTHROPIC_VERSION_LATEST	missing	-
 src/providers/anthropic/completion.rs::const::CLAUDE_HAIKU_4_5	missing	-	baseline
 src/providers/anthropic/completion.rs::const::CLAUDE_OPUS_4_6	missing	-	baseline
 src/providers/anthropic/completion.rs::const::CLAUDE_OPUS_4_7	missing	-	baseline
+src/providers/anthropic/completion.rs::const::CLAUDE_OPUS_4_8	missing	-	baseline
 src/providers/anthropic/completion.rs::const::CLAUDE_SONNET_4_6	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::CacheControl	missing	-	baseline
 src/providers/anthropic/completion.rs::enum::CacheTtl	missing	-	baseline
@@ -871,6 +881,7 @@ src/providers/gemini/completion.rs::enum::ThinkingLevel	missing	-	baseline
 src/providers/gemini/completion.rs::enum::TrafficType	missing	-	baseline
 src/providers/gemini/completion.rs::func::flatten_schema	missing	-	baseline
 src/providers/gemini/completion.rs::func::new	missing	-	baseline
+src/providers/gemini/completion.rs::func::tool_parameters_to_schema	missing	-	baseline
 src/providers/gemini/completion.rs::func::with_config	missing	-	baseline
 src/providers/gemini/completion.rs::func::with_model	missing	-	baseline
 src/providers/gemini/completion.rs::func::with_params	missing	-	baseline
@@ -1625,6 +1636,7 @@ src/providers/openrouter/completion.rs::func::text	missing	-	baseline
 src/providers/openrouter/completion.rs::func::to_json	missing	-	baseline
 src/providers/openrouter/completion.rs::func::video_base64	missing	-	baseline
 src/providers/openrouter/completion.rs::func::video_url	missing	-	baseline
+src/providers/openrouter/completion.rs::func::with_prompt_caching	missing	-	baseline
 src/providers/openrouter/completion.rs::func::with_strict_tools	missing	-	baseline
 src/providers/openrouter/completion.rs::func::zdr	missing	-	baseline
 src/providers/openrouter/completion.rs::func::zero_data_retention	missing	-	baseline
@@ -1645,6 +1657,7 @@ src/providers/openrouter/completion.rs::struct::OpenRouterRequestParams	missing	
 src/providers/openrouter/completion.rs::struct::PercentileThresholds	missing	-	baseline
 src/providers/openrouter/completion.rs::struct::ProviderPreferences	missing	-	baseline
 src/providers/openrouter/completion.rs::struct::ProviderSortConfig	missing	-	baseline
+src/providers/openrouter/completion.rs::struct::ResponseImage	missing	-	baseline
 src/providers/openrouter/completion.rs::struct::VideoUrlContent	missing	-	baseline
 src/providers/openrouter/embedding.rs::enum::EncodingFormat	missing	-	baseline
 src/providers/openrouter/embedding.rs::func::encoding_format	missing	-	baseline
@@ -2017,6 +2030,8 @@ src/test_utils/streaming.rs::func::final_response_with_default_usage	missing	-	b
 src/test_utils/streaming.rs::func::final_response_with_total_tokens	missing	-	baseline
 src/test_utils/streaming.rs::func::message_id	missing	-	baseline
 src/test_utils/streaming.rs::func::new	missing	-	baseline
+src/test_utils/streaming.rs::func::reasoning	missing	-	baseline
+src/test_utils/streaming.rs::func::reasoning_delta	missing	-	baseline
 src/test_utils/streaming.rs::func::text	missing	-	baseline
 src/test_utils/streaming.rs::func::text_additional_params	missing	-	baseline
 src/test_utils/streaming.rs::func::text_start	missing	-	baseline
@@ -2024,6 +2039,7 @@ src/test_utils/streaming.rs::func::tool_call	missing	-	baseline
 src/test_utils/streaming.rs::func::tool_call_arguments_delta	missing	-	baseline
 src/test_utils/streaming.rs::func::tool_call_name_delta	missing	-	baseline
 src/test_utils/streaming.rs::func::with_call_id	missing	-	baseline
+src/test_utils/streaming.rs::func::with_reasoning_id	missing	-	baseline
 src/test_utils/streaming.rs::func::with_total_tokens	missing	-	baseline
 src/test_utils/streaming.rs::func::with_usage	missing	-	baseline
 src/test_utils/streaming.rs::method::MockResponse.new	missing	-	baseline
