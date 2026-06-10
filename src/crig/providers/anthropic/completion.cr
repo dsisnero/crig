@@ -1040,6 +1040,38 @@ module Crig
         end
       end
 
+      def self.supports_mid_conversation_system_messages?(model : String) : Bool
+        model.starts_with?("claude-opus-4-")
+      end
+
+      def self.split_system_messages_from_history(history : Array(Crig::Completion::Message), preserve_mid_conversation : Bool) : Tuple(Array(String), Array(Crig::Completion::Message))
+        system_texts = [] of String
+        chat = [] of Crig::Completion::Message
+        found_non_system = false
+
+        history.each_with_index do |msg, idx|
+          if msg.role.system?
+            text = msg.rag_text
+            if text
+              if !found_non_system || (preserve_mid_conversation && found_non_system)
+                if preserve_mid_conversation
+                  chat << msg
+                else
+                  system_texts << text
+                end
+              else
+                system_texts << text
+              end
+            end
+          else
+            found_non_system = true
+            chat << msg
+          end
+        end
+
+        {system_texts, chat}
+      end
+
       struct AnthropicCompletionRequest
         getter model : String
         getter messages : Array(Message)
@@ -1074,14 +1106,18 @@ module Crig
           end
           req.chat_history.each { |entry| full_history << entry }
 
-          messages = full_history.map { |entry| Message.from_core_message(entry) }
+          preserve_mid_conversation = supports_mid_conversation_system_messages?(params.model)
+          history_system_messages, chat_messages = split_system_messages_from_history(full_history, preserve_mid_conversation)
+
+          messages = chat_messages.map { |entry| Message.from_core_message(entry) }
           tools = req.tools.map { |tool| ToolDefinition.new(tool.name, tool.parameters, tool.description) }
 
           system = if preamble = req.preamble
-                     preamble.empty? ? [] of SystemContent : [SystemContent.text(preamble)]
-                   else
-                     [] of SystemContent
-                   end
+                      contents = preamble.empty? ? [] of SystemContent : [SystemContent.text(preamble)]
+                      contents + history_system_messages.map { |text| SystemContent.text(text) }
+                    else
+                      history_system_messages.map { |text| SystemContent.text(text) }
+                    end
 
           Anthropic.apply_cache_control(system, messages) if params.prompt_caching?
 
