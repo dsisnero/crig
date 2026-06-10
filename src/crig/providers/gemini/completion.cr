@@ -699,6 +699,8 @@ module Crig
               msg.content.to_a.compact_map { |content| content.as?(Crig::Completion::AssistantContent) }.map { |content| Part.from_assistant_content(content) },
               role: Role::Model
             )
+          in .system?
+            raise Crig::Completion::CompletionError.new("Gemini does not support System messages in chat history")
           end
         end
 

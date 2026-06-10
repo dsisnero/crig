@@ -1013,6 +1013,8 @@ module Crig
             in .assistant?
               contents = message.content.to_a.map { |content| Content.from_assistant_content(content.as(Crig::Completion::AssistantContent)) }
               new(Role::Model, TurnContent.contents(contents))
+            in .system?
+              raise Crig::Completion::CompletionError.new("Gemini does not support System messages in chat history")
             end
           end
         end
@@ -1829,7 +1831,7 @@ module Crig
               span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
             end
             span.end_span
-          result
+            result
           end
 
           def stream(request : Crig::Completion::Request::CompletionRequest)

@@ -261,6 +261,12 @@ module Crig
               assistant.kind.text? ? (assistant.text.try(&.text) || "") : ""
             end.join('\n')
             RawMessage.new("assistant", text)
+          in .system?
+            text = message.content.map do |content|
+              user = content.as(Crig::Completion::UserContent)
+              user.kind.text? ? (user.text.try(&.text) || "") : ""
+            end.join('\n')
+            RawMessage.new("system", text)
           end
         end
       end

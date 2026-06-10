@@ -54,6 +54,7 @@ module Crig
       enum Role
         User
         Assistant
+        System
 
         def to_wire : String
           to_s.downcase
@@ -644,6 +645,9 @@ module Crig
               anthropic_content_from_assistant_content(entry.as(Crig::Completion::AssistantContent))
             end
             new(Role::Assistant, Crig::OneOrMany(Content).many(content) || raise Crig::Completion::MessageError.new("Assistant message did not contain Anthropic-compatible content"))
+          in .system?
+            text = message.rag_text || ""
+            new(Role::System, Crig::OneOrMany(Content).one(Content.text(text)))
           end
         end
 
@@ -662,6 +666,10 @@ module Crig
               Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(
                 @content.to_a.map { |entry| entry.to_core_assistant_content.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent) }
               ),
+            )
+          in .system?
+            Crig::Completion::Message.system(
+              @content.to_a.compact_map { |entry| entry.text if entry.kind.text? }.join
             )
           end
         end
