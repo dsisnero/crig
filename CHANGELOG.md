@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.38.2 (2026-06-09)
+
+### Added
+- **Unreplayable reasoning detection** — responses_api iterates all content items, detects reasoning without IDs
+- routes content as InputText vs OutputText based on replayability
+
+### Fixed
+- Plan checkboxes corrected after sed corruption
+
 ## v0.38.1 (2026-06-09)
 
 ### Fixed
