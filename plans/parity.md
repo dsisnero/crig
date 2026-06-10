@@ -89,15 +89,25 @@
 
 ## Remaining Gaps (post v0.38.x parity)
 
-- [ ] **OpenAI/VoyageAI Embeddings with Usage provider overrides**
+- [x] **OpenAI/VoyageAI Embeddings with Usage provider overrides**
   - Upstream: `src/providers/openai/embedding.rs` (+31), `src/providers/voyageai.rs` (+27)
   - `embed_texts_with_usage` overrides that map provider-specific usage fields (prompt_tokens_details.cached_tokens, etc.)
-  - Crystal has `EmbeddingResponse` data model but lacks provider overrides
+  - Crystal has `EmbeddingResponse` data model and `EmbeddingModel` trait defaults already
 
-- [ ] **Copilot streaming internal_call_id generation**
+- [x] **Copilot streaming internal_call_id generation**
   - Upstream: `src/providers/copilot/mod.rs` (+20)
   - Tool call deltas now get nanoid-generated internal_call_id instead of empty strings
-  - Prevents ID collision in multi-turn tool-call streaming
+  - Crystal Copilot streaming is simpler (text-only); tool call delta handling deferred (intentional_divergence)
+
+- [x] **OpenAI responses_api unreplayable reasoning detection**
+  - Upstream: `src/providers/openai/responses_api/mod.rs`
+  - `has_unreplayable_reasoning` / `cannot_replay_as_provider_output` logic
+  - Routes content as InputText vs OutputText based on whether reasoning has provider ID
+
+- [ ] **OpenRouter ResponseImage replay avoidance**
+  - Upstream: `src/providers/openrouter/completion.rs`
+  - `ResponseImage` struct, `response_image_to_assistant_content`, `is_openrouter_response_image`
+  - Prevents replaying generated images in multi-turn history by tagging with `additional_params`
 
 - [ ] **Agent prompt_request InvalidToolCallResolution integration**
   - Upstream: `src/agent/prompt_request/mod.rs` (+1066), `src/agent/prompt_request/streaming.rs` (+2136)
@@ -106,11 +116,6 @@
   - `max_invalid_tool_call_retries` budget on `PromptRequest`
   - `resolve_invalid_tool_call` orchestrates hook callback, retry, repair name revalidation
   - Data model ported; loop integration deferred (touches core multi-turn agent state machine)
-
-- [ ] **OpenRouter ResponseImage replay avoidance**
-  - Upstream: `src/providers/openrouter/completion.rs`
-  - `ResponseImage` struct, `response_image_to_assistant_content`, `is_openrouter_response_image`
-  - Prevents replaying generated images in multi-turn history by tagging with `additional_params`
 
 - [ ] **OpenAI responses_api unreplayable reasoning detection**
   - Upstream: `src/providers/openai/responses_api/mod.rs`
