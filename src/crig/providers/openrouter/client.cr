@@ -43,7 +43,7 @@ module Crig
 
         def build : Client
           api_key = @api_key || raise "OPENROUTER_API_KEY not set"
-          Client.new(api_key, @base_url, @app_title, @app_url, @app_categories)
+          Client.new(Crig::BearerAuth.new(api_key), @base_url, @app_title, @app_url, @app_categories)
         end
       end
 
