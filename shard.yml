@@ -6,7 +6,7 @@ authors:
 crystal: ">= 1.19.1"
 dependencies:
   mcp:
-    github: spider-gazelle/mcp.cr
+    github: dsisnero/mcp.cr
   discordcr:
     github: shardlab/discordcr
   pdfbox:
