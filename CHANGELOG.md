@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.38.6 (2026-06-10)
+
+### Changed
+- **rig_tool** uses json-schema shard for automatic schema generation
+- Non-nilable fields auto-required, nilable fields optional
+- Per-field descriptions via @[JSON::Field(description: ...)]
+
 ## v0.38.5 (2026-06-10)
 
 ### Changed
