@@ -189,10 +189,28 @@ module Crig
 
         def embedding_model_with_ndims(model : String, ndims : Int32) : Crig::Providers::OpenRouter::EmbeddingModel
           Crig::Providers::OpenRouter::EmbeddingModel.make(self, model, ndims)
-        end
       end
+    end
 
-      def self.apply_prompt_caching(body : JSON::Any) : Nil
+    OPENROUTER_RESPONSE_ONLY_KEY       = "response_only"
+    OPENROUTER_RESPONSE_IMAGE_SOURCE_KEY = "source"
+    OPENROUTER_ASSISTANT_IMAGES_SOURCE   = "assistant.images"
+
+    def self.is_openrouter_response_image?(image : Crig::Completion::Image) : Bool
+      params = image.additional_params
+      return false unless params
+      return false unless (h = params.as_h?)
+
+      or_params = h["openrouter"]?
+      return false unless or_params
+      return false unless (or_h = or_params.as_h?)
+
+      response_only = or_h[OPENROUTER_RESPONSE_ONLY_KEY]?.try(&.as_bool?) || false
+      source = or_h[OPENROUTER_RESPONSE_IMAGE_SOURCE_KEY]?.try(&.as_s?)
+      response_only && source == OPENROUTER_ASSISTANT_IMAGES_SOURCE
+    end
+
+    def self.apply_prompt_caching(body : JSON::Any) : Nil
         body_h = body.as_h?
         return unless body_h
 

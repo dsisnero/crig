@@ -104,7 +104,7 @@
   - `has_unreplayable_reasoning` / `cannot_replay_as_provider_output` logic
   - Routes content as InputText vs OutputText based on whether reasoning has provider ID
 
-- [ ] **OpenRouter ResponseImage replay avoidance**
+- [x] **OpenRouter ResponseImage replay avoidance**
   - Upstream: `src/providers/openrouter/completion.rs`
   - `ResponseImage` struct, `response_image_to_assistant_content`, `is_openrouter_response_image`
   - Prevents replaying generated images in multi-turn history by tagging with `additional_params`
