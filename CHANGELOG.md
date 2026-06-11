@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.38.3 (2026-06-09)
+
+### Added
+- **OpenRouter ResponseImage replay avoidance** — filters tagged images in history
+
 ## v0.38.2 (2026-06-09)
 
 ### Added
