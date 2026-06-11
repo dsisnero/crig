@@ -80,6 +80,52 @@ module Crig
     end
   end
 
+  # Define a tool from a Crystal function. The function's parameter types
+  # are used to auto-generate a JSON Schema via `json-schema`. Non-nilable
+  # fields are automatically marked required; nilable fields become optional.
+  #
+  # ## Minimal usage
+  # ```
+  # Crig.rig_tool do
+  #   def echo(text : String) : String
+  #     text
+  #   end
+  # end
+  # ```
+  #
+  # ## With description
+  # ```
+  # Crig.rig_tool description: "Echo back the input" do
+  #   def echo(text : String) : String
+  #     text
+  #   end
+  # end
+  # ```
+  #
+  # ## With error handling
+  # ```
+  # Crig.rig_tool description: "Divide two numbers" do
+  #   def divide(x : Int32, y : Int32) : Crig::ToolMacro::Result(Int32, Crig::ToolError)
+  #     if y == 0
+  #       Crig::ToolMacro::Result(Int32, Crig::ToolError).err(
+  #         Crig::ToolError.new("Division by zero")
+  #       )
+  #     else
+  #       Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(x // y)
+  #     end
+  #   end
+  # end
+  # ```
+  #
+  # ## With optional parameters
+  # nilable fields are automatically excluded from the required list:
+  # ```
+  # Crig.rig_tool do
+  #   def greet(name : String, greeting : String?) : String
+  #     "#{greeting || "Hello"}, #{name}"
+  #   end
+  # end
+  # ```
   macro rig_tool(description = nil, params = nil, required = nil, &block)
     {% function = block.body %}
     {% unless function.is_a?(Def) %}

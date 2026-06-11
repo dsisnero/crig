@@ -90,6 +90,42 @@ agent = client
 puts agent.prompt("What can you tell me about Crystal?").send
 ```
 
+### Defining tools
+
+```crystal
+# Minimal: auto-generated schema from parameter types
+Crig.rig_tool do
+  def echo(text : String) : String
+    text
+  end
+end
+
+# With description and optional params
+Crig.rig_tool description: "Greet someone" do
+  def greet(name : String, style : String?) : String
+    "#{style || "Hello"}, #{name}"
+  end
+end
+
+# With error handling via Result
+Crig.rig_tool description: "Divide two numbers" do
+  def divide(x : Int32, y : Int32) : Crig::ToolMacro::Result(Int32, Crig::ToolError)
+    if y == 0
+      Crig::ToolMacro::Result(Int32, Crig::ToolError).err(Crig::ToolError.new("Division by zero"))
+    else
+      Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(x // y)
+    end
+  end
+end
+
+# Use with an agent
+agent = client
+  .agent(Crig::Providers::OpenAI::GPT_5_2)
+  .preamble("You are a calculator.")
+  .tool(Calculator.new)
+  .build
+```
+
 ### Structured extraction
 
 ```crystal
