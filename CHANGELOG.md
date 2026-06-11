@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.38.7 (2026-06-10)
+
+### Changed
+- **rig_tool** documented with examples, optional types spec
+- README.md: new "Defining tools" section
+
 ## v0.38.6 (2026-06-10)
 
 ### Changed
