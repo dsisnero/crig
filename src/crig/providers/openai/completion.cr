@@ -557,6 +557,8 @@ module Crig
 
               content = Crig::OneOrMany(UserContent).many(other_content)
               [user(content)]
+            in .system?
+              [] of self
             in .assistant?
               text_content = [] of AssistantContent
               tool_calls = [] of ToolCall

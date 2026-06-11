@@ -1219,6 +1219,22 @@ module Crig
       def initialize(@kind : Kind, @function_names : Array(String) = [] of String)
       end
 
+      def auto? : Bool
+        @kind.auto?
+      end
+
+      def none? : Bool
+        @kind.none?
+      end
+
+      def required? : Bool
+        @kind.required?
+      end
+
+      def specific? : Bool
+        @kind.specific?
+      end
+
       def self.auto : self
         new(Kind::Auto)
       end
