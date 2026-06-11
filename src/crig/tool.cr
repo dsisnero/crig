@@ -1,3 +1,6 @@
+require "json"
+require "json-schema"
+
 module Crig
   module ToolMacro
     struct Result(T, E)
@@ -101,6 +104,7 @@ module Crig
       include JSON::Serializable
 
       {% for arg in function.args %}
+        @[JSON::Field(description: {{ params_map[arg.name.symbolize] || "Parameter #{arg.name.stringify}" }})]
         getter {{ arg.name }} : {{ arg.restriction }}
       {% end %}
 
@@ -129,35 +133,11 @@ module Crig
 
       def definition(prompt : String) : Crig::Completion::ToolDefinition
         _ = prompt
-        parameters = JSON.build do |json|
-          json.object do
-            json.field "type", "object"
-            json.field "properties" do
-              json.object do
-                {% for arg in function.args %}
-                  json.field {{ arg.name.stringify }} do
-                    json.object do
-                      Crig::ToolMacro.json_schema_for({{ arg.restriction }})
-                      json.field "description", {{ params_map[arg.name.symbolize] || "Parameter #{arg.name.stringify}" }}
-                    end
-                  end
-                {% end %}
-              end
-            end
-            json.field "required" do
-              json.array do
-                {% for req in required_args %}
-                  json.string {{ req.id.stringify }}
-                {% end %}
-              end
-            end
-          end
-        end
-
+        schema = {{ params_struct_name }}.json_schema
         Crig::Completion::ToolDefinition.new(
           {{ fn_name }},
           {{ description_value }},
-          JSON.parse(parameters)
+          JSON.parse(schema.to_json)
         )
       end
 
