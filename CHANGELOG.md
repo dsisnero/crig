@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.38.5 (2026-06-10)
+
+### Changed
+- Deep inventory sweep — deduplicated parity plan, all 2186 source API items tracked
+- 28 spec files, 94 tests passing
+
 ## v0.38.4 (2026-06-10)
 
 ### Added
