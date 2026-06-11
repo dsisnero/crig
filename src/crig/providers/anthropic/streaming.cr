@@ -53,11 +53,14 @@ module Crig
         InputJsonDelta
         ThinkingDelta
         SignatureDelta
+        CitationsDelta
+        Unknown
       end
 
       struct ContentDelta
         getter kind : ContentDeltaKind
         getter text : String?
+        getter citation : Citation?
         getter partial_json : String?
         getter thinking : String?
         getter signature : String?
@@ -68,6 +71,7 @@ module Crig
           @partial_json : String? = nil,
           @thinking : String? = nil,
           @signature : String? = nil,
+          @citation : Citation? = nil,
         )
         end
 
@@ -82,8 +86,11 @@ module Crig
             new(ContentDeltaKind::ThinkingDelta, thinking: hash["thinking"].as_s)
           when "signature_delta"
             new(ContentDeltaKind::SignatureDelta, signature: hash["signature"].as_s)
+          when "citations_delta"
+            citation = Citation.from_json(hash["citation"].to_json)
+            new(ContentDeltaKind::CitationsDelta, citation: citation)
           else
-            raise Crig::Completion::CompletionError.new("Unknown Anthropic content delta type: #{hash["type"].as_s}")
+            new(ContentDeltaKind::Unknown)
           end
         end
       end

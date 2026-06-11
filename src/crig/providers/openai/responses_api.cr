@@ -985,8 +985,9 @@ module Crig
           JSON.parse(to_json)
         end
 
-        def self.from_core(reasoning : Crig::Completion::Reasoning) : self
-          id = reasoning.id || raise Crig::Completion::CompletionError.new("An OpenAI-generated ID is required when using OpenAI reasoning items")
+        def self.from_core(reasoning : Crig::Completion::Reasoning) : self?
+          return nil unless reasoning.id
+          id = reasoning.id.not_nil!
           summary = [] of ReasoningSummary
           encrypted_content = nil.as(String?)
 
@@ -1545,33 +1546,51 @@ module Crig
         end
 
         private def self.from_core_assistant_message(message : Crig::Completion::Message) : Array(self)
-          assistant_id = message.id || raise Crig::Completion::CompletionError.new("Assistant message ID is required for OpenAI Responses API")
-          assistant_content = message.content.first.as?(Crig::Completion::AssistantContent)
-          return [] of self unless assistant_content
+          assistant_id = message.id || ""
+          contents = message.content.to_a.compact_map(&.as?(Crig::Completion::AssistantContent))
+          return [] of self if contents.empty?
 
-          case assistant_content.kind
-          in .text?
-            text = assistant_content.text || raise Crig::Completion::CompletionError.new("Missing assistant text content")
-            [assistant([AssistantContentType.text(AssistantContent.output_text(text.text))], assistant_id)]
-          in .tool_call?
-            tool_call = assistant_content.tool_call || raise Crig::Completion::CompletionError.new("Missing assistant tool call content")
-            call_id = OpenAI.require_call_id(tool_call.call_id, "Assistant tool call")
-            [assistant([
-              AssistantContentType.tool_call(
-                OutputFunctionCall.new(
-                  tool_call.function.arguments,
-                  call_id,
-                  tool_call.id,
-                  tool_call.function.name
-                )
-              ),
-            ], assistant_id)]
-          in .reasoning?
-            reasoning = assistant_content.reasoning || raise Crig::Completion::CompletionError.new("Missing assistant reasoning content")
-            [assistant([AssistantContentType.reasoning(OpenAIReasoning.from_core(reasoning))], assistant_id)]
-          in .image?
-            raise Crig::Completion::CompletionError.new("Assistant image content is not supported in OpenAI Responses API")
+          has_unreplayable_reasoning = contents.any? do |c|
+            c.kind.reasoning? && c.reasoning.try(&.id.nil?)
           end
+          cannot_replay = message.id.nil? || has_unreplayable_reasoning
+
+          items = [] of self
+          contents.each do |assistant_content|
+            case assistant_content.kind
+            in .text?
+              text = assistant_content.text
+              next unless text
+              next if text.text.empty?
+              content_type = if cannot_replay
+                               AssistantContentType.text(AssistantContent.input_text(text.text))
+                             else
+                               AssistantContentType.text(AssistantContent.output_text(text.text))
+                             end
+              items << assistant([content_type], assistant_id)
+            in .tool_call?
+              tool_call = assistant_content.tool_call || raise Crig::Completion::CompletionError.new("Missing assistant tool call content")
+              call_id = OpenAI.require_call_id(tool_call.call_id, "Assistant tool call")
+              items << assistant([
+                AssistantContentType.tool_call(
+                  OutputFunctionCall.new(
+                    tool_call.function.arguments,
+                    call_id,
+                    tool_call.id,
+                    tool_call.function.name
+                  )
+                ),
+              ], assistant_id)
+            in .reasoning?
+              reasoning = assistant_content.reasoning || raise Crig::Completion::CompletionError.new("Missing assistant reasoning content")
+              if openai_reasoning = OpenAIReasoning.from_core(reasoning)
+                items << assistant([AssistantContentType.reasoning(openai_reasoning)], assistant_id)
+              end
+            in .image?
+              raise Crig::Completion::CompletionError.new("Assistant image content is not supported in OpenAI Responses API")
+            end
+          end
+          items
         end
       end
 
@@ -1664,6 +1683,8 @@ module Crig
             from_user_message(message)
           in .assistant?
             from_assistant_message(message)
+          in .system?
+            [system_message(message.rag_text || "")]
           end
         end
 
@@ -1745,13 +1766,15 @@ module Crig
         end
 
         private def self.from_assistant_message(message : Crig::Completion::Message) : Array(self)
-          assistant_id = message.id || raise Crig::Completion::CompletionError.new("Assistant message ID is required for OpenAI Responses API")
+          assistant_id = message.id || ""
           assistant_content = message.content.to_a.first?.try(&.as?(Crig::Completion::AssistantContent))
           return [] of self unless assistant_content
 
           item = case assistant_content.kind
                  in .text?
-                   text = assistant_content.text || raise Crig::Completion::CompletionError.new("Missing assistant text content")
+                   text = assistant_content.text
+                   return [] of self unless text
+                   return [] of self if text.text.empty?
                    new(
                      InputContent.message(
                        Message.assistant([AssistantContentType.text(AssistantContent.output_text(text.text))], assistant_id)
@@ -1773,12 +1796,14 @@ module Crig
                    )
                  in .reasoning?
                    reasoning = assistant_content.reasoning || raise Crig::Completion::CompletionError.new("Missing assistant reasoning content")
-                   new(InputContent.reasoning(OpenAIReasoning.from_core(reasoning)))
+                   if openai_reasoning = OpenAIReasoning.from_core(reasoning)
+                     new(InputContent.reasoning(openai_reasoning))
+                   end
                  in .image?
                    raise Crig::Completion::CompletionError.new("Assistant image content is not supported in OpenAI Responses API")
                  end
 
-          [item]
+          item ? [item] : [] of self
         end
 
         def self.convert_user_content(content : Crig::Completion::UserContent) : UserContent

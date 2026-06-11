@@ -138,7 +138,7 @@ module Crig
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
+      new(agent, prompt_message, nil, agent.default_max_turns || 0, hook: agent.hook, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
     def multi_turn(turns : Int) : self

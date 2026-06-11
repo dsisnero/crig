@@ -54,6 +54,7 @@ module Crig
       enum Role
         User
         Assistant
+        System
 
         def to_wire : String
           to_s.downcase
@@ -358,6 +359,53 @@ module Crig
         end
       end
 
+      ANTHROPIC_RAW_CONTENT_KEY = "anthropic_content"
+
+      struct CitationsConfig
+        include JSON::Serializable
+
+        getter enabled : Bool
+
+        def initialize(@enabled : Bool)
+        end
+      end
+
+      struct Citation
+        include JSON::Serializable
+
+        enum Kind
+          CharLocation
+          PageLocation
+          ContentBlockLocation
+          SearchResultLocation
+          WebSearchResultLocation
+          Unknown
+        end
+
+        getter kind : Kind
+        getter raw : JSON::Any
+
+        def initialize(@kind : Kind, @raw : JSON::Any)
+        end
+
+        def self.new(pull : JSON::PullParser)
+          raw = JSON::Any.new(pull)
+          kind = if hash = raw.as_h?
+                   case hash["type"]?.try(&.as_s?)
+                   when "char_location"              then Kind::CharLocation
+                   when "page_location"              then Kind::PageLocation
+                   when "content_block_location"     then Kind::ContentBlockLocation
+                   when "search_result_location"     then Kind::SearchResultLocation
+                   when "web_search_result_location" then Kind::WebSearchResultLocation
+                   else                                   Kind::Unknown
+                   end
+                 else
+                   Kind::Unknown
+                 end
+          new(kind, raw)
+        end
+      end
+
       struct Content
         enum Kind
           Text
@@ -367,6 +415,8 @@ module Crig
           Document
           Thinking
           RedactedThinking
+          ServerToolUse
+          WebSearchToolResult
         end
 
         getter kind : Kind
@@ -382,6 +432,10 @@ module Crig
         getter thinking : String?
         getter signature : String?
         getter data : String?
+        getter citations : Array(Citation)?
+        getter document_title : String?
+        getter document_context : String?
+        getter document_citations_enabled : Bool?
 
         def initialize(
           @kind : Kind,
@@ -397,6 +451,10 @@ module Crig
           @thinking : String? = nil,
           @signature : String? = nil,
           @data : String? = nil,
+          @citations : Array(Citation)? = nil,
+          @document_title : String? = nil,
+          @document_context : String? = nil,
+          @document_citations_enabled : Bool? = nil,
         )
         end
 
@@ -428,6 +486,14 @@ module Crig
           new(Kind::RedactedThinking, data: data)
         end
 
+        def self.server_tool_use(id : String, name : String, input : JSON::Any = JSON.parse(%({}))) : self
+          new(Kind::ServerToolUse, id: id, name: name, input: input)
+        end
+
+        def self.web_search_tool_result(tool_use_id : String) : self
+          new(Kind::WebSearchToolResult, tool_use_id: tool_use_id)
+        end
+
         def self.from_json_value(value : JSON::Any) : self
           if string = value.as_s?
             return text(string)
@@ -436,7 +502,8 @@ module Crig
           hash = value.as_h
           case hash["type"].as_s
           when "text"
-            text(hash["text"].as_s, parse_cache_control(hash["cache_control"]?))
+            citations = hash["citations"]?.try(&.as_a?).try(&.map { |c| Citation.from_json(c.to_json) })
+            new(Kind::Text, text: hash["text"].as_s, cache_control: parse_cache_control(hash["cache_control"]?), citations: citations)
           when "image"
             image(ImageSource.from_json_value(hash["source"]), parse_cache_control(hash["cache_control"]?))
           when "tool_use"
@@ -450,11 +517,22 @@ module Crig
                       end
             tool_result(hash["tool_use_id"].as_s, content, hash["is_error"]?.try(&.as_bool), parse_cache_control(hash["cache_control"]?))
           when "document"
-            document(DocumentSource.from_json_value(hash["source"]), parse_cache_control(hash["cache_control"]?))
+            new(
+              Kind::Document,
+              source: DocumentSource.from_json_value(hash["source"]),
+              cache_control: parse_cache_control(hash["cache_control"]?),
+              document_title: hash["title"]?.try(&.as_s?),
+              document_context: hash["context"]?.try(&.as_s?),
+              document_citations_enabled: hash["citations"]?.try(&.as_h?).try(&.["enabled"]?.try(&.as_bool?)),
+            )
           when "thinking"
             thinking(hash["thinking"].as_s, hash["signature"]?.try(&.as_s?))
           when "redacted_thinking"
             redacted_thinking(hash["data"].as_s)
+          when "server_tool_use"
+            server_tool_use(hash["id"].as_s, hash["name"].as_s, hash["input"]? || JSON.parse(%({})))
+          when "web_search_tool_result"
+            web_search_tool_result(hash["tool_use_id"].as_s)
           else
             raise Crig::Completion::MessageError.new("Unsupported Anthropic content type: #{hash["type"].as_s}")
           end
@@ -500,6 +578,14 @@ module Crig
             in .redacted_thinking?
               json.field "type", "redacted_thinking"
               json.field "data", @data
+            in .server_tool_use?
+              json.field "type", "server_tool_use"
+              json.field "id", @id
+              json.field "name", @name
+              json.field "input" { (@input || JSON::Any.new(nil)).to_json(json) }
+            in .web_search_tool_result?
+              json.field "type", "web_search_tool_result"
+              json.field "tool_use_id", @tool_use_id
             end
           end
         end
@@ -567,6 +653,9 @@ module Crig
               anthropic_content_from_assistant_content(entry.as(Crig::Completion::AssistantContent))
             end
             new(Role::Assistant, Crig::OneOrMany(Content).many(content) || raise Crig::Completion::MessageError.new("Assistant message did not contain Anthropic-compatible content"))
+          in .system?
+            text = message.rag_text || ""
+            new(Role::System, Crig::OneOrMany(Content).one(Content.text(text)))
           end
         end
 
@@ -585,6 +674,10 @@ module Crig
               Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).many(
                 @content.to_a.map { |entry| entry.to_core_assistant_content.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent) }
               ),
+            )
+          in .system?
+            Crig::Completion::Message.system(
+              @content.to_a.compact_map { |entry| entry.text if entry.kind.text? }.join
             )
           end
         end
@@ -740,8 +833,9 @@ module Crig
         getter name : String
         getter description : String?
         getter input_schema : JSON::Any
+        getter cache_control : CacheControl?
 
-        def initialize(@name : String, @input_schema : JSON::Any, @description : String? = nil)
+        def initialize(@name : String, @input_schema : JSON::Any, @description : String? = nil, @cache_control : CacheControl? = nil)
         end
 
         def to_json(json : JSON::Builder) : Nil
@@ -749,6 +843,17 @@ module Crig
             json.field "name", @name
             json.field "description", @description unless @description.nil?
             json.field "input_schema" { @input_schema.to_json(json) }
+            json.field "cache_control" { @cache_control.not_nil!.to_json(json) } if @cache_control
+          end
+        end
+
+        def to_json_value : JSON::Any
+          JSON.parse(to_json_build)
+        end
+
+        private def to_json_build : String
+          JSON.build do |json|
+            to_json(json)
           end
         end
       end
@@ -943,6 +1048,38 @@ module Crig
         end
       end
 
+      def self.supports_mid_conversation_system_messages?(model : String) : Bool
+        model.starts_with?("claude-opus-4-")
+      end
+
+      def self.split_system_messages_from_history(history : Array(Crig::Completion::Message), preserve_mid_conversation : Bool) : Tuple(Array(String), Array(Crig::Completion::Message))
+        system_texts = [] of String
+        chat = [] of Crig::Completion::Message
+        found_non_system = false
+
+        history.each_with_index do |msg, idx|
+          if msg.role.system?
+            text = msg.rag_text
+            if text
+              if !found_non_system || (preserve_mid_conversation && found_non_system)
+                if preserve_mid_conversation
+                  chat << msg
+                else
+                  system_texts << text
+                end
+              else
+                system_texts << text
+              end
+            end
+          else
+            found_non_system = true
+            chat << msg
+          end
+        end
+
+        {system_texts, chat}
+      end
+
       struct AnthropicCompletionRequest
         getter model : String
         getter messages : Array(Message)
@@ -977,14 +1114,18 @@ module Crig
           end
           req.chat_history.each { |entry| full_history << entry }
 
-          messages = full_history.map { |entry| Message.from_core_message(entry) }
+          preserve_mid_conversation = Anthropic.supports_mid_conversation_system_messages?(params.model)
+          history_system_messages, chat_messages = Anthropic.split_system_messages_from_history(full_history, preserve_mid_conversation)
+
+          messages = chat_messages.map { |entry| Message.from_core_message(entry) }
           tools = req.tools.map { |tool| ToolDefinition.new(tool.name, tool.parameters, tool.description) }
 
           system = if preamble = req.preamble
-                     preamble.empty? ? [] of SystemContent : [SystemContent.text(preamble)]
-                   else
-                     [] of SystemContent
-                   end
+                      contents = preamble.empty? ? [] of SystemContent : [SystemContent.text(preamble)]
+                      contents + history_system_messages.map { |text| SystemContent.text(text) }
+                    else
+                      history_system_messages.map { |text| SystemContent.text(text) }
+                    end
 
           Anthropic.apply_cache_control(system, messages) if params.prompt_caching?
 
@@ -1307,7 +1448,7 @@ module Crig
           texts = @content.to_a.compact_map do |c|
             c.text if c.kind.text?
           end
-          joined = texts.join('\n')
+          joined = texts.join
           joined.empty? ? nil : joined
         end
 

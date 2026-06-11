@@ -317,6 +317,8 @@ module Crig
 
         def self.from_core_messages(message : Crig::Completion::Message) : Array(self)
           case message.role
+          in .system?
+            [] of self
           in .user?
             convert_user_message(message)
           in .assistant?

@@ -566,6 +566,8 @@ module Crig
 
         def self.from_core_message(message : Crig::Completion::Message) : Array(self)
           case message.role
+          in .system?
+            [] of self
           in .user?
             message.content.to_a.map { |entry| from_core_user_or_tool_content(entry) }
           in .assistant?

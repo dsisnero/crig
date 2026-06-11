@@ -46,6 +46,125 @@ module Crig
     end
   end
 
+  struct InvalidToolCallContext
+    getter tool_name : String
+    getter tool_call_id : String?
+    getter internal_call_id : String?
+    getter args : String?
+    getter available_tools : Array(String)
+    getter allowed_tools : Array(String)
+    getter tool_choice : Crig::Completion::ToolChoice?
+    getter chat_history : Array(Crig::Completion::Message)
+    getter? is_streaming : Bool
+
+    def initialize(
+      @tool_name : String,
+      @available_tools : Array(String),
+      @allowed_tools : Array(String),
+      @chat_history : Array(Crig::Completion::Message),
+      @tool_call_id : String? = nil,
+      @internal_call_id : String? = nil,
+      @args : String? = nil,
+      @tool_choice : Crig::Completion::ToolChoice? = nil,
+      @is_streaming : Bool = false,
+    )
+    end
+  end
+
+  struct InvalidToolCallHookAction
+    enum Kind
+      Fail
+      Retry
+      Repair
+      Skip
+    end
+
+    getter kind : Kind
+    getter feedback : String?
+    getter reason : String?
+    getter tool_name : String?
+
+    def initialize(@kind : Kind, @feedback : String? = nil, @reason : String? = nil, @tool_name : String? = nil)
+    end
+
+    def self.fail : self
+      new(Kind::Fail)
+    end
+
+    def self.retry(feedback : String) : self
+      new(Kind::Retry, feedback: feedback)
+    end
+
+    def self.repair(tool_name : String) : self
+      new(Kind::Repair, tool_name: tool_name)
+    end
+
+    def self.skip(reason : String) : self
+      new(Kind::Skip, reason: reason)
+    end
+  end
+
+  enum InvalidToolCallResolution
+    Fail
+    Retry
+    Repair
+    Skip
+  end
+
+  def self.resolve_invalid_tool_call(
+    hook : Crig::PromptHook?,
+    tool_name : String,
+    tool_call_id : String?,
+    internal_call_id : String?,
+    args : String?,
+    executable_tool_names : Set(String),
+    allowed_tool_names : Set(String),
+    tool_choice : Crig::Completion::ToolChoice?,
+    chat_history : Array(Crig::Completion::Message),
+    is_streaming : Bool = false,
+  ) : {InvalidToolCallResolution, String?}
+    # Build the error that would be raised on fail-fast
+    err_history = chat_history.dup
+
+    unless hook
+      return {InvalidToolCallResolution::Fail, nil}
+    end
+
+    context = Crig::InvalidToolCallContext.new(
+      tool_name,
+      executable_tool_names.to_a,
+      allowed_tool_names.to_a,
+      chat_history,
+      tool_call_id: tool_call_id,
+      internal_call_id: internal_call_id,
+      args: args,
+      tool_choice: tool_choice,
+      is_streaming: is_streaming,
+    )
+
+    action = hook.on_invalid_tool_call(context)
+
+    case action.kind
+    in .fail?
+      {InvalidToolCallResolution::Fail, nil}
+    in .retry?
+      {InvalidToolCallResolution::Retry, action.feedback}
+    in .repair?
+      repaired_name = action.tool_name || tool_name
+      if allowed_tool_names.includes?(repaired_name)
+        {InvalidToolCallResolution::Repair, repaired_name}
+      else
+        {InvalidToolCallResolution::Fail, nil}
+      end
+    in .skip?
+      if tool_choice.try(&.none?)
+        {InvalidToolCallResolution::Fail, nil}
+      else
+        {InvalidToolCallResolution::Skip, action.reason}
+      end
+    end
+  end
+
   abstract class PromptHook
     def on_completion_call(
       prompt : Crig::Completion::Message,
@@ -81,6 +200,11 @@ module Crig
       Crig::HookAction.cont
     end
 
+    def on_invalid_tool_call(context : Crig::InvalidToolCallContext) : Crig::InvalidToolCallHookAction
+      _ = context
+      Crig::InvalidToolCallHookAction.fail
+    end
+
     def on_text_delta(text_delta : String, aggregated_text : String) : Crig::HookAction
       Crig::HookAction.cont
     end
@@ -113,20 +237,36 @@ module Crig
     include PromptType
   end
 
+  struct CompletionCall
+    include JSON::Serializable
+
+    getter call_index : Int32
+    getter usage : Crig::Completion::Usage?
+
+    def initialize(@call_index : Int32, @usage : Crig::Completion::Usage?)
+    end
+  end
+
   struct PromptResponse
     getter output : String
     getter usage : Crig::Completion::Usage
     getter messages : Array(Crig::Completion::Message)?
+    getter completion_calls : Array(CompletionCall)
 
     def initialize(
       @output : String,
       @usage : Crig::Completion::Usage,
       @messages : Array(Crig::Completion::Message)? = nil,
+      @completion_calls : Array(CompletionCall) = [] of CompletionCall,
     )
     end
 
     def with_messages(messages : Array(Crig::Completion::Message)) : self
-      self.class.new(@output, @usage, messages)
+      self.class.new(@output, @usage, messages, @completion_calls)
+    end
+
+    def with_completion_calls(calls : Array(CompletionCall)) : self
+      self.class.new(@output, @usage, @messages, calls)
     end
 
     def to_s(io : IO) : Nil
@@ -139,8 +279,17 @@ module Crig
 
     getter output : T
     getter usage : Crig::Completion::Usage
+    getter completion_calls : Array(CompletionCall)
 
-    def initialize(@output : T, @usage : Crig::Completion::Usage)
+    def initialize(
+      @output : T,
+      @usage : Crig::Completion::Usage,
+      @completion_calls : Array(CompletionCall) = [] of CompletionCall,
+    )
+    end
+
+    def with_completion_calls(calls : Array(CompletionCall)) : self
+      self.class.new(@output, @usage, calls)
     end
   end
 
@@ -168,7 +317,7 @@ module Crig
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
+      new(agent, prompt_message, nil, agent.default_max_turns || 0, hook: agent.hook, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
     def extended_details : PromptRequest(Crig::Extended, M)
@@ -203,6 +352,10 @@ module Crig
       self.class.new(@agent, @prompt, @chat_history, @max_turns, @concurrency, @hook, nil, nil)
     end
 
+    private def reported_usage(usage : Crig::Completion::Usage) : Crig::Completion::Usage?
+      usage.input_tokens == 0 && usage.output_tokens == 0 && usage.total_tokens == 0 ? nil : usage
+    end
+
     def send
       {% if S == Crig::Extended %}
         chat_history = (@chat_history || [] of Crig::Completion::Message).dup
@@ -211,7 +364,7 @@ module Crig
         agent_name = @agent.name || "Unnamed Agent"
         preamble_text = @agent.preamble
 
-        agent_span = Crig::Span.current.is_disabled ? Crig::Span.for_tracer("crig", "invoke_agent") : Crig::Span.current
+        agent_span = Crig::Span.current.disabled? ? Crig::Span.for_tracer("crig", "invoke_agent") : Crig::Span.current
         agent_span.set_attribute(Crig::Telemetry::GEN_AI_OPERATION_NAME, "invoke_agent")
         agent_span.set_attribute(Crig::Telemetry::GEN_AI_AGENT_NAME, agent_name)
         if preamble_text
@@ -224,6 +377,8 @@ module Crig
 
         current_max_turns = 0
         usage = Crig::Completion::Usage.new
+        completion_calls = [] of Crig::CompletionCall
+        zero_usage = Crig::Completion::Usage.new
 
         output = nil
         begin
@@ -239,6 +394,7 @@ module Crig
             run_completion_call_hook(prompt, chat_history[0...-1])
 
             response = @agent.completion(prompt, chat_history[0...-1]).send(@agent.model)
+            completion_calls << Crig::CompletionCall.new(completion_calls.size, reported_usage(response.usage))
             usage += response.usage
 
             run_completion_response_hook(prompt, response, chat_history)
@@ -264,15 +420,61 @@ module Crig
             )
 
             unless tool_calls.empty?
-              tool_content = execute_tool_calls(tool_calls, chat_history)
+              executable_names = @agent.static_tools.map(&.name).to_set
+              allowed_names = Crig::Completion.allowed_tool_names_for_choice(executable_names, @agent.tool_choice)
+              validated_calls = [] of Crig::Completion::AssistantContent
+
+              tool_calls.each do |choice|
+                if choice.kind.tool_call? && (tc = choice.tool_call)
+                  error = Crig::Completion.validate_tool_call_name?(tc.function.name, executable_names, allowed_names, chat_history.dup)
+                  if error
+                    resolution, data = Crig.resolve_invalid_tool_call(
+                      @hook, tc.function.name, tc.id, tc.call_id,
+                      tc.function.arguments.to_json,
+                      executable_names, allowed_names, @agent.tool_choice,
+                      chat_history.dup,
+                    )
+                    case resolution
+                    in .fail?
+                      raise error
+                    in .retry?
+                      if feedback = data
+                        chat_history << Crig::Completion::Message.user(feedback)
+                      end
+                      next
+                    in .repair?
+                      if repaired = data
+                        new_function = Crig::Completion::ToolFunction.new(repaired, tc.function.arguments)
+                        validated_calls << Crig::Completion::AssistantContent.new(
+                          Crig::Completion::AssistantContent::Kind::ToolCall,
+                          tool_call: Crig::Completion::ToolCall.new(tc.id, new_function, tc.call_id, tc.signature, tc.additional_params),
+                        )
+                      else
+                        validated_calls << choice
+                      end
+                    in .skip?
+                      if reason = data
+                        chat_history << Crig::Completion::Message.tool_result(tc.id, reason)
+                      end
+                      next
+                    end
+                  else
+                    validated_calls << choice
+                  end
+                else
+                  validated_calls << choice
+                end
+              end
+
+              tool_content = execute_tool_calls(validated_calls, chat_history)
               chat_history << Crig::Completion::Message.from(Crig::OneOrMany(Crig::Completion::UserContent).many(tool_content))
               next
             end
 
-            output = text_parts.join("\n")
+            output = text_parts.join
             agent_span.set_attribute(Crig::Telemetry::GEN_AI_COMPLETION, output)
             agent_span.record_token_usage(usage)
-            return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup)
+            return Crig::PromptResponse.new(output, usage).with_messages(chat_history.dup).with_completion_calls(completion_calls)
           end
         ensure
           unless output
@@ -442,7 +644,7 @@ module Crig
     def send
       {% if S == Crig::Extended %}
         response = @inner.send
-        Crig::TypedPromptResponse(T).new(T.from_json(response.output), response.usage)
+        Crig::TypedPromptResponse(T).new(T.from_json(response.output), response.usage, response.completion_calls)
       {% else %}
         T.from_json(@inner.send)
       {% end %}

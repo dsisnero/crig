@@ -93,6 +93,17 @@ module Crig
       end
     end
 
+    struct EmbeddingResponse
+      getter embeddings : Array(Embedding)
+      getter usage : Crig::Completion::Usage
+
+      def initialize(
+        @embeddings : Array(Embedding),
+        @usage : Crig::Completion::Usage = Crig::Completion::Usage.new,
+      )
+      end
+    end
+
     module EmbeddingModel
       abstract def max_documents : Int32
       abstract def ndims : Int32
@@ -101,6 +112,19 @@ module Crig
       def embed_text(text : String) : Embedding
         embed_texts([text]).first? || raise EmbeddingError.new("There should be at least one embedding")
       end
+
+      def embed_texts_with_usage(texts : Enumerable(String)) : EmbeddingResponse
+        embeddings = embed_texts(texts)
+        EmbeddingResponse.new(embeddings, Crig::Completion::Usage.new)
+      end
+
+      def embed_text_with_usage(text : String) : EmbeddingResponse
+        response = embed_texts_with_usage([text])
+        if response.embeddings.empty?
+          raise EmbeddingError.new("embedding provider returned an empty response")
+        end
+        response
+      end
     end
 
     module EmbeddingModelDyn
@@ -108,6 +132,7 @@ module Crig
       abstract def ndims : Int32
       abstract def embed_text(text : String) : Embedding
       abstract def embed_texts(texts : Array(String)) : Array(Embedding)
+      abstract def embed_texts_with_usage(texts : Array(String)) : EmbeddingResponse
     end
 
     module ImageEmbeddingModel

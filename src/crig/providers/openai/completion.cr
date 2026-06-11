@@ -516,7 +516,7 @@ module Crig
                   in .base64?
                     media_type = image.media_type.try { |value| Crig::Completion::MimeType.image_to_mime_type(value) } ||
                                  raise Crig::Completion::CompletionError.new("OpenAI Image URI must have media type")
-                    detail = image.detail || raise Crig::Completion::CompletionError.new("OpenAI image URI must have image detail")
+                    detail = image.detail || Crig::Completion::ImageDetail::Auto
                     data = image.data.string_value || raise Crig::Completion::CompletionError.new("OpenAI base64 image is missing")
                     other_content << UserContent.image("data:#{media_type};base64,#{data}", detail.to_s.downcase)
                   in .raw?, .string?, .file_id?, .unknown?
@@ -557,6 +557,8 @@ module Crig
 
               content = Crig::OneOrMany(UserContent).many(other_content)
               [user(content)]
+            in .system?
+              [] of self
             in .assistant?
               text_content = [] of AssistantContent
               tool_calls = [] of ToolCall
@@ -1066,6 +1068,9 @@ module Crig
 
             getter name : String?
             getter arguments : String?
+
+            def initialize(@name : String? = nil, @arguments : String? = nil)
+            end
           end
 
           struct ToolCall
@@ -1074,6 +1079,34 @@ module Crig
             getter index : Int32
             getter id : String?
             getter function : Function
+
+            def initialize(@index : Int32, @id : String? = nil, @function : Function = Function.new)
+            end
+
+            def initialize(pull : JSON::PullParser)
+              idx = 0
+              fid : String? = nil
+              func = Function.new
+              pull.read_object do |key|
+                case key
+                when "index"
+                  idx = pull.read_int.to_i
+                when "id"
+                  fid = pull.read_string_or_null
+                when "function"
+                  if pull.kind.null?
+                    pull.read_null
+                  else
+                    func = Function.new(pull)
+                  end
+                else
+                  pull.skip
+                end
+              end
+              @index = idx
+              @id = fid
+              @function = func
+            end
           end
 
           struct Delta

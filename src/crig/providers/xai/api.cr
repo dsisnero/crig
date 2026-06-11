@@ -260,6 +260,8 @@ module Crig
             convert_user_message(msg)
           in .assistant?
             convert_assistant_message(msg)
+          in .system?
+            raise Crig::Completion::CompletionError.new("xAI does not support System messages in chat history")
           end
         end
 

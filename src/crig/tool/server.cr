@@ -125,6 +125,10 @@ module Crig
     getter static_tool_names : Array(String)
     getter toolset : Crig::ToolSet
 
+    def visible_tool_names : Array(String)
+      @static_tool_names.dup
+    end
+
     def initialize(
       @static_tool_names : Array(String) = [] of String,
       @dynamic_tools : Array(Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String))))) = [] of Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String)))),
@@ -250,6 +254,9 @@ module Crig
 
     def append_toolset(toolset : Crig::ToolSet) : Crig::ToolServerResponse
       @lock.synchronize do
+        toolset.tools.each_key do |name|
+          @static_tool_names << name unless @static_tool_names.includes?(name)
+        end
         @toolset.add_tools(toolset)
       end
       Crig::ToolServerResponse.tool_added

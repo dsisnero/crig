@@ -4,6 +4,21 @@ module Crig
       value.nil? || value.empty?
     end
 
+    def self.deserialize_json_string_or_value(raw : String) : String?
+      return nil if raw.strip.empty?
+
+      value = JSON.parse(raw)
+      inner = value.raw
+
+      case inner
+      when Nil then nil
+      when String then inner
+      else JSONUtils.value_to_json_string(value)
+      end
+    rescue JSON::ParseException
+      nil
+    end
+
     def self.merge(a : JSON::Any, b : JSON::Any) : JSON::Any
       left = a.as_h?
       right = b.as_h?
@@ -106,6 +121,21 @@ module Crig
       end
     end
 
+    module NullOrDefault(T)
+      def self.from_json(pull : JSON::PullParser) : T
+        if pull.kind.null?
+          pull.read_null
+          T.from_json(%({}))
+        else
+          T.new(pull)
+        end
+      end
+
+      def self.to_json(value : T, json : JSON::Builder) : Nil
+        value.to_json(json)
+      end
+    end
+
     module NullOrVecConverter(T)
       def self.from_json(pull : JSON::PullParser) : Array(T)
         if pull.kind.null?
@@ -118,6 +148,26 @@ module Crig
 
       def self.to_json(value : Array(T), json : JSON::Builder) : Nil
         value.to_json(json)
+      end
+    end
+
+    def self.merge_text_additional_params(existing : JSON::Any, incoming : JSON::Any) : Nil
+      existing_h = existing.as_h?
+      incoming_h = incoming.as_h?
+      return unless existing_h && incoming_h
+
+      incoming_h.each do |key, incoming_value|
+        if curr = existing_h[key]?
+          if curr.as_a? && incoming_value.as_a?
+            curr.as_a.concat(incoming_value.as_a)
+          elsif curr.as_h? && incoming_value.as_h?
+            merge_text_additional_params(curr, incoming_value)
+          else
+            existing_h[key] = incoming_value
+          end
+        else
+          existing_h[key] = incoming_value
+        end
       end
     end
   end

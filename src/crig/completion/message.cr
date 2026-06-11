@@ -11,8 +11,24 @@ module Crig
       include JSON::Serializable
 
       getter text : String
+      getter additional_params : JSON::Any?
 
-      def initialize(@text : String)
+      def initialize(@text : String, @additional_params : JSON::Any? = nil)
+      end
+
+      def self.new(pull : JSON::PullParser)
+        text = ""
+        add_params = nil.as(JSON::Any?)
+
+        pull.read_object do |key|
+          case key
+          when "text"              then text = pull.read_string
+          when "additional_params" then add_params = JSON::Any.new(pull)
+          else                          pull.skip
+          end
+        end
+
+        new(text, add_params)
       end
 
       def self.from(text : String) : self
@@ -1075,6 +1091,7 @@ module Crig
       enum Role
         User
         Assistant
+        System
       end
 
       getter role : Role
@@ -1089,7 +1106,7 @@ module Crig
       end
 
       def self.system(text : String) : self
-        user(text)
+        new(Role::System, Crig::OneOrMany(UserContent | AssistantContent).one(UserContent.text(text)))
       end
 
       def self.user(content : UserContent) : self
@@ -1177,7 +1194,7 @@ module Crig
       end
 
       def rag_text : String?
-        return unless @role.user?
+        return unless @role.user? || @role.system?
         @content.each do |item|
           if item.is_a?(UserContent) && item.kind.text?
             text = item.text
@@ -1200,6 +1217,22 @@ module Crig
       getter function_names : Array(String)
 
       def initialize(@kind : Kind, @function_names : Array(String) = [] of String)
+      end
+
+      def auto? : Bool
+        @kind.auto?
+      end
+
+      def none? : Bool
+        @kind.none?
+      end
+
+      def required? : Bool
+        @kind.required?
+      end
+
+      def specific? : Bool
+        @kind.specific?
       end
 
       def self.auto : self
