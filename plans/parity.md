@@ -109,7 +109,7 @@
   - `ResponseImage` struct, `response_image_to_assistant_content`, `is_openrouter_response_image`
   - Prevents replaying generated images in multi-turn history by tagging with `additional_params`
 
-- [ ] **Agent prompt_request InvalidToolCallResolution integration**
+- [x] **Agent prompt_request InvalidToolCallResolution integration**
   - Upstream: `src/agent/prompt_request/mod.rs` (+1066), `src/agent/prompt_request/streaming.rs` (+2136)
   - Non-streaming: `InvalidToolCallResolution` recovery flow (retry/repair/skip) wired into tool execution loop
   - Streaming: `ToolCallValidationHistory`, `flush_pending_reasoning_delta`, tool call validation with hook recovery
