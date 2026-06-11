@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.38.4 (2026-06-10)
+
+### Added
+- **InvalidToolCallResolution** — non-streaming agent loop validates tools via hooks
+  - Fail, Retry, Repair, Skip recovery actions wired into execute_tool_calls
+  - resolve_invalid_tool_call orchestrates PromptHook callbacks
+
 ## v0.38.3 (2026-06-09)
 
 ### Added
