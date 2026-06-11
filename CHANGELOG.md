@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.38.8 (2026-06-10)
+
+### Changed
+- Merged perf branch into main; all tags now on main
+- Cleaned stray spec file
+
 ## v0.38.7 (2026-06-10)
 
 ### Changed
