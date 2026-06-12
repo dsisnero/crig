@@ -1,4 +1,10 @@
-# Changelog
+## v0.38.9 (2026-06-10)
+
+### Fixed
+- ToolChoice predicate methods (auto?, none?, required?, specific?)
+- Content.to_json exhaustive case for server_tool_use / web_search_tool_result
+- from_core_message System role handling in Cohere, DeepSeek, OpenAI
+- Anthropic module method qualification
 
 ## v0.38.8 (2026-06-10)
 
