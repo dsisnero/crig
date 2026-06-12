@@ -65,8 +65,8 @@ describe "rig_tool json-schema integration" do
     tool = Calc.new
     definition = tool.definition("")
 
-    definition.parameters["properties"]["x"]["description"].as_s.should eq("First number in the calculation")
-    definition.parameters["properties"]["operation"]["description"].as_s.should eq("The operation to perform (add, subtract, multiply, divide)")
+    definition.parameters["properties"]["a"]["description"].as_s.should eq("First number in the calculation")
+    definition.parameters["properties"]["op"]["description"].as_s.should eq("The operation to perform (add, subtract, multiply, divide)")
   end
 
   it "outputs nilable fields as non-required" do
