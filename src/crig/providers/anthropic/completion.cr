@@ -578,6 +578,14 @@ module Crig
             in .redacted_thinking?
               json.field "type", "redacted_thinking"
               json.field "data", @data
+            in .server_tool_use?
+              json.field "type", "server_tool_use"
+              json.field "id", @id
+              json.field "name", @name
+              json.field "input" { (@input || JSON::Any.new(nil)).to_json(json) }
+            in .web_search_tool_result?
+              json.field "type", "web_search_tool_result"
+              json.field "tool_use_id", @tool_use_id
             end
           end
         end
@@ -1106,8 +1114,8 @@ module Crig
           end
           req.chat_history.each { |entry| full_history << entry }
 
-          preserve_mid_conversation = supports_mid_conversation_system_messages?(params.model)
-          history_system_messages, chat_messages = split_system_messages_from_history(full_history, preserve_mid_conversation)
+          preserve_mid_conversation = Anthropic.supports_mid_conversation_system_messages?(params.model)
+          history_system_messages, chat_messages = Anthropic.split_system_messages_from_history(full_history, preserve_mid_conversation)
 
           messages = chat_messages.map { |entry| Message.from_core_message(entry) }
           tools = req.tools.map { |tool| ToolDefinition.new(tool.name, tool.parameters, tool.description) }

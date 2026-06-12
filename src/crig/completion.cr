@@ -341,6 +341,8 @@ module Crig
       when .specific?
         names = tool_choice.function_names
         Set.new(names)
+      else
+        Set(String).new
       end
     end
 
