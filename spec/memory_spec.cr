@@ -310,7 +310,7 @@ describe Crig::Memory::TemplateCompactor do
       Crig::Completion::Message.assistant("It's 4."),
     ]
     result = compactor.compact("conv-1", evicted, nil)
-    result.role.user?.should be_true
+    result.role.system?.should be_true
   end
 
   it "includes previous summary in rolling compaction" do
