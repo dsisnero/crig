@@ -318,7 +318,7 @@ describe Crig::Memory::TemplateCompactor do
     prev_summary = Crig::Completion::Message.user("[Conversation summary so far]\nPrior turns about math")
     evicted = [Crig::Completion::Message.user("ok thanks")]
     result = compactor.compact("conv-2", evicted, prev_summary)
-    result.role.user?.should be_true
+    result.role.system?.should be_true
   end
 end
 
