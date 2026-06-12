@@ -52,6 +52,8 @@ module Crig
               end
             end.join('\n')
             new(Role::Assistant, collapsed)
+          in .system?
+            new(Role::User, message.rag_text || "")
           end
         end
 

@@ -421,52 +421,56 @@ module Crig
 
             unless tool_calls.empty?
               executable_names = @agent.static_tools.map(&.name).to_set
-              allowed_names = Crig::Completion.allowed_tool_names_for_choice(executable_names, @agent.tool_choice)
-              validated_calls = [] of Crig::Completion::AssistantContent
+              unless executable_names.empty?
+                allowed_names = Crig::Completion.allowed_tool_names_for_choice(executable_names, @agent.tool_choice)
+                validated_calls = [] of Crig::Completion::AssistantContent
 
-              tool_calls.each do |choice|
-                if choice.kind.tool_call? && (tc = choice.tool_call)
-                  error = Crig::Completion.validate_tool_call_name?(tc.function.name, executable_names, allowed_names, chat_history.dup)
-                  if error
-                    resolution, data = Crig.resolve_invalid_tool_call(
-                      @hook, tc.function.name, tc.id, tc.call_id,
-                      tc.function.arguments.to_json,
-                      executable_names, allowed_names, @agent.tool_choice,
-                      chat_history.dup,
-                    )
-                    case resolution
-                    in .fail?
-                      raise error
-                    in .retry?
-                      if feedback = data
-                        chat_history << Crig::Completion::Message.user(feedback)
+                tool_calls.each do |choice|
+                  if choice.kind.tool_call? && (tc = choice.tool_call)
+                    error = Crig::Completion.validate_tool_call_name?(tc.function.name, executable_names, allowed_names, chat_history.dup)
+                    if error
+                      resolution, data = Crig.resolve_invalid_tool_call(
+                        @hook, tc.function.name, tc.id, tc.call_id,
+                        tc.function.arguments.to_json,
+                        executable_names, allowed_names, @agent.tool_choice,
+                        chat_history.dup,
+                      )
+                      case resolution
+                      in .fail?
+                        raise error
+                      in .retry?
+                        if feedback = data
+                          chat_history << Crig::Completion::Message.user(feedback)
+                        end
+                        next
+                      in .repair?
+                        if repaired = data
+                          new_function = Crig::Completion::ToolFunction.new(repaired, tc.function.arguments)
+                          validated_calls << Crig::Completion::AssistantContent.new(
+                            Crig::Completion::AssistantContent::Kind::ToolCall,
+                            tool_call: Crig::Completion::ToolCall.new(tc.id, new_function, tc.call_id, tc.signature, tc.additional_params),
+                          )
+                        else
+                          validated_calls << choice
+                        end
+                      in .skip?
+                        if reason = data
+                          chat_history << Crig::Completion::Message.tool_result(tc.id, reason)
+                        end
+                        next
                       end
-                      next
-                    in .repair?
-                      if repaired = data
-                        new_function = Crig::Completion::ToolFunction.new(repaired, tc.function.arguments)
-                        validated_calls << Crig::Completion::AssistantContent.new(
-                          Crig::Completion::AssistantContent::Kind::ToolCall,
-                          tool_call: Crig::Completion::ToolCall.new(tc.id, new_function, tc.call_id, tc.signature, tc.additional_params),
-                        )
-                      else
-                        validated_calls << choice
-                      end
-                    in .skip?
-                      if reason = data
-                        chat_history << Crig::Completion::Message.tool_result(tc.id, reason)
-                      end
-                      next
+                    else
+                      validated_calls << choice
                     end
                   else
                     validated_calls << choice
                   end
-                else
-                  validated_calls << choice
                 end
-              end
 
-              tool_content = execute_tool_calls(validated_calls, chat_history)
+                tool_content = execute_tool_calls(validated_calls, chat_history)
+              else
+                tool_content = execute_tool_calls(tool_calls, chat_history)
+              end
               chat_history << Crig::Completion::Message.from(Crig::OneOrMany(Crig::Completion::UserContent).many(tool_content))
               next
             end

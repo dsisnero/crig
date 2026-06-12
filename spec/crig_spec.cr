@@ -8787,12 +8787,12 @@ describe Crig::ToolType do
 end
 
 describe Crig::ToolServer do
-  it "handles append_toolset requests through the server handle" do
+  it "handles append_toolset requests and exposes tools via the server handle" do
     handle = Crig::ToolServer.new.run
     handle.append_toolset(Crig::ToolSet.from_tools([EchoTool.new]))
 
     handle.call_tool("echo", %({"value":"hello"})).should eq(%("hello"))
-    handle.get_tool_defs(nil).should eq([] of Crig::Completion::ToolDefinition)
+    handle.get_tool_defs(nil).map(&.name).should eq(["echo"])
   end
 
   it "adds tools, returns definitions, calls them, and removes them through the handle" do
@@ -9387,7 +9387,9 @@ SSE
       chat_history: Crig::OneOrMany(Crig::Completion::Message).one(assistant_message),
     )
 
-    expect_raises(Crig::Completion::CompletionError, /OpenAI-generated ID is required/) do
+    # Reasoning without ID is now skipped (matches upstream behavior)
+    # The request has no valid items, so it errors with "must contain at least one item"
+    expect_raises(Crig::Completion::CompletionError, /must contain at least one item/) do
       client.completion_model(Crig::Providers::OpenAI::GPT_4O).completion(request)
     end
   end
@@ -9783,7 +9785,7 @@ describe Crig::Providers::OpenAI::InputItem do
     json["output"].as_s.should eq("ok")
   end
 
-  it "errors when assistant reasoning is missing an OpenAI reasoning id" do
+  it "skips assistant reasoning when missing an OpenAI reasoning id" do
     message = Crig::Completion::Message.new(
       Crig::Completion::Message::Role::Assistant,
       Crig::OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
@@ -9795,9 +9797,8 @@ describe Crig::Providers::OpenAI::InputItem do
       "assistant_message_id",
     )
 
-    expect_raises(Crig::Completion::CompletionError, /OpenAI-generated ID is required/) do
-      Crig::Providers::OpenAI::InputItem.from_completion_message(message)
-    end
+    items = Crig::Providers::OpenAI::InputItem.from_completion_message(message)
+    items.should be_empty
   end
 
   it "serializes encrypted-only reasoning content without adding summaries" do
@@ -16078,7 +16079,7 @@ describe Crig::Examples::AgentWithToolsOtel, tags: %w[examples agent_with_tools_
 
     agent.preamble.should eq(Crig::Examples::AgentWithTools::PREAMBLE)
     agent.static_tools.map(&.name).sort.should eq(%w[add subtract])
-    Crig::Examples::AgentWithToolsOtel.current_span.is_disabled.should be_true
+    Crig::Examples::AgentWithToolsOtel.current_span.disabled?.should be_true
   end
 
   it "runs the upstream calculator prompt helper" do
@@ -16349,7 +16350,7 @@ describe Crig::Examples::OpenAIStreamingWithToolsOtel, tags: %w[examples openai_
     agent.name.should eq("Bob")
     agent.preamble.should eq(Crig::Examples::OpenAIStreamingWithTools::PREAMBLE)
     agent.static_tools.map(&.name).sort.should eq(%w[add subtract])
-    Crig::Examples::OpenAIStreamingWithToolsOtel.current_span.is_disabled.should be_true
+    Crig::Examples::OpenAIStreamingWithToolsOtel.current_span.disabled?.should be_true
   end
 
   it "streams the upstream tools prompt through the shared stdout helper" do
@@ -17601,7 +17602,7 @@ describe Crig::Examples::OpenAIAgentCompletionsApiOtel, tags: %w[examples openai
 
     agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4O)
     agent.preamble.should eq(Crig::Examples::OpenAIAgentCompletionsApiOtel::PREAMBLE)
-    Crig::Examples::OpenAIAgentCompletionsApiOtel.current_span.is_disabled.should be_true
+    Crig::Examples::OpenAIAgentCompletionsApiOtel.current_span.disabled?.should be_true
   end
 end
 
@@ -19343,7 +19344,7 @@ describe "TypedPromptResponse serde", tags: %w[agent typed_prompt_response] do
   end
 
   it "deserializes with deserialize-only output" do
-    json = %({"output":{"value":"ok"},"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3,"cached_input_tokens":0,"cache_creation_input_tokens":0,"reasoning_tokens":0}})
+    json = %({"output":{"value":"ok"},"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3,"cached_input_tokens":0,"cache_creation_input_tokens":0,"reasoning_tokens":0},"completion_calls":[]})
     response = Crig::TypedPromptResponse(DeserializeOnlyParser).from_json(json)
     response.output.value.should eq("ok")
     response.usage.input_tokens.should eq(1)

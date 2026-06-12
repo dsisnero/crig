@@ -970,6 +970,8 @@ module Crig
 
             user_content = Crig::OneOrMany(UserContent).many(other_content)
             [user(user_content)]
+          in .system?
+            [] of self
           in .assistant?
             text_content = [] of Crig::Providers::OpenAI::Chat::AssistantContent
             tool_calls = [] of Crig::Providers::OpenAI::Chat::ToolCall

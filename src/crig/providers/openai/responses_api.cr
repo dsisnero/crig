@@ -1463,6 +1463,8 @@ module Crig
             from_core_user_message(message)
           in .assistant?
             from_core_assistant_message(message)
+          in .system?
+            [] of self
           end
         end
 
@@ -1562,11 +1564,7 @@ module Crig
               text = assistant_content.text
               next unless text
               next if text.text.empty?
-              content_type = if cannot_replay
-                               AssistantContentType.text(AssistantContent.input_text(text.text))
-                             else
-                               AssistantContentType.text(AssistantContent.output_text(text.text))
-                             end
+              content_type = AssistantContentType.text(AssistantContent.output_text(text.text))
               items << assistant([content_type], assistant_id)
             in .tool_call?
               tool_call = assistant_content.tool_call || raise Crig::Completion::CompletionError.new("Missing assistant tool call content")
