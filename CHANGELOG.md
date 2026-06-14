@@ -1,3 +1,12 @@
+## v0.38.10 (2026-06-10)
+
+### Fixed
+- System role exhaustive cases in OpenRouter, Perplexity, OpenAI
+- Tool validation skips when no static tools (runtime server compat)
+- TypedPromptResponse deserialization fixture
+- TemplateCompactor summary tests use System role
+- json_schema spec field names match Calc tool
+
 ## v0.38.9 (2026-06-10)
 
 ### Fixed
