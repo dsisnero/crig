@@ -218,6 +218,12 @@ module Crig
       Crig::StreamingCompletionResponse(Crig::FinalResponse).new(chunks, final_response)
     end
 
+    def send_async : Channel(Crig::Concurrency::Result(Crig::StreamingCompletionResponse(Crig::FinalResponse)))
+      Crig::Concurrency.run do
+        send
+      end
+    end
+
     private record StreamTurnResult,
       response_text : String,
       saw_tool_call : Bool,
