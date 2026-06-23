@@ -1,3 +1,14 @@
+## v0.39.0 (2026-06-23)
+
+### Added
+- **Async prompt request APIs** — `send_async` on `PromptRequest`, `TypedPromptRequest`, and the streaming prompt request
+  - returns `Channel(Crig::Concurrency::Result(T))`, matching existing `*_async` conventions (e.g. `list_models_async`)
+  - keeps the synchronous `send` API intact while exposing native channel-based async boundaries
+  - focused specs in `spec/prompt_request_async_spec.cr`
+
+### Changed
+- Bumped `mcp` dependency to **v0.3.0** — async tool handlers, concurrent request handling with inflight tracking, and request cancellation propagation
+
 ## v0.38.10 (2026-06-10)
 
 ### Fixed
