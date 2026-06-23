@@ -7,7 +7,6 @@ crystal: ">= 1.19.1"
 dependencies:
   mcp:
     github: dsisnero/mcp.cr
-    branch: codex/async-tool-handlers
   discordcr:
     github: shardlab/discordcr
   pdfbox:
