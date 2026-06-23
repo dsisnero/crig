@@ -22,3 +22,13 @@
 ./scripts/ensure_parity_plan.sh . vendor/rig/crates/rig-core rust auto 0
 ./scripts/verify_parity_adversarial.sh . vendor/rig/crates/rig-core rust 'crystal spec' 'cargo test -p rig-core'
 ```
+
+## Release Process
+
+Versions are tracked via annotated git tags and `CHANGELOG.md`. On each release:
+
+1. Add a `## vX.Y.Z (date)` entry to the top of `CHANGELOG.md` with `### Added/Changed/Fixed`.
+2. Bump the `version:` field in `shard.yml` to match the release version `X.Y.Z`.
+3. Commit (e.g. `deps:`/`chore:` for code, `docs: CHANGELOG vX.Y.Z`).
+4. Create an annotated tag: `git tag -a vX.Y.Z -m "vX.Y.Z: <summary>"`.
+5. Push the branch and the tag: `git push origin main && git push origin vX.Y.Z`.
