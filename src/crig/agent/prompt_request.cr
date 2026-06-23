@@ -593,6 +593,18 @@ module Crig
         Crig::Completion::UserContent.tool_result(id, content)
       end
     end
+
+    def send_async
+      {% if S == Crig::Extended %}
+        Crig::Concurrency.run do
+          send.as(Crig::PromptResponse)
+        end
+      {% else %}
+        Crig::Concurrency.run do
+          send.as(String)
+        end
+      {% end %}
+    end
   end
 
   struct TypedPromptRequest(T, S, M)
@@ -651,6 +663,18 @@ module Crig
         Crig::TypedPromptResponse(T).new(T.from_json(response.output), response.usage, response.completion_calls)
       {% else %}
         T.from_json(@inner.send)
+      {% end %}
+    end
+
+    def send_async
+      {% if S == Crig::Extended %}
+        Crig::Concurrency.run do
+          send.as(Crig::TypedPromptResponse(T))
+        end
+      {% else %}
+        Crig::Concurrency.run do
+          send.as(T)
+        end
       {% end %}
     end
   end
