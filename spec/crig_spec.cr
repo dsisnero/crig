@@ -9101,6 +9101,30 @@ describe Crig::McpTool do
     handle.get_tool_defs(nil).map(&.name).should eq(["sum"])
     handle.call_tool("sum", %({"x":3,"y":4})).should eq("7")
   end
+
+  it "calls an MCP tool asynchronously using call_tool_async" do
+    client, server = build_mcp_test_client_and_server
+    definition = MCP::Protocol::Tool.new(
+      name: "sum",
+      description: "Add numbers",
+      input_schema: MCP::Protocol::Tool::Input.new(
+        properties: {"x" => JSON::Any.new({"type" => JSON::Any.new("number")}), "y" => JSON::Any.new({"type" => JSON::Any.new("number")})},
+        required: ["x", "y"]
+      )
+    )
+
+    server.add_tool("sum", "Add numbers", definition.input_schema) do |request|
+      x = request.arguments.not_nil!["x"].as_i
+      y = request.arguments.not_nil!["y"].as_i
+      MCP::Protocol::CallToolResult.new([MCP::Protocol::TextContentBlock.new((x + y).to_s)] of MCP::Protocol::ContentBlock)
+    end
+
+    tool = Crig::McpTool.from_mcp_server(definition, client)
+    channel = tool.call_async(%({"x":2,"y":5}))
+    result = channel.receive
+    result.success?.should be_true
+    result.unwrap.should eq("7")
+  end
 end
 
 describe Crig::Providers::OpenAI do
@@ -19434,6 +19458,89 @@ describe Crig::Providers::Mistral::Usage, tags: %w[mistral usage] do
     usage.output_tokens.should eq(20)
     usage.total_tokens.should eq(120)
     usage.cached_input_tokens.should eq(42)
+  end
+end
+
+describe Crig::Memory::InMemoryConversationMemory, tags: %w[memory] do
+  user_message = ->(text : String) : Crig::Completion::Message {
+    Crig::Completion::Message.user(Crig::Completion::UserContent.text(text))
+  }
+
+  it "stores and loads messages for a conversation" do
+    memory = Crig::Memory::InMemoryConversationMemory.new
+
+    memory.load("conv1").should be_empty
+
+    memory.append("conv1", [user_message.call("hello")])
+
+    memory.load("conv1").size.should eq(1)
+  end
+
+  it "appends messages to an existing conversation" do
+    memory = Crig::Memory::InMemoryConversationMemory.new
+
+    memory.append("conv1", [user_message.call("a")])
+    memory.append("conv1", [user_message.call("b")])
+
+    memory.load("conv1").size.should eq(2)
+  end
+
+  it "clears a conversation" do
+    memory = Crig::Memory::InMemoryConversationMemory.new
+
+    memory.append("conv1", [user_message.call("hello")])
+
+    memory.clear("conv1")
+    memory.load("conv1").should be_empty
+  end
+
+  it "handles concurrent appends from multiple fibers without data loss" do
+    memory = Crig::Memory::InMemoryConversationMemory.new
+    n = 50
+    ready = Channel(Nil).new(n)
+    done = Channel(Nil).new(n)
+
+    n.times do |i|
+      spawn do
+        ready.receive
+        memory.append("concurrent", [user_message.call("msg-#{i}")])
+        done.send(nil)
+      end
+    end
+
+    n.times { ready.send(nil) }
+    n.times { done.receive }
+
+    messages = memory.load("concurrent")
+    messages.size.should eq(n)
+  end
+
+  it "handles reads concurrent with writes without corruption" do
+    memory = Crig::Memory::InMemoryConversationMemory.new
+    ready = Channel(Nil).new(2)
+    done = Channel(Nil).new(2)
+
+    10.times { |i| memory.append("conv", [user_message.call("init-#{i}")]) }
+
+    spawn do
+      ready.receive
+      50.times { |i| memory.append("conv", [user_message.call("writer-#{i}")]) }
+      done.send(nil)
+    end
+
+    spawn do
+      ready.receive
+      50.times do
+        msgs = memory.load("conv")
+        msgs.should be_a(Array(Crig::Completion::Message))
+      end
+      done.send(nil)
+    end
+
+    ready.send(nil)
+    ready.send(nil)
+    done.receive
+    done.receive
   end
 end
 

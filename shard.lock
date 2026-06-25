@@ -74,7 +74,7 @@ shards:
 
   mcp:
     git: https://github.com/dsisnero/mcp.cr.git
-    version: 0.3.0
+    version: 0.5.2
 
   mosaic:
     git: https://github.com/dsisnero/mosaic.git
@@ -131,6 +131,10 @@ shards:
   stumpy_png:
     git: https://github.com/stumpycr/stumpy_png.git
     version: 5.0.1
+
+  sync-map:
+    git: https://github.com/dsisnero/sync-map.git
+    version: 0.1.4
 
   terminfo:
     git: https://github.com/docelic/terminfo.git

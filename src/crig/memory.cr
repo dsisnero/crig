@@ -1,3 +1,5 @@
+require "sync-map"
+
 module Crig
   module Memory
     # Errors produced by a ConversationMemory backend.
@@ -83,14 +85,12 @@ module Crig
     class InMemoryConversationMemory
       include ConversationMemory
 
-      @store : Hash(String, Array(Crig::Completion::Message))
+      @store : Sync::Map(String, Array(Crig::Completion::Message))
       @filter : MessageFilter?
-      @mutex : ::Mutex
 
       def initialize
-        @store = {} of String => Array(Crig::Completion::Message)
+        @store = Sync::Map(String, Array(Crig::Completion::Message)).new
         @filter = nil
-        @mutex = ::Mutex.new
       end
 
       # Apply a filter to the loaded message list on every load.
@@ -102,29 +102,29 @@ module Crig
       # Load the full conversation history for conversation_id.
       # Returns an empty Array if the conversation has no stored messages.
       def load(conversation_id : String) : Array(Crig::Completion::Message)
-        @mutex.synchronize do
-          messages = @store[conversation_id]?.try(&.dup) || [] of Crig::Completion::Message
-          if f = @filter
-            f.call(messages)
-          else
-            messages
-          end
+        messages = @store[conversation_id]?.try(&.dup) || [] of Crig::Completion::Message
+        if f = @filter
+          f.call(messages)
+        else
+          messages
         end
       end
 
       # Append messages to the conversation identified by conversation_id.
       def append(conversation_id : String, messages : Array(Crig::Completion::Message)) : Nil
-        @mutex.synchronize do
-          @store[conversation_id] ||= [] of Crig::Completion::Message
-          @store[conversation_id].concat(messages)
+        @store.compute(conversation_id) do |existing, present|
+          if present
+            existing.concat(messages)
+            {existing, Sync::Map::ComputeOp::Update}
+          else
+            {messages, Sync::Map::ComputeOp::Update}
+          end
         end
       end
 
       # Remove all stored messages for conversation_id.
       def clear(conversation_id : String) : Nil
-        @mutex.synchronize do
-          @store.delete(conversation_id)
-        end
+        @store.delete(conversation_id)
       end
     end
 

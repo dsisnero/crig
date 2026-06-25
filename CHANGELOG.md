@@ -1,3 +1,18 @@
+## v0.39.1 (2026-06-24)
+
+### Added
+- **`Crig::McpTool#call_async`** — non-blocking MCP tool call using `client.call_tool_async`, returns `Channel(MCP::Shared::AsyncResult(String))`; `call` delegates to `call_async` (sync contract preserved)
+- **`Crig::VERSION` generated from `shard.yml`** — compile-time macro reads `shard.yml` version, single source of truth for releases
+- **`InMemoryConversationMemory` uses `Sync::Map`** — replaced `Hash` + `Mutex` with `Sync::Map` for lock-free reads and atomic `compute`-based writes
+
+### Changed
+- Bumped `mcp` dependency from v0.3.0 to **v0.5.2** — `Sync::XMap` correlation maps, atomic request resolution, fiber-safe `Client`, router `Sync::XMap`
+- **Removed `McpClientDispatcher`** — the per-client serializing actor is no longer needed; `mcp` 0.5.2 guarantees concurrent `call_tool` is fiber-safe with no external serialization
+
+### Fixed
+- `docs/pr-workflow.md` — expanded from 5 lines to concrete pre-commit checklist covering CHANGELOG, `shard.yml`, `src/crig.cr`, parity inventory, and quality gates
+- `plans/inventory/rust_port_inventory.tsv` — removed stale "serialized shared-client dispatch" notes from `McpTool` and `rmcp_tool` entries
+
 ## v0.39.0 (2026-06-23)
 
 ### Added

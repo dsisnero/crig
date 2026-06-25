@@ -1,5 +1,8 @@
 module Crig
-  VERSION              = "0.1.0"
+  {% begin %}
+    {% version_line = read_file("#{__DIR__}/../shard.yml").lines.select(&.starts_with?("version:")).first %}
+    VERSION = {{ version_line.split(":").last.strip }}
+  {% end %}
   UPSTREAM_URL         = "https://github.com/0xPlaygrounds/rig.git"
   UPSTREAM_COMMIT      = "f77a5819ec2a71e98583480a68a341f816a75c8a"
   UPSTREAM_SOURCE_PATH = "vendor/rig/crates/rig-core"

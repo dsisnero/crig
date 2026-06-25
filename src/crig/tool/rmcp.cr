@@ -33,54 +33,6 @@ module Crig
     end
   end
 
-  class McpClientDispatcher
-    alias ToolResult = MCP::Protocol::CallToolResult | MCP::Protocol::CompatibilityCallToolResult
-
-    record Request,
-      name : String,
-      arguments : Hash(String, JSON::Any),
-      compatibility : Bool,
-      reply : Channel(ToolResult | Exception)
-
-    @@dispatchers = {} of UInt64 => McpClientDispatcher
-    @@dispatchers_lock = Mutex.new
-
-    def self.for(client : MCP::Client::Client) : self
-      key = client.object_id
-      @@dispatchers_lock.synchronize do
-        @@dispatchers[key] ||= new(client)
-      end
-    end
-
-    def initialize(@client : MCP::Client::Client)
-      @inbox = Channel(Request).new
-
-      spawn do
-        loop do
-          request = @inbox.receive
-          begin
-            result = @client.call_tool(request.name, request.arguments, request.compatibility)
-            request.reply.send(result)
-          rescue ex : Exception
-            request.reply.send(ex)
-          end
-        end
-      end
-    end
-
-    def call_tool(
-      name : String,
-      arguments : Hash(String, JSON::Any),
-      compatibility : Bool = false,
-    ) : ToolResult
-      reply = Channel(ToolResult | Exception).new(1)
-      @inbox.send(Request.new(name, arguments, compatibility, reply))
-      result = reply.receive
-      raise result if result.is_a?(Exception)
-      result.as(ToolResult)
-    end
-  end
-
   struct McpTool
     include Crig::ToolDyn
 
@@ -111,28 +63,69 @@ module Crig
     end
 
     def call(args : String) : String
-      result = McpClientDispatcher.for(@client).call_tool(@mcp_definition.name, parse_arguments(args))
-      tool_result = case result
+      channel = call_async(args)
+      result = channel.receive
+      if result.success?
+        result.unwrap
+      else
+        raise (result.error || McpToolError.new("MCP async error")).as(Exception)
+      end
+    end
+
+    def call_async(args : String) : Channel(MCP::Shared::AsyncResult(String))
+      name = @mcp_definition.name
+      parsed_args = parse_arguments(args)
+      raw_ch = @client.call_tool_async(name, parsed_args)
+
+      result_ch = Channel(MCP::Shared::AsyncResult(String)).new(1)
+      spawn do
+        result_ch.send(render_async_result(raw_ch))
+      ensure
+        result_ch.close
+      end
+      result_ch
+    end
+
+    private def render_async_result(raw_ch : Channel(MCP::Shared::AsyncResult(MCP::Protocol::Result))) : MCP::Shared::AsyncResult(String)
+      raw = raw_ch.receive
+      unless raw.success?
+        return MCP::Shared::AsyncResult(String).new(
+          error: Crig::ToolError.tool_call_error(
+            McpToolError.new(raw.error.try(&.message) || "MCP async error")
+          )
+        )
+      end
+
+      raw_result = raw.unwrap
+      tool_result = case raw_result
                     when MCP::Protocol::CallToolResult, MCP::Protocol::CompatibilityCallToolResult
-                      result
+                      raw_result
                     else
-                      raise McpToolError.new("No message returned")
+                      raise McpToolError.new("Unexpected MCP result type")
                     end
       content = tool_result.content
 
       if tool_result.is_error == true
-        raise McpToolError.new(extract_error_message(content) || "No message returned")
+        return MCP::Shared::AsyncResult(String).new(
+          error: Crig::ToolError.tool_call_error(
+            McpToolError.new(extract_error_message(content) || "No message returned")
+          )
+        )
       end
 
-      String.build do |io|
+      rendered = String.build do |io|
         content.each do |block|
           io << render_content_block(block)
         end
       end
+
+      MCP::Shared::AsyncResult(String).new(value: rendered)
     rescue ex : McpToolError
-      raise Crig::ToolError.tool_call_error(ex)
+      MCP::Shared::AsyncResult(String).new(error: Crig::ToolError.tool_call_error(ex))
     rescue ex : Exception
-      raise Crig::ToolError.tool_call_error(McpToolError.new("Tool returned an error: #{ex.message || ex.class.name}"))
+      MCP::Shared::AsyncResult(String).new(error: Crig::ToolError.tool_call_error(
+        McpToolError.new("Tool returned an error: #{ex.message || ex.class.name}")
+      ))
     end
 
     private def parse_arguments(args : String) : Hash(String, JSON::Any)
