@@ -19544,4 +19544,98 @@ describe Crig::Memory::InMemoryConversationMemory, tags: %w[memory] do
   end
 end
 
+describe Crig::Memory::DemotingPolicyMemory(
+  Crig::Memory::InMemoryConversationMemory,
+  Crig::Memory::SlidingWindowMemory,
+  Crig::Memory::NoopDemotionHook,
+), tags: %w[memory policy] do
+  it "delegates append and clear to the inner store" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    hook = Crig::Memory::NoopDemotionHook.new
+    memory = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("hello"))
+    memory.append("conv1", [msg])
+    memory.load("conv1").size.should eq(1)
+
+    memory.clear("conv1")
+    memory.load("conv1").should be_empty
+  end
+
+  it "applies the sliding window policy on load" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(3)
+    hook = Crig::Memory::NoopDemotionHook.new
+    memory = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    5.times do |i|
+      msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("msg-#{i}"))
+      memory.append("conv1", [msg])
+    end
+
+    kept = memory.load("conv1")
+    kept.size.should eq(3)
+  end
+
+  it "tracks conversations" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    hook = Crig::Memory::NoopDemotionHook.new
+    memory = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
+
+    msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("hi"))
+    memory.append("conv1", [msg])
+    memory.load("conv1")
+    memory.tracked_conversations.should eq(1)
+  end
+end
+
+describe Crig::Memory::CompactingMemory(
+  Crig::Memory::InMemoryConversationMemory,
+  Crig::Memory::SlidingWindowMemory,
+  Crig::Memory::TemplateCompactor,
+), tags: %w[memory policy] do
+  it "delegates append and clear to the inner store" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    compactor = Crig::Memory::TemplateCompactor.new("summary")
+    memory = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("hello"))
+    memory.append("conv1", [msg])
+    memory.load("conv1").size.should eq(1)
+
+    memory.clear("conv1")
+    memory.load("conv1").should be_empty
+  end
+
+  it "returns kept messages when under window limit" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(5)
+    compactor = Crig::Memory::TemplateCompactor.new("summary")
+    memory = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    3.times do |i|
+      msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("msg-#{i}"))
+      memory.append("conv1", [msg])
+    end
+
+    kept = memory.load("conv1")
+    kept.size.should eq(3)
+  end
+
+  it "tracks conversations" do
+    inner = Crig::Memory::InMemoryConversationMemory.new
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    compactor = Crig::Memory::TemplateCompactor.new("summary")
+    memory = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
+
+    msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("hi"))
+    memory.append("conv1", [msg])
+    memory.load("conv1")
+    memory.tracked_conversations.should eq(1)
+  end
+end
+
 require "file_utils"
