@@ -125,6 +125,8 @@ module Crig
     getter static_tool_names : Array(String)
     getter toolset : Crig::ToolSet
 
+    DEFAULT_TOOL_CONCURRENCY = {System.cpu_count, 1}.max
+
     def visible_tool_names : Array(String)
       @static_tool_names.dup
     end
@@ -134,6 +136,7 @@ module Crig
       @dynamic_tools : Array(Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String))))) = [] of Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String)))),
       @toolset : Crig::ToolSet = Crig::ToolSet.new,
       @lock = Mutex.new,
+      @max_concurrency : Int32 = DEFAULT_TOOL_CONCURRENCY,
     )
     end
 
@@ -183,18 +186,32 @@ module Crig
       self
     end
 
+    def with_max_concurrency(n : Int32) : self
+      @max_concurrency = {n, 1}.max
+      self
+    end
+
     def run : Crig::ToolServerHandle
       inbox = Channel(Crig::ToolServerRequest).new(1000)
+      slots = Channel(Bool).new(@max_concurrency)
 
       spawn do
         loop do
           message = inbox.receive
           if message.data.kind.call_tool?
-            spawn { handle_message(message) }
+            slots.send(true)
+            spawn do
+              begin
+                handle_message(message)
+              ensure
+                slots.receive?
+              end
+            end
           else
             handle_message(message)
           end
         end
+      rescue Channel::ClosedError
       end
 
       Crig::ToolServerHandle.new("tool-server", nil, self, inbox)

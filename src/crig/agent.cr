@@ -24,6 +24,10 @@ module Crig
     )
     end
 
+    def close : Nil
+      @inbox.try(&.close)
+    end
+
     def self.with_resolver(id : String, resolver : ToolResolver) : self
       new(id, resolver)
     end
