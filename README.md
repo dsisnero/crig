@@ -215,7 +215,7 @@ Integration modules also exist for:
 | [`examples/openai_streaming.cr`](./examples/openai_streaming.cr) | Token-by-token streaming with OpenAI |
 | [`examples/anthropic_streaming_with_tools.cr`](./examples/anthropic_streaming_with_tools.cr) | Anthropic streaming with tool calls |
 | [`examples/gemini_extractor_with_rag.cr`](./examples/gemini_extractor_with_rag.cr) | Gemini extraction with RAG context |
-| [`examples/rmcp.cr`](./examples/rmcp.cr) | MCP tool server integration |
+| [`examples/rmcp.cr`](./examples/rmcp.cr) | MCP tool server integration over streamable HTTP |
 | [`examples/discord_bot.cr`](./examples/discord_bot.cr) | Discord bot with agent backend |
 | [`examples/calculator_chatbot.cr`](./examples/calculator_chatbot.cr) | Interactive CLI chatbot |
 | [`examples/multi_agent.cr`](./examples/multi_agent.cr) | Multi-agent orchestration |

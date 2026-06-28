@@ -1,3 +1,18 @@
+## v0.40.0 (2026-06-28)
+
+### Added
+- **Streamable HTTP MCP example + live integration test** — `examples/rmcp.cr` is re-enabled now that the `mcp` shard ships `MCP::Client::StreamableHttpClientTransport`. A new spec stands up `Crig::Examples::RMCP::StreamableServer` and drives a full round-trip (`list_tools` + `call_tool "sum"`) over streamable HTTP through the client transport.
+- Re-enabled the `Crig::Examples::RMCP::StructRequest` spec and the `require "../examples/rmcp"` in the suite.
+- **`shard_issues/`** — downstream shard-gap tracking. `shard_issues/mcp_1.md` documents the (now-resolved) missing `MCP::Client::StreamableHttpClientTransport`.
+
+### Changed
+- Bumped `mcp` dependency to **v0.5.6** — adds `MCP::Client::StreamableHttpClientTransport` (single-endpoint POST with `Mcp-Session-Id` session handling and JSON-response mode), enabling the streamable HTTP `rmcp` example.
+- **Split `DemotingPolicyMemory` / `CompactingMemory` into `src/crig/memory/policies.cr`** to match the Rust upstream structure (core traits + `InMemoryConversationMemory` in `memory.cr`, policy adapters in `memory/policies.cr`).
+- **All quality gates clean across `src`/`spec`** — `crystal tool format`, `ameba` (0 failures), and `crystal spec` (0 failures). Real naming/style fixes (`PredicateName`, `QueryBoolMethods`, `BlockParameterName`, `MultilineCurlyBlock`, `RescuedExceptionsVariableName`, dead-assignment removals, `RedundantWithIndex`) plus targeted `# ameba:disable` for telemetry accessor delegation, cyclomatic complexity, and deliberate `not_nil!` uses.
+
+### Fixed
+- `DemotingPolicyMemory` / `CompactingMemory` "tracks conversations" specs — corrected to trigger demotion (window of 1, two messages) so they exercise the real tracking contract (state is created on demotion/compaction), matching the characterization in `spec/memory_spec.cr`.
+
 ## v0.39.1 (2026-06-24)
 
 ### Added

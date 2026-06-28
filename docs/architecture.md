@@ -158,7 +158,7 @@ The repository currently includes first-class integrations for:
 
 - CLI chatbots
 - Discord bots
-- MCP / RMCP-backed tool servers
+- MCP / RMCP-backed tool servers (stdio, SSE, and streamable HTTP transports)
 - SQLite and PostgreSQL vector-store examples
 
 These are real integration surfaces, not placeholder directories. The README should

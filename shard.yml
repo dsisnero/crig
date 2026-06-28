@@ -1,6 +1,6 @@
 ---
 name: crig
-version: 0.39.1
+version: 0.40.0
 authors:
 - Dominic Sisneros <dsisnero@gmail.com>
 crystal: ">= 1.19.1"
