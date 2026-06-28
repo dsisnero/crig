@@ -266,14 +266,14 @@ module Crig
 
         pull.read_object do |key|
           case key
-          when "input_tokens"          then input_tokens = pull.read_int.to_i64
-          when "output_tokens"         then output_tokens = pull.read_int.to_i64
-          when "total_tokens"          then total_tokens = pull.read_int.to_i64
-          when "cached_input_tokens"   then cached_input_tokens = pull.read_int.to_i64
+          when "input_tokens"                then input_tokens = pull.read_int.to_i64
+          when "output_tokens"               then output_tokens = pull.read_int.to_i64
+          when "total_tokens"                then total_tokens = pull.read_int.to_i64
+          when "cached_input_tokens"         then cached_input_tokens = pull.read_int.to_i64
           when "cache_creation_input_tokens" then cache_creation = pull.read_int.to_i64
-          when "reasoning_tokens"      then reasoning = pull.read_int.to_i64
-          when "tool_use_prompt_tokens" then tool_use_prompt_tokens = pull.read_int.to_i64
-          else pull.skip
+          when "reasoning_tokens"            then reasoning = pull.read_int.to_i64
+          when "tool_use_prompt_tokens"      then tool_use_prompt_tokens = pull.read_int.to_i64
+          else                                    pull.skip
           end
         end
 
@@ -330,6 +330,7 @@ module Crig
       )
       end
     end
+
     def self.allowed_tool_names_for_choice(executable_tool_names : Enumerable(String), tool_choice : ToolChoice?) : Set(String)
       case tool_choice
       when nil
@@ -352,7 +353,7 @@ module Crig
       allowed_tool_names : Enumerable(String),
       chat_history : Array(Message),
     ) : PromptError?
-      return nil if allowed_tool_names.includes?(tool_name)
+      return if allowed_tool_names.includes?(tool_name)
 
       PromptError.unknown_tool_call(
         tool_name,

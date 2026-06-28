@@ -1019,7 +1019,7 @@ module Crig
                 end
               in .image?
                 image = assistant_content.image
-                next if image && OpenRouter.is_openrouter_response_image?(image)
+                next if image && OpenRouter.openrouter_response_image?(image)
                 raise Crig::Completion::CompletionError.new("OpenRouter currently doesn't support non-generated images.")
               end
             end

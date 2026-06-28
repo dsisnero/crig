@@ -184,7 +184,7 @@ module Crig
             model: @model,
             messages: build_chat_messages(request),
             temperature: request.temperature,
-            tools: request.tools.map { |t| Crig::Providers::OpenAI::Chat::ToolDefinition.from_tool(t) },
+            tools: request.tools.map { |tool| Crig::Providers::OpenAI::Chat::ToolDefinition.from_tool(tool) },
             max_tokens: request.max_tokens,
           )
           response = @client.post_json("/chat/completions", payload.to_json_value.to_json)
@@ -200,14 +200,14 @@ module Crig
           payload = Crig::Providers::OpenAI::CompletionRequest.new(
             model: @model,
             input: build_responses_input(request),
-            tools: request.tools.map { |t| Crig::Providers::OpenAI::ResponsesToolDefinition.from_tool(t) },
+            tools: request.tools.map { |tool| Crig::Providers::OpenAI::ResponsesToolDefinition.from_tool(tool) },
           )
           response = @client.post_json("/responses", payload.to_json_value.to_json)
           text = response.body
           raise Crig::Completion::CompletionError.provider_error("Copilot (#{response.status_code}): #{text}") unless response.success?
 
           parsed = JSON.parse(text)
-          body = Crig::Providers::OpenAI::CompletionResponsePayload.from_json(text)
+          Crig::Providers::OpenAI::CompletionResponsePayload.from_json(text)
           Crig::Completion::CompletionResponse(JSON::Any).new(
             Crig::OneOrMany(Crig::Completion::AssistantContent).one(
               Crig::Completion::AssistantContent.text(text),
@@ -222,7 +222,7 @@ module Crig
             model: @model,
             messages: build_chat_messages(request),
             temperature: request.temperature,
-            tools: request.tools.map { |t| Crig::Providers::OpenAI::Chat::ToolDefinition.from_tool(t) },
+            tools: request.tools.map { |tool| Crig::Providers::OpenAI::Chat::ToolDefinition.from_tool(tool) },
             max_tokens: request.max_tokens,
             stream: true,
           )
@@ -242,7 +242,7 @@ module Crig
           payload = Crig::Providers::OpenAI::CompletionRequest.new(
             model: @model,
             input: build_responses_input(request),
-            tools: request.tools.map { |t| Crig::Providers::OpenAI::ResponsesToolDefinition.from_tool(t) },
+            tools: request.tools.map { |tool| Crig::Providers::OpenAI::ResponsesToolDefinition.from_tool(tool) },
             stream: true,
           )
           response = @client.post_json(
@@ -392,6 +392,7 @@ module Crig
           Crig::Providers::Copilot::EmbeddingModel.new(self, model)
         end
       end
+
       # Extension marker (upstream stores an Authenticator; Crystal handles auth via builder)
       struct CopilotExt
       end

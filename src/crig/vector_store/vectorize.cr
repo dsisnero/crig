@@ -86,6 +86,7 @@ module Crig
 
         getter count : UInt64
         getter matches : Array(VectorMatch)
+
         # Crystal's JSON::Serializable ignores unknown fields
 
         def initialize(@count : UInt64, @matches : Array(VectorMatch))
@@ -172,7 +173,7 @@ module Crig
         @[JSON::Field(key: "count")]
         getter count : UInt64
         @[JSON::Field(key: "isTruncated")]
-        getter is_truncated : Bool
+        getter? is_truncated : Bool
         @[JSON::Field(key: "totalCount")]
         getter total_count : UInt64
         @[JSON::Field(key: "vectors")]
@@ -203,7 +204,7 @@ module Crig
       private struct ApiResponse(T)
         include JSON::Serializable
 
-        getter success : Bool
+        getter? success : Bool
         getter result : T?
         getter errors : Array(ApiErrorDetail)
         getter messages : Array(ApiMessage)
@@ -255,7 +256,7 @@ module Crig
           @raw
         end
 
-        def is_empty : Bool
+        def empty? : Bool
           !!@raw.as_h?.try(&.empty?)
         end
 
@@ -354,7 +355,7 @@ module Crig
             raise VectorizeError.serialization_error(ex)
           end
 
-          unless envelope.success
+          unless envelope.success?
             first_error = envelope.errors.first?
             raise VectorizeError.api_error(
               first_error.try(&.code) || 0_u32,
@@ -490,8 +491,8 @@ module Crig
       # UUID v4 generator using Crystal's Random::Secure.
       def self.generate_uuid_v4 : String
         bytes = Random::Secure.random_bytes(16)
-        bytes[6] = (bytes[6] & 0x0f) | 0x40  # version 4
-        bytes[8] = (bytes[8] & 0x3f) | 0x80  # variant 1
+        bytes[6] = (bytes[6] & 0x0f) | 0x40 # version 4
+        bytes[8] = (bytes[8] & 0x3f) | 0x80 # variant 1
         String.build(36) do |io|
           bytes.each_with_index do |byte, i|
             io << '-' if {4, 6, 8, 10}.includes?(i)

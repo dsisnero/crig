@@ -679,7 +679,7 @@ module Crig
           @think.is_a?(Bool) && @think
         end
 
-        def self.from_request(default_model : String, req : Crig::Completion::Request::CompletionRequest) : self
+        def self.from_request(default_model : String, req : Crig::Completion::Request::CompletionRequest) : self # ameba:disable Metrics/CyclomaticComplexity
           model = req.model || default_model
           partial_history = [] of Crig::Completion::Message
           if docs = req.normalized_documents

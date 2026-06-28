@@ -29,4 +29,3 @@ describe "Anthropic System message from_core_message round-trip" do
     core.rag_text.should eq("Instruction.")
   end
 end
-

@@ -29,12 +29,12 @@ module Crig::VectorStore::Vectorize
   describe VectorizeFilter do
     it "starts empty" do
       filter = VectorizeFilter.new
-      filter.is_empty.should be_true
+      filter.empty?.should be_true
     end
 
     it "adds $eq operator" do
       filter = VectorizeFilter.new.eq("color", JSON.parse(%("red")))
-      filter.is_empty.should be_false
+      filter.empty?.should be_false
       filter.raw["color"]["$eq"].as_s.should eq("red")
     end
 
@@ -87,7 +87,7 @@ module Crig::VectorStore::Vectorize
     it "OR returns empty filter (not supported)" do
       f = VectorizeFilter.new.eq("color", JSON.parse(%("red")))
         .or(VectorizeFilter.new.gt("score", JSON.parse("5")))
-      f.is_empty.should be_true
+      f.empty?.should be_true
     end
 
     it "returns inner JSON with into_inner" do
@@ -105,8 +105,8 @@ module Crig::VectorStore::Vectorize
     it "produces valid UUID v4 format" do
       uuid = Crig::VectorStore::Vectorize.generate_uuid_v4
       uuid.size.should eq(36)
-      uuid[14].should eq('4')  # version nibble
-      %w[8 9 A B].should contain(uuid[19].to_s)  # variant
+      uuid[14].should eq('4')                   # version nibble
+      %w[8 9 A B].should contain(uuid[19].to_s) # variant
       uuid.count('-').should eq(4)
     end
 

@@ -1,8 +1,6 @@
 module Crig
   module Providers
     module Internal
-      # ameba:disable Lint/UnneededDisableDirective
-
       module OpenAICompatible
         enum CompatibleFinishReason
           ToolCalls
@@ -85,7 +83,7 @@ module Crig
         def self.append_tool_call_arguments(tool_call : Crig::RawStreamingToolCall, chunk : String) : Crig::RawStreamingToolCall
           current_args = if tool_call.arguments.raw.nil?
                            ""
-                         elsif (str = tool_call.arguments.as_s?)
+                         elsif str = tool_call.arguments.as_s?
                            if str.strip == "null" && !chunk.strip.empty?
                              ""
                            else
@@ -124,7 +122,7 @@ module Crig
             return tool_call
           end
 
-          if (str = tool_call.arguments.as_s?)
+          if str = tool_call.arguments.as_s?
             if str.strip.empty?
               tool_call.arguments = JSON::Any.new({} of String => JSON::Any)
               return tool_call
@@ -132,10 +130,9 @@ module Crig
             begin
               parsed = Crig::JSONUtils.parse_tool_arguments(str)
             rescue
-              return nil
+              return
             end
             tool_call.arguments = parsed
-            tool_call
           end
 
           tool_call

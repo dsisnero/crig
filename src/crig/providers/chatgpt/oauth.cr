@@ -121,6 +121,7 @@ module Crig
               if refreshed
                 write_auth_record(refreshed)
                 return AuthContext.new(
+                  # ameba:disable Lint/NotNil
                   refreshed.access_token.not_nil!,
                   refreshed.account_id,
                 )
@@ -130,6 +131,7 @@ module Crig
             # Full device code flow
             fresh = login_device_flow
             write_auth_record(fresh)
+            # ameba:disable Lint/NotNil
             AuthContext.new(fresh.access_token.not_nil!, fresh.account_id)
           rescue ex : AuthError
             raise ex
@@ -144,8 +146,10 @@ module Crig
 
           private def write_auth_record(record : AuthRecord) : Nil
             return unless @auth_file
+            # ameba:disable Lint/NotNil
             dir = File.dirname(@auth_file.not_nil!)
             Dir.mkdir_p(dir)
+            # ameba:disable Lint/NotNil
             File.write(@auth_file.not_nil!, record.to_json)
           end
 
@@ -249,7 +253,7 @@ module Crig
               body: form_body,
             )
 
-            return nil unless response.success?
+            return unless response.success?
 
             tokens = OAuthTokenResponse.from_json(response.body)
             build_auth_record(tokens, refresh_token)
@@ -276,7 +280,7 @@ module Crig
 
           private def extract_expiration_timestamp(token : String) : Int64?
             parts = token.split('.')
-            return nil if parts.size < 2
+            return if parts.size < 2
 
             payload = parts[1]
             decoded = Base64.decode_string(payload)
@@ -287,9 +291,9 @@ module Crig
           end
 
           private def extract_account_id(id_token : String?) : String?
-            return nil unless id_token
+            return unless id_token
             parts = id_token.split('.')
-            return nil if parts.size < 2
+            return if parts.size < 2
 
             payload = parts[1]
             decoded = Base64.decode_string(payload)

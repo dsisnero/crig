@@ -443,10 +443,10 @@ describe Crig::Memory::DemotingPolicyMemory do
     policy = Crig::Memory::SlidingWindowMemory.last_messages(1)
     mem = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
 
-    mem.load("c1")  # demotes 1, delivered = 1
+    mem.load("c1") # demotes 1, delivered = 1
     mem.clear("c1")
     inner.append("c1", [Crig::Completion::Message.user("3"), Crig::Completion::Message.assistant("4")])
-    mem.load("c1")  # demotes 1 again, delivered = 2
+    mem.load("c1") # demotes 1 again, delivered = 2
     delivered.size.should eq(2)
   end
 

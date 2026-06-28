@@ -64,7 +64,7 @@ describe "record_token_usage tool_use_prompt_tokens via Tracing::Layer" do
       span = Tracing.span(Tracing::Level::INFO, "usage_recording")
       span.record(
         tool_use_prompt_tokens: usage.tool_use_prompt_tokens,
-        reasoning_tokens:        usage.reasoning_tokens,
+        reasoning_tokens: usage.reasoning_tokens,
       )
     end
 

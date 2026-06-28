@@ -189,35 +189,35 @@ module Crig
 
         def embedding_model_with_ndims(model : String, ndims : Int32) : Crig::Providers::OpenRouter::EmbeddingModel
           Crig::Providers::OpenRouter::EmbeddingModel.make(self, model, ndims)
+        end
       end
-    end
 
-    OPENROUTER_RESPONSE_ONLY_KEY       = "response_only"
-    OPENROUTER_RESPONSE_IMAGE_SOURCE_KEY = "source"
-    OPENROUTER_ASSISTANT_IMAGES_SOURCE   = "assistant.images"
+      OPENROUTER_RESPONSE_ONLY_KEY         = "response_only"
+      OPENROUTER_RESPONSE_IMAGE_SOURCE_KEY = "source"
+      OPENROUTER_ASSISTANT_IMAGES_SOURCE   = "assistant.images"
 
-    def self.is_openrouter_response_image?(image : Crig::Completion::Image) : Bool
-      params = image.additional_params
-      return false unless params
-      return false unless (h = params.as_h?)
+      def self.openrouter_response_image?(image : Crig::Completion::Image) : Bool
+        params = image.additional_params
+        return false unless params
+        return false unless h = params.as_h?
 
-      or_params = h["openrouter"]?
-      return false unless or_params
-      return false unless (or_h = or_params.as_h?)
+        or_params = h["openrouter"]?
+        return false unless or_params
+        return false unless or_h = or_params.as_h?
 
-      response_only = or_h[OPENROUTER_RESPONSE_ONLY_KEY]?.try(&.as_bool?) || false
-      source = or_h[OPENROUTER_RESPONSE_IMAGE_SOURCE_KEY]?.try(&.as_s?)
-      response_only && source == OPENROUTER_ASSISTANT_IMAGES_SOURCE
-    end
+        response_only = or_h[OPENROUTER_RESPONSE_ONLY_KEY]?.try(&.as_bool?) || false
+        source = or_h[OPENROUTER_RESPONSE_IMAGE_SOURCE_KEY]?.try(&.as_s?)
+        response_only && source == OPENROUTER_ASSISTANT_IMAGES_SOURCE
+      end
 
-    def self.apply_prompt_caching(body : JSON::Any) : Nil
+      def self.apply_prompt_caching(body : JSON::Any) : Nil
         body_h = body.as_h?
         return unless body_h
 
         messages = body_h["messages"]?.try(&.as_a?)
         return unless messages
 
-        system_msg = messages.find { |m| m.as_h?.try(&.["role"]?.try(&.as_s?)) == "system" }
+        system_msg = messages.find { |msg| msg.as_h?.try(&.["role"]?.try(&.as_s?)) == "system" }
         return unless system_msg
 
         system_h = system_msg.as_h
@@ -225,16 +225,16 @@ module Crig
 
         case content.try(&.raw)
         when String
-          text = content.not_nil!.as_s
+          text = content.not_nil!.as_s # ameba:disable Lint/NotNil
           system_h["content"] = JSON::Any.new([
             JSON::Any.new(Hash(String, JSON::Any){
-              "type"           => JSON::Any.new("text"),
-              "text"           => JSON::Any.new(text),
-              "cache_control"  => JSON::Any.new(Hash(String, JSON::Any){"type" => JSON::Any.new("ephemeral")}),
-            })
+              "type"          => JSON::Any.new("text"),
+              "text"          => JSON::Any.new(text),
+              "cache_control" => JSON::Any.new(Hash(String, JSON::Any){"type" => JSON::Any.new("ephemeral")}),
+            }),
           ] of JSON::Any)
         when Array
-          arr = content.not_nil!.as_a
+          arr = content.not_nil!.as_a # ameba:disable Lint/NotNil
           if last = arr.last?
             last.as_h["cache_control"] = JSON::Any.new(Hash(String, JSON::Any){"type" => JSON::Any.new("ephemeral")})
           end

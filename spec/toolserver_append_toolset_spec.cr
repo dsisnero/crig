@@ -3,6 +3,7 @@ require "./spec_helper"
 struct CrigToolTSArgs
   include JSON::Serializable
   getter value : String
+
   def initialize(@value : String)
   end
 end

@@ -510,15 +510,15 @@ module Crig
     def call(args : String) : String
       parsed_args = begin
         Args.from_json(args)
-      rescue original_ex
+      rescue ex
         if args.strip == "null"
           begin
             Args.from_json("{}")
-          rescue _fallback_ex
-            raise Crig::ToolError.json_error(original_ex)
+          rescue error
+            raise Crig::ToolError.json_error(ex)
           end
         else
-          raise Crig::ToolError.json_error(original_ex)
+          raise Crig::ToolError.json_error(ex)
         end
       end
 

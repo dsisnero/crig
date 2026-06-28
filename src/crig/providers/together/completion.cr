@@ -304,11 +304,11 @@ module Crig
             chunk = Crig::Providers::OpenAI::Chat::Streaming::CompletionChunk.from_json_value(json)
 
             choice = chunk.choices.first?
-            tool_call_chunks = choice.try(&.delta.tool_calls).try(&.map { |tc|
+            tool_call_chunks = choice.try(&.delta.tool_calls).try(&.map do |tool_call|
               Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk.new(
-                tc.index, tc.id, tc.function.name, tc.function.arguments,
+                tool_call.index, tool_call.id, tool_call.function.name, tool_call.function.arguments,
               )
-            }) || [] of Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk
+            end) || [] of Crig::Providers::Internal::OpenAICompatible::CompatibleToolCallChunk
 
             finish_reason = if choice.try(&.finish_reason).try(&.tool_calls?)
                               Crig::Providers::Internal::OpenAICompatible::CompatibleFinishReason::ToolCalls

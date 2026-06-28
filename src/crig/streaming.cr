@@ -486,7 +486,7 @@ module Crig
       )
     end
 
-    private def process_choice(choice : RawStreamingChoice(R)) : StreamedAssistantContent(R)?
+    private def process_choice(choice : RawStreamingChoice(R)) : StreamedAssistantContent(R)? # ameba:disable Metrics/CyclomaticComplexity
       case choice.kind
       in .message?
         text = choice.message || ""
@@ -578,7 +578,7 @@ module Crig
     end
 
     private def append_text_additional_params(additional_params : JSON::Any) : Nil
-      return if additional_params.raw.is_a?(Nil)
+      return if additional_params.raw.nil?
 
       index = if idx = @text_item_index
                 existing = @assistant_items[idx]?

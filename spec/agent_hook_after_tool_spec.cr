@@ -16,6 +16,7 @@ end
 struct ToolArgs
   include JSON::Serializable
   getter value : String
+
   def initialize(@value : String)
   end
 end

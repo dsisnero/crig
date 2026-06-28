@@ -161,6 +161,7 @@ module Crig
 
           private def read_api_key_record : CopilotApiKeyRecord
             return CopilotApiKeyRecord.new unless @api_key_file
+            # ameba:disable Lint/NotNil
             File.read(@api_key_file.not_nil!).try { |content| CopilotApiKeyRecord.from_json(content) } || CopilotApiKeyRecord.new
           rescue File::NotFoundError
             CopilotApiKeyRecord.new
@@ -168,6 +169,7 @@ module Crig
 
           private def write_api_key_record(record : CopilotApiKeyResponse) : Nil
             return unless @api_key_file
+            # ameba:disable Lint/NotNil
             dir = File.dirname(@api_key_file.not_nil!)
             Dir.mkdir_p(dir)
             cache = CopilotApiKeyRecord.new(
@@ -175,6 +177,7 @@ module Crig
               expires_at: record.expires_at,
               endpoints: record.endpoints.try { |e| CopilotApiKeyRecord::Endpoints.new(api: e.api, gateway: e.gateway) },
             )
+            # ameba:disable Lint/NotNil
             File.write(@api_key_file.not_nil!, cache.to_json)
           end
 

@@ -14,4 +14,3 @@ describe "OpenAI base64 image detail default" do
     content.media_type.should eq(Crig::Completion::ImageMediaType::PNG)
   end
 end
-

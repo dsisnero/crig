@@ -292,7 +292,7 @@ module Crig
           when nil, ""
             default
           when .includes?(default)
-            existing.not_nil!
+            existing.not_nil! # ameba:disable Lint/NotNil
           else
             "#{default}\n\n#{existing}"
           end
@@ -304,7 +304,7 @@ module Crig
               case output.type
               when "message"
                 content_parts = output.content || [] of Crig::Providers::OpenAI::ContentPart
-                text = content_parts.map { |cp| cp.text.try(&.as_s) || "" }.join
+                text = content_parts.map { |content_part| content_part.text.try(&.as_s) || "" }.join
                 Crig::Completion::AssistantContent.text(text)
               end
             end

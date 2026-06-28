@@ -86,9 +86,9 @@ module Crig
       def count(message : Crig::Completion::Message) : Int32
         tokens = case message.role
                  when .user?
-                   message.content.sum { |c| count_user_content(c) }
+                   message.content.sum { |content| count_user_content(content) }
                  when .assistant?
-                   message.content.sum { |c| count_assistant_content(c.as(Crig::Completion::AssistantContent)) }
+                   message.content.sum { |content| count_assistant_content(content.as(Crig::Completion::AssistantContent)) }
                  else
                    bytes_to_tokens(message.rag_text.try(&.bytesize) || 0)
                  end
@@ -103,15 +103,15 @@ module Crig
         uc = content.as(Crig::Completion::UserContent)
         case uc.kind
         when .text?
-          text_len = uc.text.try { |t| t.text.bytesize } || 0
+          text_len = uc.text.try(&.text.bytesize) || 0
           bytes_to_tokens(text_len)
         when .tool_result?
           result = uc.tool_result
           return @per_attachment_tokens unless result
-          result.content.sum do |c|
-            case c.kind
+          result.content.sum do |item|
+            case item.kind
             when .text?
-              text_len = c.text.try { |t| t.text.try(&.bytesize) } || 0
+              text_len = item.text.try { |text_obj| text_obj.text.try(&.bytesize) } || 0
               bytes_to_tokens(text_len)
             else
               @per_attachment_tokens
@@ -125,12 +125,12 @@ module Crig
       private def count_assistant_content(content : Crig::Completion::AssistantContent) : Int32
         case content.kind
         when .text?
-          text = content.text.try { |t| t.text } || ""
+          text = content.text.try(&.text) || ""
           bytes_to_tokens(text.bytesize)
         when .reasoning?
           reasoning = content.reasoning
           return @per_attachment_tokens unless reasoning
-          text_len = reasoning.content.sum { |rc| (rc.summary.try(&.bytesize) || 0) + (rc.data.try(&.bytesize) || 0) }
+          text_len = reasoning.content.sum { |reasoning_item| (reasoning_item.summary.try(&.bytesize) || 0) + (reasoning_item.data.try(&.bytesize) || 0) }
           bytes_to_tokens(text_len)
         when .tool_call?
           call = content.tool_call
@@ -253,12 +253,12 @@ module Crig
         Crig::Completion::Message.system(buf)
       end
 
-      private def render_message_line(msg : Crig::Completion::Message) : String
+      private def render_message_line(msg : Crig::Completion::Message) : String # ameba:disable Metrics/CyclomaticComplexity
         case msg.role
         when .user?
           io = IO::Memory.new
-          msg.content.each do |c|
-            uc = c.as?(Crig::Completion::UserContent)
+          msg.content.each do |content|
+            uc = content.as?(Crig::Completion::UserContent)
             next unless uc
             case uc.kind
             when .text?
@@ -276,8 +276,8 @@ module Crig
           io.empty? ? "" : "user: #{io}"
         when .assistant?
           io = IO::Memory.new
-          msg.content.each do |c|
-            uc = c.as?(Crig::Completion::AssistantContent)
+          msg.content.each do |content|
+            uc = content.as?(Crig::Completion::AssistantContent)
             next unless uc
             case uc.kind
             when .text?
@@ -338,7 +338,7 @@ module Crig
     # Internal state for a single conversation tracked by DemotingPolicyMemory.
     private class ConversationDemotionState
       property delivered : Int32
-      property in_flight : Bool
+      property? in_flight : Bool
 
       def initialize
         @delivered = 0
@@ -376,7 +376,7 @@ module Crig
         pending = @mutex.synchronize do
           entry = @state[conversation_id]?
           if entry
-            if entry.in_flight
+            if entry.in_flight?
               return kept
             end
             if entry.delivered >= demoted_count
@@ -445,7 +445,7 @@ module Crig
     private class ConversationCompactionState
       property summary : Crig::Completion::Message?
       property absorbed : Int32
-      property in_flight : Bool
+      property? in_flight : Bool
 
       def initialize
         @summary = nil
@@ -489,7 +489,7 @@ module Crig
         plan = @mutex.synchronize do
           entry = @state[conversation_id]?
           if entry
-            if entry.in_flight
+            if entry.in_flight?
               return splice_summary(entry.summary, kept)
             end
             if demoted_count <= entry.absorbed

@@ -39,23 +39,23 @@ end
 
 module Crig
   module Telemetry
-    GEN_AI_OPERATION_NAME       = "gen_ai.operation.name"
-    GEN_AI_PROVIDER_NAME        = "gen_ai.provider.name"
-    GEN_AI_REQUEST_MODEL        = "gen_ai.request.model"
-    GEN_AI_SYSTEM_INSTRUCTIONS  = "gen_ai.system_instructions"
-    GEN_AI_RESPONSE_ID          = "gen_ai.response.id"
-    GEN_AI_RESPONSE_MODEL       = "gen_ai.response.model"
-    GEN_AI_INPUT_MESSAGES       = "gen_ai.input.messages"
-    GEN_AI_OUTPUT_MESSAGES      = "gen_ai.output.messages"
-    GEN_AI_USAGE_INPUT_TOKENS   = "gen_ai.usage.input_tokens"
-    GEN_AI_USAGE_OUTPUT_TOKENS  = "gen_ai.usage.output_tokens"
-    GEN_AI_USAGE_CACHED_INPUT   = "gen_ai.usage.cache_read.input_tokens"
-    GEN_AI_USAGE_CACHE_CREATION = "gen_ai.usage.cache_creation.input_tokens"
+    GEN_AI_OPERATION_NAME        = "gen_ai.operation.name"
+    GEN_AI_PROVIDER_NAME         = "gen_ai.provider.name"
+    GEN_AI_REQUEST_MODEL         = "gen_ai.request.model"
+    GEN_AI_SYSTEM_INSTRUCTIONS   = "gen_ai.system_instructions"
+    GEN_AI_RESPONSE_ID           = "gen_ai.response.id"
+    GEN_AI_RESPONSE_MODEL        = "gen_ai.response.model"
+    GEN_AI_INPUT_MESSAGES        = "gen_ai.input.messages"
+    GEN_AI_OUTPUT_MESSAGES       = "gen_ai.output.messages"
+    GEN_AI_USAGE_INPUT_TOKENS    = "gen_ai.usage.input_tokens"
+    GEN_AI_USAGE_OUTPUT_TOKENS   = "gen_ai.usage.output_tokens"
+    GEN_AI_USAGE_CACHED_INPUT    = "gen_ai.usage.cache_read.input_tokens"
+    GEN_AI_USAGE_CACHE_CREATION  = "gen_ai.usage.cache_creation.input_tokens"
     GEN_AI_USAGE_TOOL_USE_PROMPT = "gen_ai.usage.tool_use_prompt_tokens"
-    GEN_AI_USAGE_REASONING      = "gen_ai.usage.reasoning_tokens"
-    GEN_AI_AGENT_NAME           = "gen_ai.agent.name"
-    GEN_AI_PROMPT               = "gen_ai.prompt"
-    GEN_AI_COMPLETION           = "gen_ai.completion"
+    GEN_AI_USAGE_REASONING       = "gen_ai.usage.reasoning_tokens"
+    GEN_AI_AGENT_NAME            = "gen_ai.agent.name"
+    GEN_AI_PROMPT                = "gen_ai.prompt"
+    GEN_AI_COMPLETION            = "gen_ai.completion"
 
     module ProviderRequestExt(InputMessage)
       abstract def input_messages : Array(InputMessage)
@@ -63,19 +63,19 @@ module Crig
       abstract def model_name : String
       abstract def prompt : String?
 
-      def get_input_messages : Array(InputMessage)
+      def get_input_messages : Array(InputMessage) # ameba:disable Naming/AccessorMethodName
         input_messages
       end
 
-      def get_system_prompt : String?
+      def get_system_prompt : String? # ameba:disable Naming/AccessorMethodName
         system_prompt
       end
 
-      def get_model_name : String
+      def get_model_name : String # ameba:disable Naming/AccessorMethodName
         model_name
       end
 
-      def get_prompt : String?
+      def get_prompt : String? # ameba:disable Naming/AccessorMethodName
         prompt
       end
     end
@@ -87,23 +87,23 @@ module Crig
       abstract def text_response : String?
       abstract def usage : UsageType?
 
-      def get_response_id : String?
+      def get_response_id : String? # ameba:disable Naming/AccessorMethodName
         response_id
       end
 
-      def get_response_model_name : String?
+      def get_response_model_name : String? # ameba:disable Naming/AccessorMethodName
         response_model_name
       end
 
-      def get_output_messages : Array(OutputMessage)
+      def get_output_messages : Array(OutputMessage) # ameba:disable Naming/AccessorMethodName
         output_messages
       end
 
-      def get_text_response : String?
+      def get_text_response : String? # ameba:disable Naming/AccessorMethodName
         text_response
       end
 
-      def get_usage : UsageType?
+      def get_usage : UsageType? # ameba:disable Naming/AccessorMethodName
         usage
       end
     end
@@ -112,7 +112,7 @@ module Crig
     module SpanCombinator
       def record_token_usage(usage : Crig::Completion::GetTokenUsage) : Nil
         return if disabled?
-        return unless (tu = usage.token_usage)
+        return unless tu = usage.token_usage
 
         record_field(GEN_AI_USAGE_INPUT_TOKENS, tu.input_tokens)
         record_field(GEN_AI_USAGE_OUTPUT_TOKENS, tu.output_tokens)
@@ -125,10 +125,10 @@ module Crig
       def record_response_metadata(response) : Nil
         return if disabled?
 
-        if (rid = response.try(&.get_response_id))
+        if rid = response.try(&.get_response_id)
           record_field(GEN_AI_RESPONSE_ID, rid)
         end
-        if (rmodel = response.try(&.get_response_model_name))
+        if rmodel = response.try(&.get_response_model_name)
           record_field(GEN_AI_RESPONSE_MODEL, rmodel)
         end
       end

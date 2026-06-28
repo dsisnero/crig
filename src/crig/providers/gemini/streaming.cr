@@ -100,7 +100,7 @@ module Crig
           )
         end
 
-        private def parse_streaming_choices(text : String) : Array(Crig::RawStreamingChoice(StreamingCompletionResponse))
+        private def parse_streaming_choices(text : String) : Array(Crig::RawStreamingChoice(StreamingCompletionResponse)) # ameba:disable Metrics/CyclomaticComplexity
           raw_choices = [] of Crig::RawStreamingChoice(StreamingCompletionResponse)
           final_usage = nil.as(PartialUsage?)
           final_finish_reason : Crig::Providers::Gemini::FinishReason? = nil
@@ -170,7 +170,7 @@ module Crig
         end
 
         private def tool_protocol_finish_reason_error(choice : ContentCandidate) : Crig::Completion::CompletionError?
-          return unless (reason = choice.finish_reason)
+          return unless reason = choice.finish_reason
 
           if reason.malformed_function_call? || reason.unexpected_tool_call? || reason.missing_thought_signature? || reason.too_many_tool_calls? || reason.malformed_response?
             message = choice.finish_message || "no finish message provided"

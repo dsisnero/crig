@@ -124,8 +124,6 @@ module Crig
     is_streaming : Bool = false,
   ) : {InvalidToolCallResolution, String?}
     # Build the error that would be raised on fail-fast
-    err_history = chat_history.dup
-
     unless hook
       return {InvalidToolCallResolution::Fail, nil}
     end

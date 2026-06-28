@@ -364,7 +364,7 @@ module Crig
       struct CitationsConfig
         include JSON::Serializable
 
-        getter enabled : Bool
+        getter? enabled : Bool
 
         def initialize(@enabled : Bool)
         end
@@ -494,7 +494,7 @@ module Crig
           new(Kind::WebSearchToolResult, tool_use_id: tool_use_id)
         end
 
-        def self.from_json_value(value : JSON::Any) : self
+        def self.from_json_value(value : JSON::Any) : self # ameba:disable Metrics/CyclomaticComplexity
           if string = value.as_s?
             return text(string)
           end
@@ -502,7 +502,7 @@ module Crig
           hash = value.as_h
           case hash["type"].as_s
           when "text"
-            citations = hash["citations"]?.try(&.as_a?).try(&.map { |c| Citation.from_json(c.to_json) })
+            citations = hash["citations"]?.try(&.as_a?).try(&.map { |citation| Citation.from_json(citation.to_json) })
             new(Kind::Text, text: hash["text"].as_s, cache_control: parse_cache_control(hash["cache_control"]?), citations: citations)
           when "image"
             image(ImageSource.from_json_value(hash["source"]), parse_cache_control(hash["cache_control"]?))
@@ -843,7 +843,7 @@ module Crig
             json.field "name", @name
             json.field "description", @description unless @description.nil?
             json.field "input_schema" { @input_schema.to_json(json) }
-            json.field "cache_control" { @cache_control.not_nil!.to_json(json) } if @cache_control
+            json.field "cache_control" { @cache_control.not_nil!.to_json(json) } if @cache_control # ameba:disable Lint/NotNil
           end
         end
 
@@ -1057,7 +1057,7 @@ module Crig
         chat = [] of Crig::Completion::Message
         found_non_system = false
 
-        history.each_with_index do |msg, idx|
+        history.each do |msg|
           if msg.role.system?
             text = msg.rag_text
             if text
@@ -1121,11 +1121,11 @@ module Crig
           tools = req.tools.map { |tool| ToolDefinition.new(tool.name, tool.parameters, tool.description) }
 
           system = if preamble = req.preamble
-                      contents = preamble.empty? ? [] of SystemContent : [SystemContent.text(preamble)]
-                      contents + history_system_messages.map { |text| SystemContent.text(text) }
-                    else
-                      history_system_messages.map { |text| SystemContent.text(text) }
-                    end
+                     contents = preamble.empty? ? [] of SystemContent : [SystemContent.text(preamble)]
+                     contents + history_system_messages.map { |text| SystemContent.text(text) }
+                   else
+                     history_system_messages.map { |text| SystemContent.text(text) }
+                   end
 
           Anthropic.apply_cache_control(system, messages) if params.prompt_caching?
 
@@ -1445,8 +1445,8 @@ module Crig
         end
 
         def text_response : String?
-          texts = @content.to_a.compact_map do |c|
-            c.text if c.kind.text?
+          texts = @content.to_a.compact_map do |content|
+            content.text if content.kind.text?
           end
           joined = texts.join
           joined.empty? ? nil : joined

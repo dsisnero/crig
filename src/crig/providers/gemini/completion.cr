@@ -1427,7 +1427,7 @@ module Crig
           end
         end
 
-        def to_completion_response : Crig::Completion::CompletionResponse(self)
+        def to_completion_response : Crig::Completion::CompletionResponse(self) # ameba:disable Metrics/CyclomaticComplexity
           candidate = @candidates.first? || raise Crig::Completion::CompletionError.new("No response candidates in response")
 
           if error = GenerateContentResponse.tool_protocol_error?(candidate.finish_reason, candidate.finish_message)

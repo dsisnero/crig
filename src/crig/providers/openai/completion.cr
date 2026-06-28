@@ -1475,8 +1475,8 @@ module Crig
 
           def system_prompt : String?
             first = @messages.first?
-            return nil unless first
-            return nil unless first.kind.system?
+            return unless first
+            return unless first.kind.system?
             first.system_content.try(&.first.try(&.text))
           end
 
@@ -1486,13 +1486,13 @@ module Crig
 
           def prompt : String?
             last = @messages.last?
-            return nil unless last
-            return nil unless last.kind.user?
-            last.user_content.try(&.first.try { |uc|
-              case uc.kind
-              in .text? then uc.text
+            return unless last
+            return unless last.kind.user?
+            last.user_content.try(&.first.try do |content|
+              case content.kind
+              in .text? then content.text
               end
-            })
+            end)
           end
         end
       end

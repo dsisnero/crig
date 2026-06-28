@@ -4,15 +4,15 @@ require "json-schema"
 Crig.rig_tool(
   description: "Perform basic arithmetic operations",
   params: {
-    a:         "First number in the calculation",
-    b:         "Second number in the calculation",
-    op:        "The operation to perform (add, subtract, multiply, divide)",
+    a:  "First number in the calculation",
+    b:  "Second number in the calculation",
+    op: "The operation to perform (add, subtract, multiply, divide)",
   },
   required: [:a, :b, :op]
 ) do
   def calc(a : Int32, b : Int32, op : String) : Crig::ToolMacro::Result(Int32, Crig::ToolError)
     case op
-    when "add" then Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(a + b)
+    when "add"      then Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(a + b)
     when "subtract" then Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(a - b)
     when "multiply" then Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(a * b)
     when "divide"

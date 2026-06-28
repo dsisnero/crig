@@ -5,15 +5,15 @@ module Crig
     end
 
     def self.deserialize_json_string_or_value(raw : String) : String?
-      return nil if raw.strip.empty?
+      return if raw.strip.empty?
 
       value = JSON.parse(raw)
       inner = value.raw
 
       case inner
-      when Nil then nil
+      when Nil    then nil
       when String then inner
-      else JSONUtils.value_to_json_string(value)
+      else             JSONUtils.value_to_json_string(value)
       end
     rescue JSON::ParseException
       nil

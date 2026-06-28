@@ -986,8 +986,8 @@ module Crig
         end
 
         def self.from_core(reasoning : Crig::Completion::Reasoning) : self?
-          return nil unless reasoning.id
-          id = reasoning.id.not_nil!
+          return unless reasoning.id
+          id = reasoning.id.not_nil! # ameba:disable Lint/NotNil
           summary = [] of ReasoningSummary
           encrypted_content = nil.as(String?)
 
@@ -1551,11 +1551,6 @@ module Crig
           assistant_id = message.id || ""
           contents = message.content.to_a.compact_map(&.as?(Crig::Completion::AssistantContent))
           return [] of self if contents.empty?
-
-          has_unreplayable_reasoning = contents.any? do |c|
-            c.kind.reasoning? && c.reasoning.try(&.id.nil?)
-          end
-          cannot_replay = message.id.nil? || has_unreplayable_reasoning
 
           items = [] of self
           contents.each do |assistant_content|
