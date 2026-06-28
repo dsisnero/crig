@@ -52,7 +52,7 @@ require "../examples/anthropic_plaintext_document"
 require "../examples/openai_image_generation"
 require "../examples/rag"
 require "../examples/rag_dynamic_tools"
-# require "../examples/rmcp" # FIXME: mcp shard missing StreamableHttpClientTransport
+require "../examples/rmcp"
 require "../examples/request_hook"
 require "../examples/reqwest_middleware"
 require "../examples/simple_model"
@@ -18764,22 +18764,47 @@ describe Crig::Examples::PerplexityAgent, tags: %w[examples perplexity_agent] do
   end
 end
 
-# FIXME: Crig::Examples::RMCP commented out — mcp shard missing StreamableHttpClientTransport
-# describe Crig::Examples::RMCP::StructRequest do
-#   it "deserializes the Rust example request shape" do
-#     request = Crig::Examples::RMCP::StructRequest.from_json(%({"a":2,"b":5}))
-#     request.a.should eq(2)
-#     request.b.should eq(5)
-#   end
-# end
-#
-# describe Crig::Examples::RMCP::Counter do
-#   ... (requires mcp StreamableHttpClientTransport)
-# end
-#
-# describe Crig::Examples::RMCP::StreamableServer do
-#   ... (requires mcp StreamableHttpClientTransport)
-# end
+describe Crig::Examples::RMCP::StructRequest do
+  it "deserializes the Rust example request shape" do
+    request = Crig::Examples::RMCP::StructRequest.from_json(%({"a":2,"b":5}))
+    request.a.should eq(2)
+    request.b.should eq(5)
+  end
+end
+
+describe Crig::Examples::RMCP::StreamableServer do
+  it "serves the counter sum tool over streamable HTTP to a connected client" do
+    server = Crig::Examples::RMCP::StreamableServer.from_counter
+    http = server.http_server
+    address = http.bind_unused_port("127.0.0.1")
+    spawn { http.listen }
+    Fiber.yield
+
+    begin
+      uri = "http://127.0.0.1:#{address.port}/mcp"
+      client = MCP::Client::Client.new(
+        client_info: MCP::Protocol::Implementation.new("crig-test", "0.1.0"),
+        client_options: MCP::Client::ClientOptions.new(
+          capabilities: MCP::Protocol::ClientCapabilities.new
+        )
+      )
+      client.connect(MCP::Client::StreamableHttpClientTransport.from_uri(uri))
+
+      tools = client.list_tools.not_nil!.tools
+      tools.map(&.name).should contain("sum")
+
+      result = client.call_tool(
+        "sum",
+        {"a" => JSON::Any.new(3_i64), "b" => JSON::Any.new(5_i64)}
+      ).as(MCP::Protocol::CallToolResult)
+
+      text = result.content.first.as(MCP::Protocol::TextContentBlock).text
+      text.should eq("8")
+    ensure
+      http.close
+    end
+  end
+end
 
 describe Crig::Completion::PromptError do
   it "builds a cancelled prompt error with context" do
@@ -19580,12 +19605,14 @@ describe Crig::Memory::DemotingPolicyMemory(
 
   it "tracks conversations" do
     inner = Crig::Memory::InMemoryConversationMemory.new
-    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(1)
     hook = Crig::Memory::NoopDemotionHook.new
     memory = Crig::Memory::DemotingPolicyMemory.new(inner, policy, hook)
 
-    msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("hi"))
-    memory.append("conv1", [msg])
+    memory.append("conv1", [
+      Crig::Completion::Message.user(Crig::Completion::UserContent.text("first")),
+      Crig::Completion::Message.user(Crig::Completion::UserContent.text("second")),
+    ])
     memory.load("conv1")
     memory.tracked_conversations.should eq(1)
   end
@@ -19627,12 +19654,14 @@ describe Crig::Memory::CompactingMemory(
 
   it "tracks conversations" do
     inner = Crig::Memory::InMemoryConversationMemory.new
-    policy = Crig::Memory::SlidingWindowMemory.last_messages(10)
+    policy = Crig::Memory::SlidingWindowMemory.last_messages(1)
     compactor = Crig::Memory::TemplateCompactor.new("summary")
     memory = Crig::Memory::CompactingMemory.new(inner, policy, compactor)
 
-    msg = Crig::Completion::Message.user(Crig::Completion::UserContent.text("hi"))
-    memory.append("conv1", [msg])
+    memory.append("conv1", [
+      Crig::Completion::Message.user(Crig::Completion::UserContent.text("first")),
+      Crig::Completion::Message.user(Crig::Completion::UserContent.text("second")),
+    ])
     memory.load("conv1")
     memory.tracked_conversations.should eq(1)
   end

@@ -74,7 +74,7 @@ shards:
 
   mcp:
     git: https://github.com/dsisnero/mcp.cr.git
-    version: 0.5.2
+    version: 0.5.6
 
   mosaic:
     git: https://github.com/dsisnero/mosaic.git

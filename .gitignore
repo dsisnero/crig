@@ -12,6 +12,7 @@
 /.shards/
 *.dwarf
 .crystal-cache/
+.chiasmus-cache/
 temp/
 
 # Libraries don't need dependency lock
