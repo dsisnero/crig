@@ -37,7 +37,10 @@ module Crig
     end
 
     macro json_schema_for(type)
-      {% if type.resolve < Enum %}
+      {% if type.stringify.includes?("Nil") && type.stringify.includes?(" | ") %}
+        # nilable type: skip (already handled by required array)
+        nil
+      {% elsif type.resolve < Enum %}
         json.field "type", "string"
         json.field "enum" do
           json.array do

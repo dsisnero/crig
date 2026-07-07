@@ -15,9 +15,9 @@ module Crig::Examples::AgentWithAgentTool
   ASSISTANT_PREAMBLE  = "You are a helpful assistant that can solve problems. Use the tool provided to answer the user's question."
 
   def self.build_calculator_agent(
-    client : Crig::Providers::DeepSeek::Client,
-    model : String = Crig::Providers::DeepSeek::DEEPSEEK_CHAT,
-  ) : Crig::Agent(Crig::Providers::DeepSeek::CompletionModel)
+    client : Crig::Providers::OpenAI::CompletionsClient,
+    model : String = Crig::Providers::OpenAI::GPT_4O,
+  ) : Crig::Agent(Crig::Providers::OpenAI::CompletionModel)
     client.agent(model)
       .preamble(CALCULATOR_PREAMBLE)
       .max_tokens(1024)
@@ -27,9 +27,9 @@ module Crig::Examples::AgentWithAgentTool
   end
 
   def self.build_agent_using_agent(
-    client : Crig::Providers::DeepSeek::Client,
-    model : String = Crig::Providers::DeepSeek::DEEPSEEK_CHAT,
-  ) : Crig::Agent(Crig::Providers::DeepSeek::CompletionModel)
+    client : Crig::Providers::OpenAI::CompletionsClient,
+    model : String = Crig::Providers::OpenAI::GPT_4O,
+  ) : Crig::Agent(Crig::Providers::OpenAI::CompletionModel)
     calculator_agent = build_calculator_agent(client, model)
 
     client.agent(model)
@@ -44,7 +44,21 @@ module Crig::Examples::AgentWithAgentTool
   end
 end
 
+# DeepSeek entry point
 client = Crig::Providers::DeepSeek::Client.from_env
-agent = Crig::Examples::AgentWithAgentTool.build_agent_using_agent(client)
+model = Crig::Providers::DeepSeek::DEEPSEEK_CHAT
+calculator = client.agent(model)
+  .preamble(Crig::Examples::AgentWithAgentTool::CALCULATOR_PREAMBLE)
+  .max_tokens(1024)
+  .tool(Crig::Examples::AgentWithTools::Adder.new)
+  .tool(Crig::Examples::AgentWithTools::Subtract.new)
+  .build
+
+agent = client.agent(model)
+  .preamble(Crig::Examples::AgentWithAgentTool::ASSISTANT_PREAMBLE)
+  .max_tokens(1024)
+  .tool(calculator)
+  .build
+
 puts "Calculate 2 - 5"
-puts "DeepSeek Agent-Using Agent: #{Crig::Examples::AgentWithAgentTool.run_prompt(agent)}"
+puts "DeepSeek Agent-Using Agent: #{agent.prompt("Calculate 2 - 5").send}"

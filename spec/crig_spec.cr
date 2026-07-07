@@ -1,7 +1,7 @@
 require "./spec_helper"
 require "../examples/agent"
 require "../examples/agent_stream_chat"
-require "../examples/agent_with_agent_tool"
+require "../examples/agent_with_agent_tool/agent_with_agent_tool"
 require "../examples/agent_prompt_chaining"
 require "../examples/agent_with_cohere"
 require "../examples/agent_with_galadriel"
