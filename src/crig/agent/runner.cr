@@ -357,7 +357,11 @@ module Crig
     end
 
     private def execute_single_tool(name : String, args : String) : String
-      "#{name}_result(#{args})"
+      if tsh = @tool_server_handle
+        tsh.call_tool(name, args)
+      else
+        "#{name}_result(#{args})"
+      end
     end
 
     private def handle_outcome(run, ctx, outcome : ModelTurnOutcome) : Nil
