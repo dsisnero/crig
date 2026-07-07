@@ -197,6 +197,7 @@ module Crig
     getter memory : Crig::Memory::ConversationMemory?
     getter default_conversation_id : String?
     getter hook : Crig::PromptHook?
+    @hooks_arr : Array(AgentHook)? = nil
 
     def initialize(
       @model : M,
@@ -299,6 +300,34 @@ module Crig
 
     def prompt(prompt : Crig::Completion::Message | String) : Crig::PromptRequest(Crig::Standard, M)
       Crig::PromptRequest(Crig::Standard, M).from_agent(self, prompt)
+    end
+
+    # Create a runner for this agent using the new v0.39.0 architecture.
+    # The runner drives the AgentRun state machine with hook dispatch.
+    def runner(prompt : Crig::Completion::Message) : AgentRunner(M)
+      runner = AgentRunner(M).new(@model)
+      if p = @preamble
+        runner = runner.preamble(p)
+      end
+      if t = @temperature
+        runner = runner.temperature(t)
+      end
+      if mt = @max_tokens
+        runner = runner.max_tokens(mt.to_u64)
+      end
+      if tc = @tool_choice
+        runner = runner.tool_choice(tc)
+      end
+      runner = runner.max_turns(@default_max_turns || 0)
+      if hl = @hooks_arr
+        hl.each { |h| runner = runner.add_hook(h) }
+      end
+      runner
+    end
+
+    def add_hook(hook : AgentHook) : self
+      @hooks_arr = (@hooks_arr || [] of AgentHook).tap(&.<<(hook))
+      self
     end
 
     def prompt(prompt : Crig::Completion::Image | Crig::Completion::Audio | Crig::Completion::Document | Crig::Completion::UserContent) : Crig::PromptRequest(Crig::Standard, M)
