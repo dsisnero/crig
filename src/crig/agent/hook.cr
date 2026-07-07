@@ -22,34 +22,38 @@ module Crig
 
   class Scratchpad
     @inner : Tool::ToolCallExtensions = Tool::ToolCallExtensions.new
+    @mutex : Mutex = Mutex.new(:reentrant)
 
     def initialize(@shared : Scratchpad? = nil)
       if shared
         @inner = shared.@inner
+        @mutex = shared.@mutex
       end
     end
 
     def insert(val : T) : T? forall T
-      @inner.insert(val)
+      @mutex.synchronize { @inner.insert(val) }
     end
 
     def get(type : T.class) : T? forall T
-      @inner.get(T)
+      @mutex.synchronize { @inner.get(T) }
     end
 
     def contains?(type : T.class) : Bool forall T
-      @inner.contains?(T)
+      @mutex.synchronize { @inner.contains?(T) }
     end
 
     def remove(type : T.class) : T? forall T
-      @inner.remove(T)
+      @mutex.synchronize { @inner.remove(T) }
     end
 
     def update(type : T.class, & : T -> _) : T forall T
-      val = @inner.get(T) || T.from_json("{}")
-      yield val
-      @inner.insert(val)
-      val
+      @mutex.synchronize do
+        val = @inner.get(T) || T.from_json("{}")
+        yield val
+        @inner.insert(val)
+        val
+      end
     end
   end
 
@@ -60,10 +64,10 @@ module Crig
     getter agent_name : String?
     getter scratchpad : Scratchpad
 
-    def initialize(@is_streaming : Bool, @agent_name : String? = nil)
+    def initialize(@is_streaming : Bool, @agent_name : String? = nil, scratchpad : Scratchpad? = nil)
       @run_id = RunId.generate
       @turn = 0
-      @scratchpad = Scratchpad.new
+      @scratchpad = scratchpad || Scratchpad.new
     end
 
     def set_turn(turn : Int32) : Nil
