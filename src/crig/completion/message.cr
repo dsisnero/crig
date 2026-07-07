@@ -39,7 +39,7 @@ module Crig
     struct ToolFunction
       include JSON::Serializable
 
-      getter name : String
+      property name : String
       getter arguments : JSON::Any
 
       def initialize(@name : String, @arguments : JSON::Any)
