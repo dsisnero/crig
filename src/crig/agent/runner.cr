@@ -1,3 +1,5 @@
+require "wait_group"
+
 module Crig
   class AgentRunner(M)
     @model : M
@@ -25,6 +27,10 @@ module Crig
 
     def max_invalid_tool_call_retries(v : Int32) : self
       @max_invalid_tool_call_retries = v; self
+    end
+
+    def tool_concurrency(v : Int32) : self
+      @concurrency = v; self
     end
 
     def add_hook(h : AgentHook) : self
@@ -165,31 +171,84 @@ module Crig
     end
 
     private def execute_tools(run, ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)
+      if @concurrency <= 1 || calls.size <= 1
+        execute_tools_sequential(ctx, calls)
+      else
+        execute_tools_concurrent(ctx, calls)
+      end
+    end
+
+    private def execute_tools_sequential(ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)
       results = [] of Completion::UserContent
 
       calls.each do |call|
-        tc = call.tool_call
-        tool_name = tc.function.name
-        args = tc.function.arguments.to_json
-
-        # Dispatch ToolCall hook
-        call_event = StepEvent.tool_call(tool_name, tc.call_id, tc.id, args)
-        effective_args = dispatch_tool_call_hook(ctx, call_event)
-
-        # Execute tool (simplified - real impl uses tool server)
-        result_text = execute_single_tool(tool_name, effective_args)
-
-        # Dispatch ToolResult hook
-        result_event = StepEvent.tool_result(tool_name, tc.call_id, tc.id, args, result_text)
-        effective_result = dispatch_tool_result_hook(ctx, result_event)
-
-        # Build user content result
-        content = Completion::UserContent.tool_result(tc.id,
-          OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(effective_result)))
-        results << content
+        result = execute_single_call(ctx, call)
+        results << result
       end
 
       results
+    end
+
+    private def execute_single_call(ctx, call : PendingToolCall) : Completion::UserContent
+      tc = call.tool_call
+      tool_name = tc.function.name
+      args = tc.function.arguments.to_json
+
+      # Dispatch ToolCall hook
+      call_event = StepEvent.tool_call(tool_name, tc.call_id, tc.id, args)
+      effective_args = dispatch_tool_call_hook(ctx, call_event)
+
+      # Execute tool
+      result_text = execute_single_tool(tool_name, effective_args)
+
+      # Dispatch ToolResult hook
+      result_event = StepEvent.tool_result(tool_name, tc.call_id, tc.id, args, result_text)
+      effective_result = dispatch_tool_result_hook(ctx, result_event)
+
+      Completion::UserContent.tool_result(tc.id,
+        OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(effective_result)))
+    end
+
+    private def execute_tools_concurrent(ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)
+      results = Array(Completion::UserContent?).new(calls.size, nil)
+      first_error = Atomic(Completion::PromptError?).new(nil)
+      terminating = Atomic(Bool).new(false)
+      sem = Channel(Bool).new(@concurrency)
+      wg = WaitGroup.new(calls.size)
+
+      calls.each_with_index do |call, index|
+        spawn do
+          sem.send(true) # acquire slot
+
+          if terminating.get
+            sem.receive # release slot
+            wg.done
+            next
+          end
+
+          begin
+            result = execute_single_call(ctx, call)
+            results[index] = result
+          rescue ex : Completion::PromptError
+            first_error.compare_and_set(nil, ex)
+            terminating.set(true)
+          rescue ex : Exception
+            first_error.compare_and_set(nil, Completion::PromptError.prompt_cancelled([] of Completion::Message, ex.message || "tool error"))
+            terminating.set(true)
+          end
+
+          sem.receive # release slot
+          wg.done
+        end
+      end
+
+      wg.wait
+
+      if err = first_error.get
+        raise err
+      end
+
+      results.compact_map { |r| r }
     end
 
     private def dispatch_tool_call_hook(ctx, event) : String
