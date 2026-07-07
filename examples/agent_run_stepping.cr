@@ -89,7 +89,11 @@ loop do
     builder = agent.completion(prompt, history)
     response = completion_model.completion(builder.build)
 
-    turn_data = Crig::ModelTurn.new(nil, response.choice, response.usage, [tool_def.name], [tool_def.name])
+    turn_data = Crig::ModelTurn.new(
+      choice: response.choice,
+      usage: response.usage,
+      allowed_tools: [tool_def.name],
+    )
     outcome = run.model_response(turn_data)
 
     while outcome.kind.needs_resolution?

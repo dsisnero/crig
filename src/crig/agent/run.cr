@@ -29,6 +29,19 @@ module Crig
                    @usage : Completion::Usage = Completion::Usage.new, @executable_tool_names : Array(String) = [] of String,
                    @allowed_tool_names : Array(String) = [] of String)
     end
+
+    # Named-argument constructor for ergonomic use
+    def self.new(*, message_id : String? = nil, choice : OneOrMany(Completion::AssistantContent)? = nil,
+                 usage : Completion::Usage? = nil, executable_tool_names : Array(String)? = nil,
+                 allowed_tools : Array(String)? = nil)
+      new(
+        message_id: message_id,
+        choice: choice || OneOrMany(Completion::AssistantContent).one(Completion::AssistantContent.text("")),
+        usage: usage || Completion::Usage.new,
+        executable_tool_names: executable_tool_names || (allowed_tools || [] of String),
+        allowed_tool_names: allowed_tools || (executable_tool_names || [] of String),
+      )
+    end
   end
 
   struct AgentRunStep
