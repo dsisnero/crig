@@ -318,6 +318,9 @@ module Crig
       if tc = @tool_choice
         runner = runner.tool_choice(tc)
       end
+      if tsh = @tool_server_handle
+        runner = runner.tool_server_handle(tsh)
+      end
       runner = runner.max_turns(@default_max_turns || 0)
       if hl = @hooks_arr
         hl.each { |h| runner = runner.add_hook(h) }

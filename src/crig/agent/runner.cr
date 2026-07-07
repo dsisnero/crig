@@ -16,6 +16,7 @@ module Crig
     @output_mode : OutputMode = OutputMode::Auto
     @concurrency : Int32 = 1
     @tool_extensions : Tool::ToolCallExtensions = Tool::ToolCallExtensions.new
+    @tool_server_handle : ToolServerHandle?
     @hooks : Array(AgentHook) = [] of AgentHook
 
     def initialize(@model : M)
@@ -51,6 +52,10 @@ module Crig
 
     def max_tokens(v : UInt64) : self
       @max_tokens = v; self
+    end
+
+    def tool_server_handle(h : ToolServerHandle) : self
+      @tool_server_handle = h; self
     end
 
     def run(prompt : Completion::Message) : PromptResponse
@@ -178,6 +183,12 @@ module Crig
       builder = @model.completion_request(sprompt)
       builder = builder.messages(shistory) unless shistory.empty?
       builder = builder.documents(@static_context) unless @static_context.empty?
+
+      # Add tool definitions from tool server (matching upstream: tool_server_handle.get_tool_defs)
+      if tsh = @tool_server_handle
+        tool_defs = tsh.get_tool_defs(nil)
+        builder = builder.tools(tool_defs) unless tool_defs.empty?
+      end
 
       # Apply patch (matching upstream: patch → baseline)
       p = patch
