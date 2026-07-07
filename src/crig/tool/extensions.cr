@@ -54,7 +54,7 @@ module Crig
         return nil unless map
         key = {{T.name.stringify}}
         json = map.delete(key)
-        map.delete(@inner) if map.empty? && @inner == map
+        @inner = nil if map.empty?
         json.try { |j| T.from_json(j) }
       rescue JSON::SerializableError
         nil
