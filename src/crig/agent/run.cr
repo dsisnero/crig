@@ -322,7 +322,7 @@ module Crig
     end
 
     private def is_empty_choice?(c) : Bool
-      c.to_a.all? { |i| t = i.text; t.nil? || t.text.strip.empty? }
+      c.to_a.all? { |i| i.text.nil? && i.tool_call.nil? && i.reasoning.nil? }
     end
 
     private def can_reprompt?

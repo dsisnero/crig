@@ -288,8 +288,12 @@ module Crig
       result_event = StepEvent.tool_result(tool_name, tc.call_id, tc.id, args, result_text)
       effective_result = dispatch_tool_result_hook(ctx, result_event)
 
-      Completion::UserContent.tool_result(tc.id,
-        OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(effective_result)))
+      content = OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(effective_result))
+      if cid = tc.call_id
+        Completion::UserContent.tool_result_with_call_id(tc.id, cid, content)
+      else
+        Completion::UserContent.tool_result(tc.id, content)
+      end
     end
 
     private def execute_tools_concurrent(ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)

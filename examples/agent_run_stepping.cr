@@ -113,12 +113,14 @@ loop do
       args = call.tool_call.function.arguments.to_json
       puts "-> executing #{name}(#{args})"
       output = ts_handle.call_tool(name, args)
-      results << Crig::Completion::UserContent.tool_result(
-        call.tool_call.id,
-        Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
-          Crig::Completion::ToolResultContent.text(output),
-        ),
+      content = Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
+        Crig::Completion::ToolResultContent.text(output),
       )
+      if cid = call.tool_call.call_id
+        results << Crig::Completion::UserContent.tool_result_with_call_id(call.tool_call.id, cid, content)
+      else
+        results << Crig::Completion::UserContent.tool_result(call.tool_call.id, content)
+      end
     end
 
     run.tool_results(results)
