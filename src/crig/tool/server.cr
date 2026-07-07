@@ -189,11 +189,7 @@ module Crig
       spawn do
         loop do
           message = inbox.receive
-          if message.data.kind.call_tool?
-            spawn { handle_message(message) }
-          else
-            handle_message(message)
-          end
+          handle_message(message)
         end
       end
 
