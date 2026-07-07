@@ -278,4 +278,75 @@ module Crig
     ToolCallDelta
     StreamResponseFinish
   end
+
+  module AgentHook
+    abstract def on_event(ctx : HookContext, event : StepEvent) : Flow
+  end
+
+  struct StepEvent
+    enum Kind
+      CompletionCall
+      CompletionResponse
+      ModelTurnFinished
+      InvalidToolCall
+      ToolCall
+      ToolResult
+      TextDelta
+      ToolCallDelta
+      StreamResponseFinish
+    end
+
+    getter kind : Kind
+    getter prompt_text : String?
+    getter tool_name : String?
+    getter tool_call_id : String?
+    getter internal_call_id : String?
+    getter args : String?
+    getter result : String?
+    getter delta : String?
+    getter aggregated : String?
+    getter turn : Int32?
+
+    private def initialize(
+      @kind : Kind,
+      @prompt_text : String? = nil,
+      @tool_name : String? = nil,
+      @tool_call_id : String? = nil,
+      @internal_call_id : String? = nil,
+      @args : String? = nil,
+      @result : String? = nil,
+      @delta : String? = nil,
+      @aggregated : String? = nil,
+      @turn : Int32? = nil,
+    )
+    end
+
+    def self.completion_call(prompt_text : String, turn : Int32) : self
+      new(Kind::CompletionCall, prompt_text: prompt_text, turn: turn)
+    end
+
+    def self.completion_response : self
+      new(Kind::CompletionResponse)
+    end
+
+    def self.tool_call(tool_name : String, tool_call_id : String?, internal_call_id : String, args : String) : self
+      new(Kind::ToolCall, tool_name: tool_name, tool_call_id: tool_call_id, internal_call_id: internal_call_id, args: args)
+    end
+
+    def self.tool_result(tool_name : String, tool_call_id : String?, internal_call_id : String, args : String, result : String) : self
+      new(Kind::ToolResult, tool_name: tool_name, tool_call_id: tool_call_id, internal_call_id: internal_call_id, args: args, result: result)
+    end
+
+    def completion_call? : Bool
+      @kind.completion_call?
+    end
+
+    def tool_call? : Bool
+      @kind.tool_call?
+    end
+
+    def tool_result? : Bool
+      @kind.tool_result?
+    end
+  end
 end
