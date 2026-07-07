@@ -23,6 +23,10 @@ struct Evaluation
 
   def initialize(@evaluation_status : EvalStatus, @feedback : String)
   end
+
+  def pass? : Bool
+    @evaluation_status.pass?
+  end
 end
 
 TASK = "Implement a Stack with:
@@ -74,7 +78,7 @@ memories << response
 loop do
   eval_result = evaluator_agent.extract("#{TASK}\n\n#{response}")
 
-  if eval_result.evaluation_status.pass?
+  if eval_result.pass?
     break
   else
     context = "#{TASK}\n\n#{eval_result.feedback}"

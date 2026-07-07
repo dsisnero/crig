@@ -37,12 +37,20 @@ module Crig
     end
 
     macro json_schema_for(type)
-      {% type_name = type.stringify %}
-      {% if type_name.includes?("String") && !type_name.starts_with?("Array(") %}
+      {% if type.resolve < Enum %}
         json.field "type", "string"
-      {% elsif type_name.includes?("Bool") %}
+        json.field "enum" do
+          json.array do
+            {% for const in type.resolve.constants %}
+              json.string {{ const.stringify }}
+            {% end %}
+          end
+        end
+      {% elsif type.stringify.includes?("String") && !type.stringify.starts_with?("Array(") %}
+        json.field "type", "string"
+      {% elsif type.stringify.includes?("Bool") %}
         json.field "type", "boolean"
-      {% elsif type_name.starts_with?("Int") || type_name.starts_with?("UInt") || type_name.starts_with?("Float") || type_name.includes?("Int") || type_name.includes?("UInt") || type_name.includes?("Float") %}
+      {% elsif type.stringify.starts_with?("Int") || type.stringify.starts_with?("UInt") || type.stringify.starts_with?("Float") || type.stringify.includes?("Int") || type.stringify.includes?("UInt") || type.stringify.includes?("Float") %}
         json.field "type", "number"
       {% elsif type.is_a?(Generic) && type.name.resolve == Array %}
         json.field "type", "array"
