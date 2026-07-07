@@ -313,6 +313,8 @@ module Crig
 
       text = @orig_choice ? choice_text(@orig_choice.not_nil!) : ""
       @done_response = PromptResponse.new(text, @usage)
+        .with_messages(@new_messages.dup)
+        .with_completion_calls(@completion_calls.dup)
       @state = State::Done
       ModelTurnOutcome.continue
     end
@@ -412,6 +414,8 @@ module Crig
       else
         text = @turn_items.empty? ? "" : choice_text(OneOrMany(Completion::AssistantContent).many(@turn_items))
         @done_response = PromptResponse.new(text, @usage)
+          .with_messages(@new_messages.dup)
+          .with_completion_calls(@completion_calls.dup)
         @state = State::Done
         AgentRunStep.done(@done_response.not_nil!)
       end
