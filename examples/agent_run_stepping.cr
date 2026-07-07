@@ -64,16 +64,15 @@ puts
 
 client = Crig::Providers::DeepSeek::Client.from_env
 model_name = Crig::Providers::DeepSeek::DEEPSEEK_CHAT
-completion_model = client.completion_model(model_name)
+
+agent = client.agent(model_name)
+  .preamble("You are a calculator. Always use the provided tools to compute results.")
+  .tool(AddTool.new)
+  .build
 
 tool_def = AddTool.new.definition("")
-ts_handle = Crig::ToolServer.new.run
-ts_handle.add_tool(AddTool.new)
-
-agent = Crig::Agent(typeof(completion_model)).new(completion_model,
-  tool_server_handle: ts_handle,
-  preamble: "You are a calculator. Always use the provided tools to compute results.",
-)
+ts_handle = agent.tool_server_handle.not_nil!
+completion_model = client.completion_model(model_name)
 
 run = Crig::AgentRun.new(Crig::Completion::Message.user("What is 2 + 5?")).max_turns(2)
 

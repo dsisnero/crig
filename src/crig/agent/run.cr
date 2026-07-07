@@ -283,6 +283,8 @@ module Crig
           final << Completion::AssistantContent.text(output)
           @new_messages << assistant_msg(@msg_id, OneOrMany(Completion::AssistantContent).many(final))
           @done_response = PromptResponse.new(output, @usage)
+            .with_messages(@new_messages.dup)
+            .with_completion_calls(@completion_calls.dup)
           @state = State::Done
           return ModelTurnOutcome.continue
         end
