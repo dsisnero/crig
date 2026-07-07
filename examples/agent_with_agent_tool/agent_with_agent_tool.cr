@@ -61,4 +61,6 @@ agent = client.agent(model)
   .build
 
 puts "Calculate 2 - 5"
-puts "DeepSeek Agent-Using Agent: #{agent.prompt("Calculate 2 - 5").send}"
+prompt = Crig::Completion::Message.user("Calculate 2 - 5")
+response = agent.runner(prompt).run(prompt)
+puts "DeepSeek Agent-Using Agent: #{response.output}"

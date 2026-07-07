@@ -114,8 +114,25 @@ module Crig
           patch = dispatch_completion_call_hook(ctx, call_event)
 
           builder = build_completion_request(sprompt, shistory, patch)
-          response = @model.completion(builder.build)
+          request = builder.build
+
+          # Trace: chat span (matching upstream source.open_chat_span)
+          span = Span.chat_span(
+            "rig",
+            request.model || "unknown",
+            builder.preamble,
+            nil,
+          )
+
+          response = @model.completion(request)
           choice = response.choice
+
+          # Record response on span
+          if response.responds_to?(:raw_response) && (raw = response.raw_response).responds_to?(:get_response_id)
+            span.record_response_metadata(raw)
+          end
+          span.record_token_usage(response.usage) if response.usage.responds_to?(:token_usage)
+          span.end_span
 
           text = choice_text(choice)
           unless text.empty?

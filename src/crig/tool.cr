@@ -37,10 +37,7 @@ module Crig
     end
 
     macro json_schema_for(type)
-      {% if type.stringify.includes?("Nil") && type.stringify.includes?(" | ") %}
-        # nilable type: skip (already handled by required array)
-        nil
-      {% elsif type.resolve < Enum %}
+      {% if type.resolve < Enum %}
         json.field "type", "string"
         json.field "enum" do
           json.array do
@@ -63,29 +60,38 @@ module Crig
           end
         end
       {% else %}
-        json.field "type", "object"
-        {% if type.resolve.instance_vars.size > 0 %}
-          json.field "title", {{ type.resolve.stringify }}
-          json.field "properties" do
-            json.object do
-              {% for ivar in type.resolve.instance_vars %}
-                json.field {{ ivar.name.stringify }} do
-                  json.object do
-                    Crig::ToolMacro.json_schema_for({{ ivar.type }})
+        {% if type.resolve %}
+          json.field "type", "object"
+          {% if type.resolve.instance_vars.size > 0 %}
+            json.field "title", {{ type.resolve.stringify }}
+            json.field "properties" do
+              json.object do
+                {% for ivar in type.resolve.instance_vars %}
+                  json.field {{ ivar.name.stringify }} do
+                    json.object do
+                      {% if ivar.type.resolve && ivar.type.resolve.union_types.size > 0 %}
+                        {% non_nil_type = ivar.type.resolve.union_types.reject(&.==(Nil)).first %}
+                        {% if non_nil_type %}
+                          Crig::ToolMacro.json_schema_for({{ non_nil_type }})
+                        {% end %}
+                      {% else %}
+                        Crig::ToolMacro.json_schema_for({{ ivar.type }})
+                      {% end %}
+                    end
                   end
-                end
-              {% end %}
-            end
-          end
-          json.field "required" do
-            json.array do
-              {% for ivar in type.resolve.instance_vars %}
-                {% unless ivar.type.stringify.includes?("Nil") %}
-                  json.string {{ ivar.name.stringify }}
                 {% end %}
-              {% end %}
+              end
             end
-          end
+            json.field "required" do
+              json.array do
+                {% for ivar in type.resolve.instance_vars %}
+                  {% unless ivar.type.stringify.includes?("Nil") %}
+                    json.string {{ ivar.name.stringify }}
+                  {% end %}
+                {% end %}
+              end
+            end
+          {% end %}
         {% end %}
       {% end %}
     end
