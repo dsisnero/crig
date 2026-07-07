@@ -108,6 +108,89 @@ module Crig
       end
     end
 
+    def stream(prompt : Completion::Message) : Channel(StreamItem)
+      ch = Channel(StreamItem).new(16)
+
+      spawn do
+        begin
+          stream_loop(prompt, ch)
+        rescue ex : Completion::PromptError
+          ch.send(StreamError.new(ex))
+        rescue ex : Exception
+          ch.send(StreamError.new(ex))
+        ensure
+          ch.close
+        end
+      end
+
+      ch
+    end
+
+    private def stream_loop(prompt, ch)
+      ctx = HookContext.new(is_streaming: true, agent_name: @agent_name)
+      run = AgentRun.new(prompt)
+        .max_turns(@max_turns)
+        .max_invalid_tool_call_retries(@max_invalid_tool_call_retries)
+      run.with_tool_choice(@tool_choice.not_nil!) if @tool_choice
+      run.with_output_tool_name(@output_tool_name.not_nil!) if @output_tool_name
+
+      loop do
+        step = run.next_step
+        case step.kind
+        in .call_model?
+          sprompt = step.prompt.not_nil!
+          turn = step.turn.not_nil!
+          shistory = step.history.not_nil!
+          ctx.set_turn(turn)
+
+          # Dispatch CompletionCall hook
+          call_event = StepEvent.completion_call(sprompt.rag_text || "", turn)
+          patch = dispatch_completion_call_hook(ctx, call_event)
+
+          # Build and send request
+          builder = @model.completion_request(sprompt)
+          builder = builder.messages(shistory) unless shistory.empty?
+          builder = apply_patch(builder, patch)
+          builder = apply_baseline(builder)
+          request = builder.build
+
+          # Stream the response (simplified: call completion and emit as single delta)
+          response = @model.completion(request)
+          choice = response.choice
+          usage = response.usage
+
+          text = choice.to_a.flat_map { |i| i.text.try(&.text) || [""] }.join
+          unless text.empty?
+            ch.send(StreamTextDelta.new(text, text))
+          end
+
+          # Dispatch CompletionResponse hook
+          resp_event = StepEvent.completion_response
+          dispatch_hook(ctx, resp_event)
+
+          exe_tools = request.tools ? request.tools.not_nil!.map(&.name) : [] of String
+
+          turn_data = ModelTurn.new(nil, choice, usage, exe_tools, exe_tools.dup)
+          outcome = run.model_response(turn_data)
+          handle_outcome(run, ctx, outcome)
+        in .call_tools?
+          calls = step.calls.not_nil!
+          results = execute_tools(run, ctx, calls)
+
+          results.each do |r|
+            if tr = r.tool_result
+              ch.send(StreamToolResult.new(tr.id, "tool_result"))
+            end
+          end
+
+          run.tool_results(results)
+        in .done?
+          ch.send(StreamDone.new(step.response.not_nil!))
+          break
+        end
+      end
+    end
+
     private def dispatch_completion_call_hook(ctx, event) : RequestPatch?
       merged : RequestPatch? = nil
       @hooks.each do |hook|
