@@ -238,7 +238,8 @@ module Crig
     end
 
     def call(args : Crig::AgentToolArgs) : String
-      prompt(args.prompt).send
+      msg = Crig::Completion::Message.user(args.prompt)
+      runner(msg).run(msg).output
     end
 
     def call(args : String) : String
