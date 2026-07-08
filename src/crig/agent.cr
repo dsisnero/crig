@@ -29,6 +29,11 @@ module Crig
     end
 
     def call_tool(name : String, arguments : String) : String
+      # Call the server directly if connected (avoids inbox fiber for tool calls)
+      if server = @server
+        return server.call_tool(name, arguments)
+      end
+
       if response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments))
         if response.kind.tool_executed?
           result = response.result
@@ -83,6 +88,10 @@ module Crig
     end
 
     def get_tool_defs(prompt : String?) : Array(Crig::Completion::ToolDefinition)
+      if server = @server
+        return server.get_tool_definitions(prompt)
+      end
+
       response = request(Crig::ToolServerRequestMessageKind.get_tool_defs(prompt)) ||
                  raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
       definitions = response.tool_definitions
