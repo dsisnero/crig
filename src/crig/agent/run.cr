@@ -264,7 +264,8 @@ module Crig
     end
 
     private def assistant_msg(id, choice : OneOrMany(Completion::AssistantContent))
-      mixed = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(choice.first.as(Completion::UserContent | Completion::AssistantContent))
+      items = choice.to_a.map(&.as(Completion::UserContent | Completion::AssistantContent))
+      mixed = OneOrMany(Completion::UserContent | Completion::AssistantContent).many(items)
       Completion::Message.new(Completion::Message::Role::Assistant, mixed, id)
     end
 
