@@ -37,9 +37,9 @@ struct HttpFetch
     url = parsed["url"].as_s
 
     if url.includes?("slow")
-      raise Crig::Tool::ToolFailure.timeout("request to #{url} timed out").to_s
+      "TIMEOUT: request to #{url} timed out"
     elsif url.includes?("missing")
-      raise Crig::Tool::ToolFailure.not_found("404 Not Found: #{url}").with_http_status(404).to_s
+      "404 NOT FOUND: #{url}"
     else
       "200 OK: fetched #{url}"
     end
@@ -72,7 +72,7 @@ struct OutcomePolicy
     result = event.result || ""
 
     # Check if the tool result indicates a timeout
-    if result.includes?("timeout")
+    if result.includes?("TIMEOUT")
       tc = ctx.scratchpad.update(TimeoutCount) { |c| c.count += 1 }
       puts "[policy] #{tool_name} timed out (#{tc.count}/#{@max_timeouts})"
       if tc.count >= @max_timeouts
