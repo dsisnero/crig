@@ -176,6 +176,44 @@ module Crig
             end
           end
         end
+        json.field "new_messages" do
+          json.array do
+            @new_messages.each do |m|
+              json.object do
+                json.field "role", m.role.to_s
+                m.content.each do |c|
+                  case c
+                  when Completion::UserContent
+                    if tr = c.tool_result
+                      json.field "type", "tool_result"
+                      json.field "id", tr.id
+                      result_text = tr.content.to_a.map { |rc|
+                        rc.as(Completion::ToolResultContent).text.try(&.text) || ""
+                      }.join
+                      json.field "result", result_text
+                    elsif t = c.text
+                      json.field "type", "text"
+                      json.field "text", t.text
+                    end
+                  when Completion::AssistantContent
+                    if tc = c.tool_call
+                      json.field "type", "tool_call"
+                      json.field "id", tc.id
+                      json.field "name", tc.function.name
+                      json.field "args", tc.function.arguments.to_json
+                    elsif t = c.text
+                      json.field "type", "text"
+                      json.field "text", t.text
+                    elsif r = c.reasoning
+                      json.field "type", "reasoning"
+                      json.field "text", r.display_text
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
       end
     end
 
@@ -212,6 +250,45 @@ module Crig
             fn = Completion::ToolFunction.new(name, JSON.parse(args_json))
             tc = Completion::ToolCall.new(id, fn, call_id)
             @pending << PendingToolCall.new(tc, preresolved_result: nil)
+          end
+        when "new_messages"
+          json.read_array do
+            role = ""; msg_type = ""; msg_id = ""; msg_name = ""; msg_args = "{}"; msg_text = ""; msg_result = ""
+            json.read_object do |k|
+              case k
+              when "role"   then role = json.read_string
+              when "type"   then msg_type = json.read_string
+              when "id"     then msg_id = json.read_string
+              when "name"   then msg_name = json.read_string
+              when "args"   then msg_args = json.read_string
+              when "text"   then msg_text = json.read_string
+              when "result" then msg_result = json.read_string
+              else               json.skip
+              end
+            end
+            message = case msg_type
+                      when "tool_call"
+                        fn = Completion::ToolFunction.new(msg_name, JSON.parse(msg_args))
+                        tc = Completion::ToolCall.new(msg_id, fn)
+                        content = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
+                          Completion::AssistantContent.tool_call(msg_id, msg_name, JSON.parse(msg_args)).as(Completion::UserContent | Completion::AssistantContent))
+                        Completion::Message.new(Completion::Message::Role::Assistant, content, msg_id)
+                      when "tool_result"
+                        tr = Completion::UserContent.tool_result(msg_id,
+                          OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(msg_result)))
+                        content = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(tr.as(Completion::UserContent | Completion::AssistantContent))
+                        Completion::Message.new(Completion::Message::Role::User, content)
+                      else
+                        text = case role
+                               when "User"      then Completion::UserContent.text(msg_text)
+                               when "Assistant" then Completion::AssistantContent.text(msg_text)
+                               else                  Completion::UserContent.text(msg_text)
+                               end
+                        content = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(text.as(Completion::UserContent | Completion::AssistantContent))
+                        role_enum = role == "Assistant" ? Completion::Message::Role::Assistant : Completion::Message::Role::User
+                        Completion::Message.new(role_enum, content)
+                      end
+            @new_messages << message.not_nil!
           end
         else json.skip
         end
