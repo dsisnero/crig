@@ -294,13 +294,13 @@ module Crig
       tools = [] of Crig::Completion::ToolDefinition
 
       if query = text
-        dynamic_tool_ids = Crig::Concurrency.flat_map_ordered(dynamic_tools_snapshot) do |sample, index|
+        dynamic_tool_ids = Crig::Concurrency.map_ordered(dynamic_tools_snapshot) do |sample, index|
           request = Crig::VectorSearchRequest.builder
             .query(query)
             .samples(sample.to_u64)
             .build
-          index.call(request).map(&.[1])
-        end
+          index.call(request).map(&.[1]).as(Array(String))
+        end.flatten
 
         dynamic_tool_ids.each do |id|
           # Re-check under lock since tool definitions may have changed during search.

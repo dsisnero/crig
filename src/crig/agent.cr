@@ -374,12 +374,12 @@ module Crig
     end
 
     private def dynamic_context_documents(text : String) : Array(Crig::Completion::Request::Document)
-      Crig::Concurrency.flat_map_ordered(@dynamic_context) do |source|
+      Crig::Concurrency.map_ordered(@dynamic_context) do |source|
         request = Crig::VectorSearchRequest.new(text, source.sample.to_u64)
         source.search(request).map do |_, id, document|
           Crig::Completion::Request::Document.new(id, document.to_s)
         end
-      end
+      end.flatten
     end
 
     private def dynamic_tool_definitions(text : String) : Array(Crig::Completion::ToolDefinition)

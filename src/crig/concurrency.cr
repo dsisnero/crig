@@ -84,10 +84,6 @@ module Crig
         end
       end
     end
-
-    def self.flat_map_ordered(items : Enumerable(A), timeout : Time::Span? = nil, &block : A -> Enumerable(T)) : Array(T) forall A, T
-      map_ordered(items, timeout) { |item| block.call(item).to_a }.flat_map(&.itself)
-    end
   end
 
   alias ConcurrencyResult = Concurrency::Result
