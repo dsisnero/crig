@@ -279,7 +279,13 @@ module Crig
       args = tc.function.arguments.to_json
 
       call_event = StepEvent.tool_call(tool_name, tc.call_id, tc.id, args)
-      effective_args = dispatch_tool_call_hook(ctx, call_event)
+      effective_args, skip_reason = dispatch_tool_call_hook(ctx, call_event)
+
+      if reason = skip_reason
+        # Tool was skipped by hook — produce synthetic result without executing
+        content = OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(reason))
+        return Completion::UserContent.tool_result(tc.id, content)
+      end
 
       result_text = execute_single_tool(tool_name, effective_args)
 
@@ -290,7 +296,7 @@ module Crig
       if cid = tc.call_id
         Completion::UserContent.tool_result_with_call_id(tc.id, cid, content)
       else
-        Completion::UserContent.tool_result(tc.id, content)
+        Completion::UserContent.tool_result_with_call_id(tc.id, tc.id, content)
       end
     end
 
@@ -326,7 +332,7 @@ module Crig
       results.compact_map { |r| r }
     end
 
-    private def dispatch_tool_call_hook(ctx, event) : String
+    private def dispatch_tool_call_hook(ctx, event) : {String, String?}
       effective = event.args.not_nil!
       @hooks.each do |hook|
         flow = hook.on_event(ctx, event)
@@ -334,11 +340,12 @@ module Crig
         in .continue?     then next
         in .rewrite_args? then effective = flow.args.not_nil!.to_json
         in .terminate?    then raise Completion::PromptError.prompt_cancelled([] of Completion::Message, flow.reason.not_nil!)
-        in .skip?, .rewrite_result?, .patch_request?, .fail?, .retry?, .repair?
+        in .skip?         then return {effective, flow.reason}
+        in .rewrite_result?, .patch_request?, .fail?, .retry?, .repair?
           raise Completion::PromptError.prompt_cancelled([] of Completion::Message, "unsupported for ToolCall: #{flow.kind}")
         end
       end
-      effective
+      {effective, nil}
     end
 
     private def dispatch_tool_result_hook(ctx, event) : String

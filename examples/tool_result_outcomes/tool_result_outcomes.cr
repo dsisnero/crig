@@ -47,8 +47,10 @@ struct HttpFetch
 end
 
 # Run-scoped timeout tally stored in the shared Scratchpad.
-struct TimeoutCount
+class TimeoutCount
   include JSON::Serializable
+
+  @[JSON::Field(default: 0)]
   property count : Int32
 
   def initialize(@count : Int32 = 0)
@@ -73,7 +75,7 @@ struct OutcomePolicy
 
     # Check if the tool result indicates a timeout
     if result.includes?("TIMEOUT")
-      tc = ctx.scratchpad.update(TimeoutCount) { |c| c.count += 1 }
+      tc = ctx.scratchpad.update(TimeoutCount, initial: TimeoutCount.new(0)) { |c| c.count += 1 }
       puts "[policy] #{tool_name} timed out (#{tc.count}/#{@max_timeouts})"
       if tc.count >= @max_timeouts
         return Crig::Flow.terminate("aborting after #{tc.count} tool timeouts")

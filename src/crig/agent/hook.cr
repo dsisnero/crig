@@ -47,9 +47,16 @@ module Crig
       @mutex.synchronize { @inner.remove(T) }
     end
 
-    def update(type : T.class, & : T -> _) : T forall T
+    def update(type : T.class, initial : T? = nil, & : T -> _) : T forall T
       @mutex.synchronize do
-        val = @inner.get(T) || T.from_json("{}")
+        val = @inner.get(T)
+        unless val
+          val = initial || begin
+            T.from_json("{}")
+          rescue JSON::SerializableError
+            raise "Scratchpad#update: no stored value for #{T} and from_json({}) failed. Provide an initial value via .insert or pass initial: to update."
+          end
+        end
         yield val
         @inner.insert(val)
         val

@@ -59,7 +59,7 @@ struct SamplingHook
 end
 
 # Hook 4: TurnCounterHook — counts completion calls via scratchpad.
-struct TurnCount
+class TurnCount
   include JSON::Serializable
   property count : Int32
 
@@ -72,7 +72,7 @@ struct TurnCounterHook
 
   def on_event(ctx : Crig::HookContext, event : Crig::StepEvent) : Crig::Flow
     if event.completion_call?
-      n = ctx.scratchpad.update(TurnCount) { |c| c.count += 1 }
+      n = ctx.scratchpad.update(TurnCount, initial: TurnCount.new(0)) { |c| c.count += 1 }
       puts "[turn-counter] completion call ##{n.count} this run"
     end
     Crig::Flow.cont
