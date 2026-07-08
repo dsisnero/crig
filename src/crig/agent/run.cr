@@ -156,6 +156,77 @@ module Crig
       @new_messages = [prompt]
     end
 
+    def to_json(json : JSON::Builder)
+      json.object do
+        json.field "max_turns", @max_turns
+        json.field "current_turn", @current_turn
+        json.field "state", @state.to_s
+        json.field "pending" do
+          json.array do
+            @pending.each do |p|
+              json.object do
+                tc = p.tool_call
+                json.field "id", tc.id
+                json.field "name", tc.function.name
+                json.field "args", tc.function.arguments.to_json
+                if cid = tc.call_id
+                  json.field "call_id", cid
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    def self.from_json(json : JSON::PullParser) : self
+      run = allocate
+      run.initialize_from_json(json)
+      run
+    end
+
+    def self.from_json(string : String) : self
+      pull = JSON::PullParser.new(string)
+      from_json(pull)
+    end
+
+    def initialize_from_json(json : JSON::PullParser) : Nil
+      json.read_object do |key|
+        case key
+        when "max_turns"    then @max_turns = json.read_int.to_i32
+        when "current_turn" then @current_turn = json.read_int.to_i32
+        when "state"        then @state = State.parse(json.read_string)
+        when "pending"
+          json.read_array do
+            id = ""; name = ""; args_json = "{}"; call_id = nil; preresolved = nil
+            json.read_object do |k|
+              case k
+              when "id"          then id = json.read_string
+              when "name"        then name = json.read_string
+              when "args"        then args_json = json.read_string
+              when "call_id"     then call_id = json.read_string
+              when "preresolved" then preresolved = json.read_string
+              else                    json.skip
+              end
+            end
+            fn = Completion::ToolFunction.new(name, JSON.parse(args_json))
+            tc = Completion::ToolCall.new(id, fn, call_id)
+            @pending << PendingToolCall.new(tc, preresolved_result: nil)
+          end
+        else json.skip
+        end
+      end
+    end
+
+    def to_json : String
+      io = IO::Memory.new
+      builder = JSON::Builder.new(io)
+      builder.start_document
+      to_json(builder)
+      builder.end_document
+      io.to_s
+    end
+
     def with_history(h : Array(Completion::Message)) : self
       @chat_history = h; self
     end
