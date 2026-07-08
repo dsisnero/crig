@@ -2,10 +2,40 @@
 
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
 - **Crates**: `crates/rig-core`
-- **Pinned upstream**: `536c44f9f3ef8cac10ead3535528c7ceab3497f9` (rig-core v0.38.x)
-- **Crystal tag**: `v0.38.4`
+- **Pinned upstream**: `9fc7dc3d6e9b26b0c9f81f443067b995a51fad75` (rig-core v0.39.0)
+- **Crystal tag**: `v0.40.0`
 
-## v0.37.0 Features (completed)
+## v0.39.0 Features
+
+**Detailed plan**: [plans/v39.md](./v39.md) — 14 completed chunks, 11 remaining with red-green TDD
+
+### Completed (13 chunks, 45 commits on `port/rig-v0.39.0`)
+- [x] **C1**: Delete upstream-removed modules (pipeline, buffered, old hooks)
+- [x] **C2**: Port new data-type modules (id, rerank, provider_response)
+- [x] **C3**: Structured tool results (ToolFailure, ToolOutcome, ToolExecutionResult)
+- [x] **C4**: Hook system v2 data types (RunId, Scratchpad, HookContext, RequestPatch, Flow)
+- [x] **C5**: AgentRun state machine (next_step, model_response, tool_results)
+- [x] **C6**: AgentRunner sequential (run, hook dispatch, patch merging)
+- [x] **C7**: Concurrent tool execution (errgroup pattern)
+- [x] **C8**: Streaming drive_agent (channel generator)
+- [x] **C9**: Scratchpad Mutex safety
+- [x] **C10**: Wire Agent → AgentRunner bridge
+- [x] **C11**: Fix agent-as-tool crash (ToolType removal, spawn fix)
+- [x] **C12**: Fix assistant message + tool result format
+- [x] **C13**: Port all v0.39.0 vendor examples (8 examples)
+- [x] **C14**: Convenience API (AgentRun.new(String), tool_result(id, text))
+
+### Remaining (11 chunks — see [plans/v39.md](./v39.md))
+- [ ] R1: Migrate PromptRequest.send() to AgentRunner
+- [ ] R2-R5: Sync providers (DeepSeek, OpenAI, Anthropic, 10 others)
+- [ ] R6: Sync http_client module
+- [ ] R7: ProviderResponseError helpers on all capability errors
+- [ ] R8: AgentRun streaming support (streamed.rs)
+- [ ] R9: Cleanup old hook types (PromptHook, HookAction)
+- [ ] R10: Full JSON::Serializable on AgentRun
+- [ ] R11: Update inventory TSVs
+
+## v0.38.x Features (completed)
 
 - [x] Text::additional_params & Citation Support (22 tests)
 - [x] tool_use_prompt_tokens on Usage (4 tests)
