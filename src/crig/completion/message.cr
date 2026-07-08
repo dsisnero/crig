@@ -984,8 +984,16 @@ module Crig
         new(Kind::ToolResult, tool_result: ToolResult.new(id, content))
       end
 
+      def self.tool_result(id : String, text : String) : self
+        tool_result(id, OneOrMany(ToolResultContent).one(ToolResultContent.text(text)))
+      end
+
       def self.tool_result_with_call_id(id : String, call_id : String, content : Crig::OneOrMany(ToolResultContent)) : self
         new(Kind::ToolResult, tool_result: ToolResult.new(id, content, call_id))
+      end
+
+      def self.tool_result_with_call_id(id : String, call_id : String, text : String) : self
+        tool_result_with_call_id(id, call_id, OneOrMany(ToolResultContent).one(ToolResultContent.text(text)))
       end
 
       def self.image_base64(data : String, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil) : self
