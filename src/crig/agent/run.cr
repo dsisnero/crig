@@ -156,6 +156,10 @@ module Crig
       @new_messages = [prompt]
     end
 
+    def self.new(prompt : String) : self
+      new(Completion::Message.user(prompt))
+    end
+
     def to_json(json : JSON::Builder)
       json.object do
         json.field "max_turns", @max_turns
