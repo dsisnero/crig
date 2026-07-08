@@ -54,10 +54,18 @@ calculator = client.agent(model)
   .tool(Crig::Examples::AgentWithTools::Subtract.new)
   .build
 
+# Use resolver handle for agent-as-tool (avoids ToolServer crash - see #agent_as_tool)
+resolver = ->(name : String, args : String) {
+  parsed = Crig::AgentToolArgs.from_json(args)
+  Crig::Completion::Message.user(parsed.prompt).try { |msg| calculator.runner(msg).run(msg).output } || ""
+}
+
+handle = Crig::ToolServerHandle.with_resolver("calc", resolver)
 agent = client.agent(model)
   .preamble(Crig::Examples::AgentWithAgentTool::ASSISTANT_PREAMBLE)
   .max_tokens(1024)
-  .tool(calculator)
+  .tool_server_handle(handle)
+  .tool(calculator.definition(""))
   .build
 
 puts "Calculate 2 - 5"
