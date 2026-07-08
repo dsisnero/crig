@@ -133,7 +133,7 @@ module Crig
       @static_tool_names : Array(String) = [] of String,
       @dynamic_tools : Array(Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String))))) = [] of Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String)))),
       @toolset : Crig::ToolSet = Crig::ToolSet.new,
-      @lock = Mutex.new,
+      @lock = Mutex.new(:reentrant),
     )
     end
 
@@ -272,13 +272,7 @@ module Crig
       end
       raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_not_found(name)) unless tool
 
-      begin
-        tool.call(args)
-      rescue ex : Crig::ToolError
-        raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(ex))
-      end
-    rescue ex : Crig::ToolSetError
-      raise Crig::ToolServerError.toolset_error(ex)
+      tool.call(args)
     end
 
     def get_tool_definitions(text : String?) : Array(Crig::Completion::ToolDefinition)
