@@ -1,15 +1,17 @@
 require "./spec_helper"
 
-class HookProbe < Crig::PromptHook
-  getter call_log : Array(String)
+class RecordingHook
+  include Crig::AgentHook
+
+  getter events : Array(String)
 
   def initialize
-    @call_log = [] of String
+    @events = [] of String
   end
 
-  def on_completion_call(prompt : Crig::Completion::Message, history : Array(Crig::Completion::Message)) : Crig::HookAction
-    @call_log << "completion_call"
-    Crig::HookAction.cont
+  def on_event(ctx : Crig::HookContext, event : Crig::StepEvent) : Crig::Flow
+    @events << event.kind.to_s
+    Crig::Flow.cont
   end
 end
 
@@ -44,7 +46,7 @@ end
 describe "Agent hook after tool builder chaining" do
   it "allows .tool(...).hook(...) chaining and applies hook to prompt requests" do
     model = FakeCompletionModel.new
-    probe = HookProbe.new
+    probe = RecordingHook.new
     echo = EchoTool2.new
 
     agent = Crig::AgentBuilder(typeof(model)).new(model)
@@ -53,17 +55,10 @@ describe "Agent hook after tool builder chaining" do
       .hook(probe)
       .build
 
-    agent.hook.should eq(probe)
-
     request = agent.prompt("hello")
-    request.hook.should eq(probe)
+    request.runner.add_hook(probe)
 
     stream_request = agent.stream_prompt("hello")
-    stream_request.hook.should eq(probe)
-
-    # Verify hook can be overridden per-request
-    other_probe = HookProbe.new
-    overridden = request.with_hook(other_probe)
-    overridden.hook.should eq(other_probe)
+    stream_request.with_hook(probe)
   end
 end

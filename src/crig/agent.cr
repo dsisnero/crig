@@ -208,7 +208,6 @@ module Crig
     getter output_schema : JSON::Any?
     getter memory : Crig::Memory::ConversationMemory?
     getter default_conversation_id : String?
-    getter hook : Crig::PromptHook?
     @hooks_arr : Array(AgentHook)? = nil
 
     def initialize(
@@ -229,7 +228,6 @@ module Crig
       @output_schema : JSON::Any? = nil,
       @memory : Crig::Memory::ConversationMemory? = nil,
       @default_conversation_id : String? = nil,
-      @hook : Crig::PromptHook? = nil,
     )
     end
 
@@ -458,7 +456,7 @@ module Crig
     getter output_schema_value : JSON::Any?
     getter memory_value : Crig::Memory::ConversationMemory?
     getter default_conversation_id_value : String?
-    getter hook_value : Crig::PromptHook?
+    getter hook_value : AgentHook?
 
     def initialize(
       @model : M,
@@ -478,7 +476,7 @@ module Crig
       @output_schema_value : JSON::Any? = nil,
       @memory_value : Crig::Memory::ConversationMemory? = nil,
       @default_conversation_id_value : String? = nil,
-      @hook_value : Crig::PromptHook? = nil,
+      @hook_value : AgentHook? = nil,
     )
     end
 
@@ -706,12 +704,12 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value, @memory_value, id)
     end
 
-    def hook(hook : Crig::PromptHook) : self
+    def hook(hook : AgentHook) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value, @memory_value, @default_conversation_id_value, hook)
     end
 
     def build : Agent(M)
-      Agent(M).new(
+      agent = Agent(M).new(
         @model,
         name: @name_value,
         description: @description_value,
@@ -729,8 +727,11 @@ module Crig
         output_schema: @output_schema_value,
         memory: @memory_value,
         default_conversation_id: @default_conversation_id_value,
-        hook: @hook_value,
       )
+      if h = @hook_value
+        agent.add_hook(h)
+      end
+      agent
     end
   end
 end

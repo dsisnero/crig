@@ -1083,107 +1083,18 @@ struct MetricDummyJudgment
   end
 end
 
-class RecordingPromptHook < Crig::PromptHook
-  getter events : Array(String)
+class RecordingAgentHook
+  include Crig::AgentHook
 
-  def initialize(@terminate_on_call : Bool = false, @terminate_on_response : Bool = false)
-    @events = [] of String
-  end
-
-  def on_completion_call(
-    prompt : Crig::Completion::Message,
-    history : Array(Crig::Completion::Message),
-  ) : Crig::HookAction
-    @events << "call:#{prompt.rag_text || prompt.role}"
-    return Crig::HookAction.terminate("stop-before-send") if @terminate_on_call
-    Crig::HookAction.cont
-  end
-
-  def on_completion_response(
-    prompt : Crig::Completion::Message,
-    response,
-  ) : Crig::HookAction
-    @events << "response:#{response.raw_response}"
-    return Crig::HookAction.terminate("stop-after-send") if @terminate_on_response
-    Crig::HookAction.cont
-  end
-end
-
-class RecordingStreamingPromptHook < Crig::PromptHook
   getter events : Array(String)
 
   def initialize
     @events = [] of String
   end
 
-  def on_tool_call_delta(
-    tool_call_id : String,
-    internal_call_id : String,
-    tool_name : String?,
-    tool_call_delta : String,
-  ) : Crig::HookAction
-    @events << "tool-call-delta:#{tool_call_id}:#{internal_call_id}:#{tool_name}:#{tool_call_delta}"
-    Crig::HookAction.cont
-  end
-end
-
-class TerminatingTextDeltaHook < Crig::PromptHook
-  def on_text_delta(text_delta : String, aggregated_text : String) : Crig::HookAction
-    Crig::HookAction.terminate("stop-now")
-  end
-end
-
-class TerminatingToolCallHook < Crig::PromptHook
-  def on_tool_call(
-    tool_name : String,
-    tool_call_id : String?,
-    internal_call_id : String,
-    args : String,
-  ) : Crig::ToolCallHookAction
-    Crig::ToolCallHookAction.terminate("stop-tool-call")
-  end
-end
-
-class SkippingToolCallHook < Crig::PromptHook
-  def on_tool_call(
-    tool_name : String,
-    tool_call_id : String?,
-    internal_call_id : String,
-    args : String,
-  ) : Crig::ToolCallHookAction
-    Crig::ToolCallHookAction.skip("tool skipped")
-  end
-end
-
-class TerminatingToolResultHook < Crig::PromptHook
-  def on_tool_result(
-    tool_name : String,
-    tool_call_id : String?,
-    internal_call_id : String,
-    args : String,
-    result : String,
-  ) : Crig::HookAction
-    Crig::HookAction.terminate("stop-tool-result")
-  end
-end
-
-class TerminatingToolCallDeltaHook < Crig::PromptHook
-  def on_tool_call_delta(
-    tool_call_id : String,
-    internal_call_id : String,
-    tool_name : String?,
-    tool_call_delta : String,
-  ) : Crig::HookAction
-    Crig::HookAction.terminate("stop-tool-call-delta")
-  end
-end
-
-class TerminatingStreamFinishHook < Crig::PromptHook
-  def on_stream_completion_response_finish(
-    prompt : Crig::Completion::Message,
-    response,
-  ) : Crig::HookAction
-    Crig::HookAction.terminate("stop-stream-finish")
+  def on_event(ctx : Crig::HookContext, event : Crig::StepEvent) : Crig::Flow
+    @events << event.kind.to_s
+    Crig::Flow.cont
   end
 end
 
@@ -3243,62 +3154,6 @@ describe Crig::PromptResponse do
   end
 end
 
-describe Crig::HookAction, tags: %w[agent hooks] do
-  it "supports continue and terminate helpers" do
-    Crig::HookAction.cont.kind.continue?.should be_true
-    terminated = Crig::HookAction.terminate("stop")
-
-    terminated.kind.terminate?.should be_true
-    terminated.reason.should eq("stop")
-  end
-end
-
-describe Crig::ToolCallHookAction, tags: %w[agent tool_hooks] do
-  it "supports continue, skip, and terminate helpers" do
-    Crig::ToolCallHookAction.cont.kind.continue?.should be_true
-    skipped = Crig::ToolCallHookAction.skip("not allowed")
-    terminated = Crig::ToolCallHookAction.terminate("stop")
-
-    skipped.kind.skip?.should be_true
-    skipped.reason.should eq("not allowed")
-    terminated.kind.terminate?.should be_true
-    terminated.reason.should eq("stop")
-  end
-end
-
-describe Crig::PromptHook, tags: %w[agent prompt_hooks] do
-  it "runs per-request hooks through the prompt request path" do
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    hook = RecordingPromptHook.new
-
-    response = agent.prompt("Hello").with_hook(hook).extended_details.send
-
-    response.output.should eq("completion:gpt-4o")
-    hook.events.should eq(["call:Hello", "response:raw:gpt-4o"])
-  end
-
-  it "can terminate before the completion call" do
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    hook = RecordingPromptHook.new(terminate_on_call: true)
-
-    expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-before-send") do
-      agent.prompt("Hello").with_hook(hook).send
-    end
-  end
-
-  it "can terminate after the completion response" do
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    hook = RecordingPromptHook.new(terminate_on_response: true)
-
-    expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-after-send") do
-      agent.prompt("Hello").with_hook(hook).send
-    end
-  end
-end
-
 describe Crig::FinalResponse do
   it "supports the upstream empty helper and accessors" do
     response = Crig::FinalResponse.empty
@@ -3441,41 +3296,6 @@ describe Crig::StreamingPromptRequest(FakeCompletionClientModel) do
 
     response.response.try(&.history).try(&.size).should eq(3)
   end
-
-  it "supports multi-turn storage and streaming hook termination" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-    hook = RecordingPromptHook.new
-    request = agent.stream_prompt("hello").multi_turn(3).with_hook(hook)
-
-    request.max_turns.should eq(3)
-    request.send.chunks.should eq(["chunk:gpt-4o"])
-  end
-
-  it "wraps text-delta termination with prompt-cancelled history" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).with_hook(TerminatingTextDeltaHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-now")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-now")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("hello")])
-  end
-
-  it "wraps stream-finish termination with prompt-cancelled history" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).with_hook(TerminatingStreamFinishHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-stream-finish")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-stream-finish")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("hello")])
-  end
 end
 
 describe Crig::StreamingPromptRequest(FakeStreamingAgentModel) do
@@ -3546,40 +3366,6 @@ describe Crig::StreamingPromptRequest(FakeMultiTurnStreamingModel) do
     expect_raises(Crig::StreamingError, "PromptError: MaxTurnsExceeded: 0") do
       agent.stream_prompt("do tool work").send_items
     end
-  end
-
-  it "wraps tool-call termination with prompt-cancelled history" do
-    model = FakeMultiTurnStreamingModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnStreamingModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolCallHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-tool-call")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-tool-call")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("do tool work")])
-  end
-
-  it "wraps tool-result termination with prompt-cancelled history" do
-    model = FakeMultiTurnStreamingModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnStreamingModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolResultHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-tool-result")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-tool-result")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("do tool work")])
   end
 end
 
@@ -3679,43 +3465,6 @@ describe Crig::StreamingPromptRequest(FakeDeltaStreamingModel) do
     assistant_content.should_not be_nil
     assistant_content.try(&.kind.reasoning?).should be_true
     assistant_content.try(&.reasoning).try(&.content.first.text).should eq("step one")
-  end
-
-  it "sends tool call delta events to the hook before the tool call turn completes" do
-    hook = RecordingStreamingPromptHook.new
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeDeltaStreamingModel).new(
-      FakeDeltaStreamingModel.new(FakeDeltaStreamingModel::Mode::ToolCallDeltaAndToolCall)
-    ).tool_server_handle(handle).default_max_turns(1).build
-
-    result = agent.stream_prompt("hello").with_hook(hook).send_items
-
-    hook.events.should eq([
-      "tool-call-delta:tool_call_1:internal_1:missing_tool:",
-      "tool-call-delta:tool_call_1:internal_1::{\"input\":\"value\"}",
-    ])
-    result.items.any? { |item| item.user_item.try(&.kind.tool_result?) == true }.should be_true
-    result.items.any? do |item|
-      item.assistant_item.try(&.kind.final?) == true &&
-        item.assistant_item.try(&.final).try(&.response) == "done"
-    end.should be_true
-    result.items.last.final_response.try(&.response).should eq("done")
-  end
-
-  it "wraps tool-call-delta termination with prompt-cancelled history" do
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeDeltaStreamingModel).new(
-      FakeDeltaStreamingModel.new(FakeDeltaStreamingModel::Mode::ToolCallDeltaAndToolCall)
-    ).tool_server_handle(handle).default_max_turns(1).build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolCallDeltaHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-tool-call-delta")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-tool-call-delta")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("hello")])
   end
 end
 
