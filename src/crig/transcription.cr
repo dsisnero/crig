@@ -39,10 +39,11 @@ module Crig
     end
 
     def self.from_http_response(status : Int32, body : String) : self
+      pr = ProviderResponseError.new(status: status, body: body)
       if 200 <= status && status < 300
-        new("ProviderResponseError", Kind::ProviderResponse, provider_response: ProviderResponseError.new(status: status, body: body))
+        new("ProviderResponseError", Kind::ProviderResponse, provider_response: pr)
       else
-        new("HttpError: #{status} #{body}", Kind::HttpError)
+        new("HttpError: #{status} #{body}", Kind::HttpError, provider_response: pr)
       end
     end
 
@@ -53,13 +54,13 @@ module Crig
     include Crig::ProviderResponseHelpers
 
     def provider_response_body : String?
-      if @kind.provider_response?
+      if @kind.http_error? || @kind.provider_response?
         @provider_response.try(&.body)
       end
     end
 
     def provider_response_status : Int32?
-      if @kind.provider_response?
+      if @kind.http_error? || @kind.provider_response?
         @provider_response.try(&.status)
       end
     end

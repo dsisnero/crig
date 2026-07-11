@@ -20,10 +20,11 @@ module Crig
       end
 
       def self.from_http_response(status : Int32, body : String) : self
+        pr = ProviderResponseError.new(status: status, body: body)
         if 200 <= status && status < 300
-          new("ProviderResponseError", provider_response: ProviderResponseError.new(status: status, body: body))
+          new("ProviderResponseError", provider_response: pr)
         else
-          new("http error: #{status} #{body}")
+          new("http error: #{status} #{body}", provider_response: pr)
         end
       end
 

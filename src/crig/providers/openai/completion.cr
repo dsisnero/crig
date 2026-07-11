@@ -57,14 +57,46 @@ module Crig
           end
         end
 
+        struct CompletionTokensDetails
+          include JSON::Serializable
+
+          @[JSON::Field(key: "reasoning_tokens")]
+          getter reasoning_tokens : Int32
+
+          def initialize(@reasoning_tokens : Int32 = 0)
+          end
+        end
+
         @[JSON::Field(key: "prompt_tokens")]
         getter prompt_tokens : Int32
+        @[JSON::Field(key: "completion_tokens")]
+        getter completion_tokens : Int32?
         @[JSON::Field(key: "total_tokens")]
         getter total_tokens : Int32
         @[JSON::Field(key: "prompt_tokens_details")]
         getter prompt_tokens_details : PromptTokensDetails?
+        @[JSON::Field(key: "completion_tokens_details")]
+        getter completion_tokens_details : CompletionTokensDetails?
+        @[JSON::Field(key: "queue_time")]
+        getter queue_time : Float64?
+        @[JSON::Field(key: "prompt_time")]
+        getter prompt_time : Float64?
+        @[JSON::Field(key: "completion_time")]
+        getter completion_time : Float64?
+        @[JSON::Field(key: "total_time")]
+        getter total_time : Float64?
 
-        def initialize(@prompt_tokens : Int32 = 0, @total_tokens : Int32 = 0, @prompt_tokens_details : PromptTokensDetails? = nil)
+        def initialize(
+          @prompt_tokens : Int32 = 0,
+          @total_tokens : Int32 = 0,
+          @completion_tokens : Int32? = nil,
+          @prompt_tokens_details : PromptTokensDetails? = nil,
+          @completion_tokens_details : CompletionTokensDetails? = nil,
+          @queue_time : Float64? = nil,
+          @prompt_time : Float64? = nil,
+          @completion_time : Float64? = nil,
+          @total_time : Float64? = nil,
+        )
         end
 
         def token_usage : Crig::Completion::Usage?
@@ -74,9 +106,10 @@ module Crig
         def to_crig_usage : Crig::Completion::Usage
           Crig::Completion::Usage.new(
             input_tokens: @prompt_tokens.to_i64,
-            output_tokens: (@total_tokens - @prompt_tokens).to_i64,
+            output_tokens: (@completion_tokens || (@total_tokens - @prompt_tokens)).to_i64,
             total_tokens: @total_tokens.to_i64,
             cached_input_tokens: @prompt_tokens_details.try(&.cached_tokens.to_i64) || 0_i64,
+            reasoning_tokens: @completion_tokens_details.try(&.reasoning_tokens.to_i64) || 0_i64,
           )
         end
       end
