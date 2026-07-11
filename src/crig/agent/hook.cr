@@ -317,6 +317,8 @@ module Crig
     getter delta : String?
     getter aggregated : String?
     getter turn : Int32?
+    getter raw_response : String?
+    getter choice_text : String?
 
     private def initialize(
       @kind : Kind,
@@ -329,6 +331,8 @@ module Crig
       @delta : String? = nil,
       @aggregated : String? = nil,
       @turn : Int32? = nil,
+      @raw_response : String? = nil,
+      @choice_text : String? = nil,
     )
     end
 
@@ -336,8 +340,8 @@ module Crig
       new(Kind::CompletionCall, prompt_text: prompt_text, turn: turn)
     end
 
-    def self.completion_response : self
-      new(Kind::CompletionResponse)
+    def self.completion_response(prompt_text : String, raw_response : String, choice_text : String = "") : self
+      new(Kind::CompletionResponse, prompt_text: prompt_text, raw_response: raw_response, choice_text: choice_text)
     end
 
     def self.tool_call(tool_name : String, tool_call_id : String?, internal_call_id : String, args : String) : self

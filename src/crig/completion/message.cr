@@ -934,6 +934,19 @@ module Crig
           return Crig::OneOrMany(self).one(content_from_image_payload(payload.data, payload.mime_type))
         end
 
+        # If the output is a JSON-encoded string, unwrap it (matching upstream
+        # serde_json::from_str behaviour where the tool output round-trips through
+        # to_string / from_tool_output).
+        if output.starts_with?('"') && output.ends_with?('"')
+          begin
+            parsed = JSON.parse(output)
+            if parsed.is_a?(JSON::Any) && parsed.raw.is_a?(String)
+              return Crig::OneOrMany(self).one(text(parsed.as_s))
+            end
+          rescue JSON::ParseException
+          end
+        end
+
         Crig::OneOrMany(self).one(text(output))
       end
     end

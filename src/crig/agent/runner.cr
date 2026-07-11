@@ -14,13 +14,32 @@ module Crig
     @tool_choice : Completion::ToolChoice?
     @output_tool_name : String? = nil
     @output_mode : OutputMode = OutputMode::Auto
+    @output_schema : JSON::Any? = nil
     @concurrency : Int32 = 1
     @tool_extensions : Tool::ToolCallExtensions = Tool::ToolCallExtensions.new
     @tool_server_handle : ToolServerHandle?
+    @chat_history : Array(Completion::Message)? = nil
+    @static_tools : Array(Completion::ToolDefinition) = [] of Completion::ToolDefinition
     @hooks : Array(AgentHook) = [] of AgentHook
 
     def initialize(@model : M)
     end
+
+    # -- Public getters (for PromptRequest delegation) --
+
+    def max_turns : Int32
+      @max_turns
+    end
+
+    def concurrency : Int32
+      @concurrency
+    end
+
+    def chat_history : Array(Completion::Message)?
+      @chat_history
+    end
+
+    # -- Public setters (builder pattern) --
 
     def max_turns(v : Int32) : self
       @max_turns = v; self
@@ -54,8 +73,28 @@ module Crig
       @max_tokens = v; self
     end
 
+    def output_schema(v : JSON::Any?) : self
+      @output_schema = v; self
+    end
+
+    def output_mode(v : OutputMode) : self
+      @output_mode = v; self
+    end
+
     def tool_server_handle(h : ToolServerHandle) : self
       @tool_server_handle = h; self
+    end
+
+    def chat_history(v : Array(Completion::Message)?) : self
+      @chat_history = v; self
+    end
+
+    def static_tools(v : Array(Completion::ToolDefinition)) : self
+      @static_tools = v; self
+    end
+
+    def additional_params(v : JSON::Any) : self
+      @additional_params = v; self
     end
 
     def run(prompt : Completion::Message) : PromptResponse
@@ -64,9 +103,10 @@ module Crig
 
       loop do
         step = run.next_step
+        error_history = run.full_history
         case step.kind
-        in .call_model? then drive_call_model(ctx, run, step)
-        in .call_tools? then drive_call_tools(ctx, run, step)
+        in .call_model? then drive_call_model(ctx, run, step, error_history)
+        in .call_tools? then drive_call_tools(ctx, run, step, error_history)
         in .done?       then return step.response.not_nil!
         end
       end
@@ -92,8 +132,10 @@ module Crig
       run = AgentRun.new(prompt)
         .max_turns(@max_turns)
         .max_invalid_tool_call_retries(@max_invalid_tool_call_retries)
+      run.with_history(@chat_history.not_nil!) if @chat_history
       run.with_tool_choice(@tool_choice.not_nil!) if @tool_choice
       run.with_output_tool_name(@output_tool_name.not_nil!) if @output_tool_name
+      run.with_output_validation(@output_schema, 0) if @output_schema
       run
     end
 
@@ -103,6 +145,7 @@ module Crig
 
       loop do
         step = run.next_step
+        error_history = run.full_history
         case step.kind
         in .call_model?
           turn = step.turn.not_nil!
@@ -111,7 +154,7 @@ module Crig
           ctx.set_turn(turn)
 
           call_event = StepEvent.completion_call(sprompt.rag_text || "", turn)
-          patch = dispatch_completion_call_hook(ctx, call_event)
+          patch = dispatch_completion_call_hook(ctx, call_event, error_history)
 
           builder = build_completion_request(sprompt, shistory, patch)
           request = builder.build
@@ -139,8 +182,9 @@ module Crig
             ch.send(StreamTextDelta.new(text, text))
           end
 
-          resp_event = StepEvent.completion_response
-          dispatch_hook(ctx, resp_event)
+          ct = choice_text(response.choice)
+          resp_event = StepEvent.completion_response(sprompt.rag_text || "", response.raw_response.to_s, ct)
+          dispatch_hook(ctx, resp_event, error_history)
 
           exe_tools = builder.tools.map(&.name)
           turn_data = ModelTurn.new(choice: choice, usage: response.usage, allowed_tools: exe_tools)
@@ -148,7 +192,7 @@ module Crig
           handle_outcome(run, ctx, outcome)
         in .call_tools?
           calls = step.calls.not_nil!
-          results = execute_tools(run, ctx, calls)
+          results = execute_tools(ctx, calls, error_history)
           results.each do |r|
             if tr = r.tool_result
               ch.send(StreamToolResult.new(tr.id, "tool_result"))
@@ -162,7 +206,7 @@ module Crig
       end
     end
 
-    private def drive_call_model(ctx, run, step)
+    private def drive_call_model(ctx, run, step, error_history)
       turn = step.turn.not_nil!
       sprompt = step.prompt.not_nil!
       shistory = step.history.not_nil!
@@ -170,7 +214,7 @@ module Crig
 
       # 1. Dispatch CompletionCall hook (matching upstream: resolve_completion_call)
       call_event = StepEvent.completion_call(sprompt.rag_text || "", turn)
-      patch = dispatch_completion_call_hook(ctx, call_event)
+      patch = dispatch_completion_call_hook(ctx, call_event, error_history)
 
       # 2. Build request (matching upstream: build_prepared_completion_request)
       builder = build_completion_request(sprompt, shistory, patch)
@@ -180,8 +224,9 @@ module Crig
       response = @model.completion(request)
 
       # 4. Dispatch CompletionResponse hook
-      resp_event = StepEvent.completion_response
-      dispatch_hook(ctx, resp_event)
+      ct = choice_text(response.choice)
+      resp_event = StepEvent.completion_response(sprompt.rag_text || "", response.raw_response.to_s, ct)
+      dispatch_hook(ctx, resp_event, error_history)
 
       # 7. Feed model response to state machine
       exe_tools = request.tools ? request.tools.not_nil!.map(&.name) : [] of String
@@ -190,9 +235,9 @@ module Crig
       handle_outcome(run, ctx, outcome)
     end
 
-    private def drive_call_tools(ctx, run, step)
+    private def drive_call_tools(ctx, run, step, error_history)
       calls = step.calls.not_nil!
-      results = execute_tools(run, ctx, calls)
+      results = execute_tools(ctx, calls, error_history)
       run.tool_results(results)
     end
 
@@ -200,6 +245,11 @@ module Crig
       builder = @model.completion_request(sprompt)
       builder = builder.messages(shistory) unless shistory.empty?
       builder = builder.documents(@static_context) unless @static_context.empty?
+
+      # Add tool definitions from static tools
+      if tds = @static_tools
+        builder = builder.tools(tds) unless tds.empty?
+      end
 
       # Add tool definitions from tool server (matching upstream: tool_server_handle.get_tool_defs)
       if tsh = @tool_server_handle
@@ -219,6 +269,7 @@ module Crig
       builder = builder.max_tokens(effective_tokens.not_nil!.to_i64) if effective_tokens
       builder = builder.tool_choice(effective_choice.not_nil!) if effective_choice
       builder = builder.additional_params_opt(@additional_params) if @additional_params
+      builder = builder.output_schema_opt(@output_schema)
 
       # Apply active_tools filter from patch (intersects with baseline tool set)
       if p.try(&.active_tools)
@@ -234,52 +285,52 @@ module Crig
       choice.to_a.flat_map { |i| i.text.try(&.text) || [""] }.join
     end
 
-    private def dispatch_completion_call_hook(ctx, event) : RequestPatch?
+    private def dispatch_completion_call_hook(ctx, event, error_history : Array(Completion::Message)) : RequestPatch?
       merged : RequestPatch? = nil
       @hooks.each do |hook|
         flow = hook.on_event(ctx, event)
         case flow.kind
         in .continue?      then next
         in .patch_request? then merged = merged ? merged.merge(flow.patch.not_nil!) : flow.patch
-        in .terminate?     then raise Completion::PromptError.prompt_cancelled([] of Completion::Message, flow.reason.not_nil!)
+        in .terminate?     then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason.not_nil!)
         in .skip?, .rewrite_args?, .rewrite_result?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled([] of Completion::Message, "unsupported for CompletionCall: #{flow.kind}")
+          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported for CompletionCall: #{flow.kind}")
         end
       end
       merged
     end
 
-    private def dispatch_hook(ctx, event) : Nil
+    private def dispatch_hook(ctx, event, error_history : Array(Completion::Message)) : Nil
       @hooks.each do |hook|
         flow = hook.on_event(ctx, event)
         case flow.kind
         in .continue?  then next
-        in .terminate? then raise Completion::PromptError.prompt_cancelled([] of Completion::Message, flow.reason.not_nil!)
+        in .terminate? then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason.not_nil!)
         in .skip?, .rewrite_args?, .rewrite_result?, .patch_request?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled([] of Completion::Message, "unsupported: #{flow.kind}")
+          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported: #{flow.kind}")
         end
       end
     end
 
-    private def execute_tools(run, ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)
+    private def execute_tools(ctx, calls : Array(PendingToolCall), error_history : Array(Completion::Message)) : Array(Completion::UserContent)
       if @concurrency <= 1 || calls.size <= 1
-        execute_tools_sequential(ctx, calls)
+        execute_tools_sequential(ctx, calls, error_history)
       else
-        execute_tools_concurrent(ctx, calls)
+        execute_tools_concurrent(ctx, calls, error_history)
       end
     end
 
-    private def execute_tools_sequential(ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)
-      calls.map { |c| execute_single_call(ctx, c) }
+    private def execute_tools_sequential(ctx, calls : Array(PendingToolCall), error_history : Array(Completion::Message)) : Array(Completion::UserContent)
+      calls.map { |c| execute_single_call(ctx, c, error_history) }
     end
 
-    private def execute_single_call(ctx, call : PendingToolCall) : Completion::UserContent
+    private def execute_single_call(ctx, call : PendingToolCall, error_history : Array(Completion::Message)) : Completion::UserContent
       tc = call.tool_call
       tool_name = tc.function.name
       args = tc.function.arguments.to_json
 
       call_event = StepEvent.tool_call(tool_name, tc.call_id, tc.id, args)
-      effective_args, skip_reason = dispatch_tool_call_hook(ctx, call_event)
+      effective_args, skip_reason = dispatch_tool_call_hook(ctx, call_event, error_history)
 
       if reason = skip_reason
         # Tool was skipped by hook — produce synthetic result without executing
@@ -290,9 +341,9 @@ module Crig
       result_text = execute_single_tool(tool_name, effective_args)
 
       result_event = StepEvent.tool_result(tool_name, tc.call_id, tc.id, args, result_text)
-      effective_result = dispatch_tool_result_hook(ctx, result_event)
+      effective_result = dispatch_tool_result_hook(ctx, result_event, error_history)
 
-      content = OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(effective_result))
+      content = Completion::ToolResultContent.from_tool_output(effective_result)
       if cid = tc.call_id
         Completion::UserContent.tool_result_with_call_id(tc.id, cid, content)
       else
@@ -300,7 +351,7 @@ module Crig
       end
     end
 
-    private def execute_tools_concurrent(ctx, calls : Array(PendingToolCall)) : Array(Completion::UserContent)
+    private def execute_tools_concurrent(ctx, calls : Array(PendingToolCall), error_history : Array(Completion::Message)) : Array(Completion::UserContent)
       results = Array(Completion::UserContent?).new(calls.size, nil)
       first_error = Atomic(Completion::PromptError?).new(nil)
       terminating = Atomic(Bool).new(false)
@@ -314,12 +365,12 @@ module Crig
             sem.receive; wg.done; next
           end
           begin
-            results[index] = execute_single_call(ctx, call)
+            results[index] = execute_single_call(ctx, call, error_history)
           rescue ex : Completion::PromptError
             first_error.compare_and_set(nil, ex)
             terminating.set(true)
           rescue ex : Exception
-            first_error.compare_and_set(nil, Completion::PromptError.prompt_cancelled([] of Completion::Message, ex.message || "tool error"))
+            first_error.compare_and_set(nil, Completion::PromptError.prompt_cancelled(error_history, ex.message || "tool error"))
             terminating.set(true)
           end
           sem.receive; wg.done
@@ -332,32 +383,32 @@ module Crig
       results.compact_map { |r| r }
     end
 
-    private def dispatch_tool_call_hook(ctx, event) : {String, String?}
+    private def dispatch_tool_call_hook(ctx, event, error_history : Array(Completion::Message)) : {String, String?}
       effective = event.args.not_nil!
       @hooks.each do |hook|
         flow = hook.on_event(ctx, event)
         case flow.kind
         in .continue?     then next
         in .rewrite_args? then effective = flow.args.not_nil!.to_json
-        in .terminate?    then raise Completion::PromptError.prompt_cancelled([] of Completion::Message, flow.reason.not_nil!)
+        in .terminate?    then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason.not_nil!)
         in .skip?         then return {effective, flow.reason}
         in .rewrite_result?, .patch_request?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled([] of Completion::Message, "unsupported for ToolCall: #{flow.kind}")
+          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported for ToolCall: #{flow.kind}")
         end
       end
       {effective, nil}
     end
 
-    private def dispatch_tool_result_hook(ctx, event) : String
+    private def dispatch_tool_result_hook(ctx, event, error_history : Array(Completion::Message)) : String
       effective = event.result.not_nil!
       @hooks.each do |hook|
         flow = hook.on_event(ctx, event)
         case flow.kind
         in .continue?       then next
         in .rewrite_result? then effective = flow.result.not_nil!
-        in .terminate?      then raise Completion::PromptError.prompt_cancelled([] of Completion::Message, flow.reason.not_nil!)
+        in .terminate?      then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason.not_nil!)
         in .skip?, .rewrite_args?, .patch_request?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled([] of Completion::Message, "unsupported for ToolResult: #{flow.kind}")
+          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported for ToolResult: #{flow.kind}")
         end
       end
       effective
@@ -369,6 +420,8 @@ module Crig
       else
         "#{name}_result(#{args})"
       end
+    rescue ex
+      ex.to_s
     end
 
     private def handle_outcome(run, ctx, outcome : ModelTurnOutcome) : Nil

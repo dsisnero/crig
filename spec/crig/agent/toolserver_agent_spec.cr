@@ -29,7 +29,7 @@ module Crig
       agent = Agent(typeof(mock_model)).new(mock_model, preamble: "calc")
 
       ts = ToolServer.new
-      adapter = AgentToolAdapter(typeof(mock_model)).new(agent)
+      adapter = AgentToolAdapter.new(agent)
       ts.add_tool(adapter)
 
       result = ts.call_tool("agent_tool", %({"prompt": "What is 2 + 5?"}))
@@ -41,25 +41,10 @@ module Crig
       agent = Agent(typeof(mock_model)).new(mock_model, preamble: "calc")
 
       ts = ToolServer.new
-      adapter = AgentToolAdapter(typeof(mock_model)).new(agent)
+      adapter = AgentToolAdapter.new(agent)
       ts.add_tool(adapter)
       handle = ts.run # returns handle with @server=ts
 
-      result = handle.call_tool("agent_tool", %({"prompt": "What is 2 + 5?"}))
-      result.should contain("mocked")
-    end
-
-    it "calls agent tool through handle with resolver fallback" do
-      mock_model = MockAgentModel.new
-      agent = Agent(typeof(mock_model)).new(mock_model, preamble: "calc")
-
-      resolver = ->(name : String, args : String) {
-        parsed = AgentToolArgs.from_json(args)
-        msg = Completion::Message.user(parsed.prompt)
-        agent.runner(msg).run(msg).output
-      }
-
-      handle = ToolServerHandle.with_resolver("test", resolver)
       result = handle.call_tool("agent_tool", %({"prompt": "What is 2 + 5?"}))
       result.should contain("mocked")
     end

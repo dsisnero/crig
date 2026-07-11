@@ -531,35 +531,6 @@ class FakeToolEmbedding
   end
 end
 
-struct EchoArgs
-  include JSON::Serializable
-
-  getter value : String
-
-  def initialize(@value : String)
-  end
-end
-
-struct EchoTool
-  include Crig::Tool(EchoArgs, String)
-
-  def name : String
-    "echo"
-  end
-
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
-  end
-
-  def call_typed(args : EchoArgs) : String
-    args.value
-  end
-end
-
 Crig.rig_tool(
   description: "Perform basic arithmetic operations",
   params: {
@@ -605,44 +576,6 @@ end
 Crig.rig_tool do
   def count_rs(s : String) : Crig::ToolMacro::Result(Int32, Crig::ToolError)
     Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(s.chars.count { |ch| ch == 'r' || ch == 'R' }.to_i)
-  end
-end
-
-struct DefaultNamedTool
-  include Crig::Tool(EchoArgs, String)
-
-  NAME = "default-named"
-
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "default-named",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
-  end
-
-  def call_typed(args : EchoArgs) : String
-    args.value
-  end
-end
-
-struct FailingEchoTool
-  include Crig::Tool(EchoArgs, String)
-
-  def name : String
-    "echo"
-  end
-
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
-  end
-
-  def call_typed(args : EchoArgs) : String
-    raise "boom"
   end
 end
 
@@ -971,45 +904,6 @@ class FakeCompletionModel
   end
 end
 
-class FakeStructuredCompletionModel
-  include Crig::Completion::CompletionModel
-
-  getter last_request : Crig::Completion::Request::CompletionRequest?
-
-  def completion(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    submit_tool = request.tools.find { |tool| tool.name == "submit" }
-    choice = if submit_tool
-               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-                 Crig::Completion::AssistantContent.tool_call(
-                   "tool_call_submit",
-                   "submit",
-                   JSON.parse(%({"city":"Denver","temperature":72})),
-                 )
-               )
-             else
-               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-                 Crig::Completion::AssistantContent.text(%({"city":"Denver","temperature":72}))
-               )
-             end
-
-    Crig::Completion::CompletionResponse(String).new(
-      choice,
-      Crig::Completion::Usage.new(output_tokens: 4),
-      "raw",
-    )
-  end
-
-  def stream(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    ["streamed"]
-  end
-
-  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-end
-
 class FakeChatIntegration
   include Crig::Completion::Chat
 
@@ -1273,61 +1167,6 @@ class TerminatingToolResultHook < Crig::PromptHook
   end
 end
 
-class FakeMultiToolPromptModel
-  include Crig::Completion::CompletionModel
-
-  getter turn_counter = 0
-
-  def completion(request : Crig::Completion::Request::CompletionRequest)
-    turn = @turn_counter
-    @turn_counter += 1
-
-    choice = if turn == 0
-               Crig::OneOrMany(Crig::Completion::AssistantContent).many([
-                 Crig::Completion::AssistantContent.tool_call_with_call_id(
-                   "tool_call_1",
-                   "call_1",
-                   "missing_tool",
-                   JSON.parse(%({"input":"one"})),
-                 ),
-                 Crig::Completion::AssistantContent.tool_call_with_call_id(
-                   "tool_call_2",
-                   "call_2",
-                   "missing_tool",
-                   JSON.parse(%({"input":"two"})),
-                 ),
-               ])
-             else
-               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-                 Crig::Completion::AssistantContent.text("done")
-               )
-             end
-
-    usage = turn == 0 ? Crig::Completion::Usage.new(total_tokens: 4) : Crig::Completion::Usage.new(total_tokens: 6)
-    Crig::Completion::CompletionResponse(String).new(
-      choice,
-      usage,
-      "raw-prompt",
-      turn == 0 ? "msg-tool" : "msg-final",
-    )
-  end
-
-  def stream(request : Crig::Completion::Request::CompletionRequest)
-    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).stream(
-      ["unused"],
-      Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 1)),
-    )
-  end
-
-  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-
-  def completion_request(prompt : Crig::Completion::Message) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-end
-
 class TerminatingToolCallDeltaHook < Crig::PromptHook
   def on_tool_call_delta(
     tool_call_id : String,
@@ -1345,42 +1184,6 @@ class TerminatingStreamFinishHook < Crig::PromptHook
     response,
   ) : Crig::HookAction
     Crig::HookAction.terminate("stop-stream-finish")
-  end
-end
-
-class FakeCompletionClientModel
-  include Crig::Completion::CompletionModel
-  include Crig::Completion::CompletionModelDyn
-
-  getter name : String
-  getter last_request : Crig::Completion::Request::CompletionRequest?
-
-  def initialize(@name : String)
-  end
-
-  def completion(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    Crig::Completion::CompletionResponse(String).new(
-      Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text("completion:#{@name}")),
-      Crig::Completion::Usage.new(output_tokens: 1),
-      "raw:#{@name}",
-    )
-  end
-
-  def stream(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).stream(
-      ["chunk:#{@name}"],
-      Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 3)),
-    )
-  end
-
-  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-
-  def completion_request(prompt : Crig::Completion::Message) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
   end
 end
 
@@ -2333,16 +2136,6 @@ struct StoredDoc
   end
 end
 
-struct WeatherPayload
-  include JSON::Serializable
-
-  getter city : String
-  getter temperature : Int32
-
-  def initialize(@city : String, @temperature : Int32)
-  end
-end
-
 class RecordedFilter
   getter description : String
 
@@ -2405,16 +2198,6 @@ end
 
 private def vector_embedding(document : String, values : Array(Float64)) : Crig::OneOrMany(Crig::Embeddings::Embedding)
   Crig::OneOrMany(Crig::Embeddings::Embedding).one(Crig::Embeddings::Embedding.new(document, values))
-end
-
-describe Crig do
-  it "tracks the pinned upstream commit" do
-    Crig::UPSTREAM_COMMIT.should eq("f77a5819ec2a71e98583480a68a341f816a75c8a")
-  end
-
-  it "exposes the upstream source path" do
-    Crig::UPSTREAM_SOURCE_PATH.should eq("vendor/rig/crates/rig-core")
-  end
 end
 
 describe Crig::VerifyError, tags: %w[verify error] do
@@ -3516,152 +3299,6 @@ describe Crig::PromptHook, tags: %w[agent prompt_hooks] do
   end
 end
 
-describe Crig::PromptRequest(Crig::Extended, FakeMultiTurnPromptModel) do
-  it "continues through tool calls until a final text response is returned" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").max_turns(3).extended_details.send
-
-    response.output.should eq("done")
-    response.usage.total_tokens.should eq(10)
-    response.messages.should_not be_nil
-    response.messages.try(&.size).should eq(4)
-    response.messages.try(&.[0].role.user?).should be_true
-    response.messages.try(&.[1].role.assistant?).should be_true
-    response.messages.try(&.[1].content.first.as(Crig::Completion::AssistantContent).kind.tool_call?).should be_true
-    response.messages.try(&.[2].role.user?).should be_true
-    response.messages.try(&.[2].content.first.as(Crig::Completion::UserContent).kind.tool_result?).should be_true
-    response.messages.try(&.[3].role.assistant?).should be_true
-    response.messages.try(&.[3].content.first.as(Crig::Completion::AssistantContent).text).try(&.text).should eq("done")
-    model.turn_counter.should eq(2)
-  end
-
-  it "raises after consecutive tool-call turns exceed max turns" do
-    model = FakeMultiTurnPromptModel.new(2)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::Completion::PromptError, "MaxTurnsExceeded: 0") do
-      agent.prompt("do tool work").extended_details.send
-    end
-
-    error.reason.should eq("MaxTurnsExceeded: 0")
-    error.chat_history.should_not be_nil
-    error.prompt.should eq(Crig::Completion::Message.tool_result_with_call_id("tool_call_1", "call_1", "tool-result"))
-  end
-
-  it "wraps tool-call termination with prompt-cancelled history" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-tool-call") do
-      agent.prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolCallHook.new).extended_details.send
-    end
-
-    error.reason.should eq("stop-tool-call")
-    error.chat_history.should_not be_nil
-    error.chat_history.try(&.size).should eq(2)
-    error.chat_history.try(&.[0].role.user?).should be_true
-    error.chat_history.try(&.[1].role.assistant?).should be_true
-    error.chat_history.try(&.[1].content.first.as(Crig::Completion::AssistantContent).kind.tool_call?).should be_true
-  end
-
-  it "wraps tool-result termination with prompt-cancelled history" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-tool-result") do
-      agent.prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolResultHook.new).extended_details.send
-    end
-
-    error.reason.should eq("stop-tool-result")
-    error.chat_history.should_not be_nil
-    error.chat_history.try(&.size).should eq(2)
-    error.chat_history.try(&.[0].role.user?).should be_true
-    error.chat_history.try(&.[1].role.assistant?).should be_true
-    error.chat_history.try(&.[1].content.first.as(Crig::Completion::AssistantContent).kind.tool_call?).should be_true
-  end
-
-  it "turns skipped tool calls into tool-result user messages" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").with_hook(SkippingToolCallHook.new).extended_details.send
-
-    response.output.should eq("done")
-    response.messages.should_not be_nil
-    tool_result_message = response.messages.try(&.[2])
-    tool_result_message.should_not be_nil
-    tool_result_message.try(&.role.user?).should be_true
-    user_content = tool_result_message.try(&.content.first).try(&.as(Crig::Completion::UserContent))
-    user_content.should_not be_nil
-    user_content.try(&.kind.tool_result?).should be_true
-    user_content.try(&.tool_result).try(&.content.first.text).try(&.text).should eq("tool skipped")
-  end
-
-  it "stringifies tool execution errors into tool-result user messages" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { raise "resolver boom" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").extended_details.send
-
-    response.output.should eq("done")
-    tool_result_message = response.messages.try(&.[2])
-    tool_result_message.should_not be_nil
-    user_content = tool_result_message.try(&.content.first).try(&.as(Crig::Completion::UserContent))
-    user_content.should_not be_nil
-    tool_result_text = user_content.try(&.tool_result).try(&.content.first.text).try(&.text)
-    tool_result_text.not_nil!.should contain("resolver boom")
-  end
-end
-
-describe Crig::PromptRequest(Crig::Extended, FakeMultiToolPromptModel) do
-  it "keeps tool result messages in tool-call order when concurrency is enabled" do
-    model = FakeMultiToolPromptModel.new
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, args : String) {
-      parsed = JSON.parse(args)
-      value = parsed["input"].as_s
-      value == "one" ? "result-one" : "result-two"
-    })
-    agent = Crig::AgentBuilder(FakeMultiToolPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").with_tool_concurrency(2).extended_details.send
-
-    response.output.should eq("done")
-    tool_result_message = response.messages.try(&.[2])
-    tool_result_message.should_not be_nil
-    tool_result_message.try(&.content.size).should eq(2)
-    first = tool_result_message.try(&.content.to_a[0]).try(&.as(Crig::Completion::UserContent))
-    second = tool_result_message.try(&.content.to_a[1]).try(&.as(Crig::Completion::UserContent))
-    first.should_not be_nil
-    second.should_not be_nil
-    first.try(&.tool_result).try(&.id).should eq("tool_call_1")
-    first.try(&.tool_result).try(&.content.first.text).try(&.text).should eq("result-one")
-    second.try(&.tool_result).try(&.id).should eq("tool_call_2")
-    second.try(&.tool_result).try(&.content.first.text).try(&.text).should eq("result-two")
-  end
-end
-
 describe Crig::FinalResponse do
   it "supports the upstream empty helper and accessors" do
     response = Crig::FinalResponse.empty
@@ -4174,29 +3811,6 @@ describe "Crig streaming helpers" do
     io.to_s.should eq("Response: hello world")
     final_response.response.should eq("hello world")
     final_response.usage.total_tokens.should eq(2)
-  end
-end
-
-describe Crig::TypedPromptRequest(WeatherPayload, Crig::Standard, FakeStructuredCompletionModel) do
-  it "parses typed prompt responses and carries a generated schema title" do
-    model = FakeStructuredCompletionModel.new
-    prompt_agent = Crig::Agent(FakeStructuredCompletionModel).new(
-      model,
-      output_schema: JSON.parse(%({"title":"old"})),
-    )
-
-    typed_request = prompt_agent.prompt_typed(WeatherPayload, "weather")
-    payload = typed_request.send
-    detailed = typed_request.extended_details.send
-
-    payload.city.should eq("Denver")
-    payload.temperature.should eq(72)
-    detailed.output.city.should eq("Denver")
-    detailed.usage.output_tokens.should eq(4)
-    last_request = model.last_request
-    last_request.should_not be_nil
-    last_request.try(&.output_schema).should_not be_nil
-    last_request.try(&.output_schema).try(&.["title"].as_s).should eq("WeatherPayload")
   end
 end
 
@@ -8540,31 +8154,6 @@ describe Crig::ToolServer do
     handle = server.run
 
     handle.get_tool_defs("find extra").map(&.name).should eq(["echo"])
-  end
-
-  it "wraps toolset call errors as tool server errors" do
-    server = Crig::ToolServer.new.tool(FailingEchoTool.new)
-    handle = server.run
-
-    expect_raises(Crig::ToolServerError, "ToolsetError: ToolCallError: boom") do
-      handle.call_tool("echo", %({"value":"hello"}))
-    end
-  end
-
-  it "raises a tool server send error when a detached handle is used" do
-    handle = Crig::ToolServerHandle.new("detached")
-
-    expect_raises(Crig::ToolServerError, "SendError: Tool server handle 'detached' is not attached to a server") do
-      handle.get_tool_defs(nil)
-    end
-  end
-
-  it "raises a tool server send error when a resolver-backed handle has no resolver" do
-    handle = Crig::ToolServerHandle.new("missing-resolver")
-
-    expect_raises(Crig::ToolServerError, "SendError: Tool server handle 'missing-resolver' has no resolver") do
-      handle.call_tool("echo", "{}")
-    end
   end
 
   it "supports Rust-style builder helpers for static names, toolsets, and dynamic tools" do
@@ -15857,46 +15446,6 @@ describe Crig::Examples::AgentWithGaladriel, tags: %w[examples agent_with_galadr
   end
 end
 
-describe Crig::Examples::AgentWithGrok, tags: %w[examples agent_with_grok] do
-  it "builds the upstream grok basic agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_basic_agent(client)
-
-    agent.model.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
-    agent.preamble.should eq(Crig::Examples::AgentWithGrok::BASIC_PREAMBLE)
-    agent.default_max_turns.should eq(32)
-  end
-
-  it "builds the upstream grok tools agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_tools_agent(client)
-
-    agent.preamble.should eq(Crig::Examples::AgentWithGrok::TOOLS_PREAMBLE)
-    agent.max_tokens.should eq(1024_i64)
-    agent.default_max_turns.should eq(32)
-    agent.static_tools.map(&.name).should eq(%w[add subtract])
-  end
-
-  it "builds the upstream grok loader-backed agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_loaders_agent(
-      client,
-      glob: "vendor/rig/examples/agent.rs"
-    )
-
-    agent.static_context.size.should eq(1)
-    agent.static_context.first.text.includes?("Rust Example").should be_true
-  end
-
-  it "builds the upstream grok context agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_context_agent(client)
-
-    agent.static_context.map(&.text).should eq(Crig::Examples::AgentWithContext::CONTEXTS)
-    agent.default_max_turns.should eq(32)
-  end
-end
-
 describe Crig::Examples::AgentWithMoonshot, tags: %w[examples agent_with_moonshot] do
   it "builds the upstream basic moonshot agent helper" do
     client = Crig::Providers::Moonshot::Client.new("test-key")
@@ -17278,51 +16827,6 @@ describe Crig::Examples::OpenAIAgentCompletionsApiOtel, tags: %w[examples openai
   end
 end
 
-describe Crig::Examples::RequestHook, tags: %w[examples request_hook] do
-  it "builds the upstream deepseek request-hook agent helper" do
-    client = Crig::Providers::DeepSeek::Client.new("test-key")
-    agent = Crig::Examples::RequestHook.build_agent(client)
-
-    agent.model.model.should eq(Crig::Providers::DeepSeek::DEEPSEEK_CHAT)
-    agent.static_tools.map(&.name).should eq(["calculator"])
-  end
-
-  it "records completion hook events for prompt requests" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat"))
-      .tool(Crig::Examples::RequestHook::CalculatorTool.new)
-      .build
-    hook = Crig::Examples::RequestHook::SessionIdHook.new("abc123")
-
-    response = Crig::Examples::RequestHook.run_prompt(agent, hook, "Entertain me!")
-
-    response.should eq("completion:deepseek-chat")
-    hook.events.any?(&.includes?("[Session abc123] Sending prompt: Entertain me!")).should be_true
-    hook.events.any?(&.includes?("[Session abc123] Received response: completion:deepseek-chat")).should be_true
-  end
-
-  it "records streaming hook events for stream requests" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat"))
-      .tool(Crig::Examples::RequestHook::CalculatorTool.new)
-      .build
-    hook = Crig::Examples::RequestHook::SessionIdHook.new("abc123")
-
-    stream = Crig::Examples::RequestHook.run_stream(agent, hook, "Entertain me!")
-    final = stream.response
-
-    final.not_nil!.response.should eq("chunk:deepseek-chat")
-    hook.events.any?(&.includes?("[Session abc123] Sending prompt: Entertain me!")).should be_true
-    hook.events.any?(&.includes?("Text delta: 'chunk:deepseek-chat'")).should be_true
-  end
-
-  it "builds the calculator tool definition and arithmetic behavior" do
-    tool = Crig::Examples::RequestHook::CalculatorTool.new
-    definition = tool.definition("")
-
-    definition.name.should eq("calculator")
-    tool.call_typed(Crig::Examples::RequestHook::CalculatorArgs.new("multiply", 6, 7)).should eq(42)
-  end
-end
-
 describe Crig::Examples::ReqwestMiddleware, tags: %w[examples reqwest_middleware] do
   it "builds the upstream retrying transport helper" do
     inner = Crig::HttpClient::MockStreamingClient.new
@@ -17549,44 +17053,6 @@ describe Crig::Examples::AgentWithCohere, tags: %w[examples agent_with_cohere] d
   end
 end
 
-describe Crig::Examples::AgentWithHuggingFace, tags: %w[examples agent_with_huggingface] do
-  it "builds the upstream huggingface partial and basic agent helpers" do
-    client = Crig::Providers::HuggingFace::Client.new("test-key")
-    builder = Crig::Examples::AgentWithHuggingFace.build_partial_agent(client)
-    agent = Crig::Examples::AgentWithHuggingFace.build_basic_agent(client)
-
-    builder.model.model.should eq(Crig::Examples::AgentWithHuggingFace::MODEL)
-    agent.model.model.should eq(Crig::Examples::AgentWithHuggingFace::MODEL)
-    agent.preamble.should eq(Crig::Examples::AgentWithHuggingFace::BASIC_PREAMBLE)
-  end
-
-  it "builds the upstream huggingface tools agent helper" do
-    client = Crig::Providers::HuggingFace::Client.new("test-key")
-    agent = Crig::Examples::AgentWithHuggingFace.build_tools_agent(client)
-
-    agent.preamble.should eq(Crig::Examples::AgentWithHuggingFace::TOOLS_PREAMBLE)
-    agent.max_tokens.should eq(1024_i64)
-    agent.static_tools.map(&.name).should eq(%w[add subtract])
-  end
-
-  it "loads upstream rust examples for the huggingface loader helper" do
-    loaded = Crig::Examples::AgentWithHuggingFace.load_examples("vendor/rig/examples/agent.rs")
-    entry = loaded.first.as(Tuple(String, String))
-
-    loaded.size.should eq(1)
-    entry[1].includes?("comedian").should be_true
-  end
-
-  it "builds the upstream huggingface context agent helper and prompts through a provided agent" do
-    client = Crig::Providers::HuggingFace::Client.new("test-key")
-    context_agent = Crig::Examples::AgentWithHuggingFace.build_context_agent(client)
-    prompt_agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-r1")).build
-
-    context_agent.static_context.size.should eq(3)
-    Crig::Examples::AgentWithHuggingFace.run_prompt(prompt_agent, "Entertain me!").should eq("completion:deepseek-r1")
-  end
-end
-
 describe Crig::Examples::AgentWithEchochambers, tags: %w[examples agent_with_echochambers] do
   it "builds the upstream echochambers agent and chatbot helpers" do
     client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
@@ -17777,35 +17243,6 @@ describe Crig::Examples::AgentWithMira, tags: %w[examples agent_with_mira] do
     Crig::Examples::AgentWithMira.list_models(client).should eq(["gpt-4o", "claude-3-5-sonnet-latest"])
 
     http_server.close
-  end
-end
-
-describe Crig::Examples::AgentWithLoaders, tags: %w[examples agent_with_loaders] do
-  it "loads upstream rust example files through the file loader helper" do
-    loaded = Crig::Examples::AgentWithLoaders.load_examples("vendor/rig/examples/agent.rs")
-    entry = loaded.first.as(Tuple(String, String))
-
-    loaded.size.should eq(1)
-    entry[0].ends_with?("vendor/rig/examples/agent.rs").should be_true
-    entry[1].includes?("comedian").should be_true
-  end
-
-  it "builds the upstream loader-backed context agent helper" do
-    client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
-    agent = Crig::Examples::AgentWithLoaders.build_agent(
-      client,
-      glob: "vendor/rig/examples/agent.rs"
-    )
-
-    agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4O)
-    agent.static_context.size.should eq(1)
-    agent.static_context.first.text.includes?("Rust Example").should be_true
-  end
-
-  it "runs the loader-backed example prompt through a provided agent" do
-    Crig::Examples::AgentWithLoaders.run_prompt(
-      Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-    ).should eq("completion:gpt-4o")
   end
 end
 

@@ -1,5 +1,5 @@
 module Crig
-  ALPHABET = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  ALPHABET       = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
   DEFAULT_ID_LEN = 21
 
   def self.generate_id : String

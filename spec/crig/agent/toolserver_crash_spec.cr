@@ -32,7 +32,7 @@ module Crig
       agent = Agent(typeof(model)).new(model, preamble: "test")
 
       ts = ToolServer.new
-      ts.add_tool(AgentToolAdapter(typeof(model)).new(agent))
+      ts.add_tool(AgentToolAdapter.new(agent))
 
       result = ts.call_tool("agent_tool", %({"prompt":"hi"}))
       result.should eq("ok 1")
@@ -43,22 +43,8 @@ module Crig
       agent = Agent(typeof(model)).new(model, preamble: "test")
 
       ts = ToolServer.new
-      ts.add_tool(AgentToolAdapter(typeof(model)).new(agent))
+      ts.add_tool(AgentToolAdapter.new(agent))
       handle = ts.run
-      result = handle.call_tool("agent_tool", %({"prompt":"hi"}))
-      result.should eq("ok 1")
-    end
-
-    it "executes via ToolServer.new.run + handle.call_tool (resolver fallback)" do
-      model = MockTextModel.new
-      agent = Agent(typeof(model)).new(model, preamble: "test")
-
-      resolver = ->(name : String, args : String) {
-        parsed = Crig::AgentToolArgs.from_json(args)
-        msg = Crig::Completion::Message.user(parsed.prompt)
-        agent.runner(msg).run(msg).output
-      }
-      handle = Crig::ToolServerHandle.with_resolver("test", resolver)
       result = handle.call_tool("agent_tool", %({"prompt":"hi"}))
       result.should eq("ok 1")
     end

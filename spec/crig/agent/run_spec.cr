@@ -77,7 +77,7 @@ module Crig
     end
 
     it "max turns exhaustion returns max turns error" do
-      run = AgentRun.new(Completion::Message.user("add things")).max_turns(1)
+      run = AgentRun.new(Completion::Message.user("add things"))
       expect_call_model(run)
       outcome = run.model_response(ModelTurn.new(
         choice: OneOrMany(Completion::AssistantContent).one(tool_call_content("call_1", "add")),
@@ -87,9 +87,21 @@ module Crig
       expect_continue(outcome)
       calls = expect_call_tools(run)
       run.tool_results([Completion::UserContent.tool_result("call_1",
-        OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text("5")))])
+        OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text("0")))])
 
-      expect_raises(Crig::Completion::PromptError) do
+      # Second roundtrip exhausts max_turns (default 0)
+      expect_call_model(run)
+      outcome = run.model_response(ModelTurn.new(
+        choice: OneOrMany(Completion::AssistantContent).one(tool_call_content("call_2", "add")),
+        executable_tool_names: ["add"],
+        allowed_tool_names: ["add"],
+      ))
+      expect_continue(outcome)
+      calls = expect_call_tools(run)
+      run.tool_results([Completion::UserContent.tool_result("call_2",
+        OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text("0")))])
+
+      expect_raises(Crig::Completion::PromptError, "MaxTurnsExceeded: 0") do
         run.next_step
       end
     end

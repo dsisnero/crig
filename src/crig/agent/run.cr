@@ -362,13 +362,14 @@ module Crig
 
     private def prep_request
       raise Completion::PromptError.prompt_cancelled(full_history, "no pending prompt") if @new_messages.empty?
-      if @current_turn >= @max_turns && @max_turns > 0
+      @rb_pending = false; @st_rec = false
+      if @current_turn > @max_turns + 1
         raise Completion::PromptError.max_turns_exceeded(@max_turns, full_history, @new_messages.last)
       end
+      @current_turn += 1
       p = @new_messages.last
       h = (@chat_history.try(&.dup) || [] of Completion::Message)
       h.concat(@new_messages[0...-1])
-      @current_turn += 1; @rb_pending = false; @st_rec = false
       @state = State::AwaitingModel
       AgentRunStep.call_model(p, h, @current_turn)
     end
@@ -435,8 +436,9 @@ module Crig
           final = @items.reject { |i| i.tool_call }
           final << Completion::AssistantContent.text(output)
           @new_messages << assistant_msg(@msg_id, OneOrMany(Completion::AssistantContent).many(final))
+          all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
           @done_response = PromptResponse.new(output, @usage)
-            .with_messages(@new_messages.dup)
+            .with_messages(all_messages)
             .with_completion_calls(@completion_calls.dup)
           @state = State::Done
           return ModelTurnOutcome.continue
@@ -465,8 +467,9 @@ module Crig
       end
 
       text = @orig_choice ? choice_text(@orig_choice.not_nil!) : ""
+      all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
       @done_response = PromptResponse.new(text, @usage)
-        .with_messages(@new_messages.dup)
+        .with_messages(all_messages)
         .with_completion_calls(@completion_calls.dup)
       @state = State::Done
       ModelTurnOutcome.continue
@@ -566,8 +569,9 @@ module Crig
         AgentRunStep.call_tools(calls)
       else
         text = @turn_items.empty? ? "" : choice_text(OneOrMany(Completion::AssistantContent).many(@turn_items))
+        all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
         @done_response = PromptResponse.new(text, @usage)
-          .with_messages(@new_messages.dup)
+          .with_messages(all_messages)
           .with_completion_calls(@completion_calls.dup)
         @state = State::Done
         AgentRunStep.done(@done_response.not_nil!)

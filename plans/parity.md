@@ -2,7 +2,7 @@
 
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
 - **Crates**: `crates/rig-core`
-- **Pinned upstream**: `9fc7dc3d6e9b26b0c9f81f443067b995a51fad75` (rig-core v0.39.0)
+- **Pinned upstream**: `06bc651f4c64d1673ba6af698f6c66602c5d313f` (rig-core v0.39.0)
 - **Crystal tag**: `v0.40.0`
 
 ## v0.39.0 Features

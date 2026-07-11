@@ -184,16 +184,7 @@ module Crig
     end
 
     def run : Crig::ToolServerHandle
-      inbox = Channel(Crig::ToolServerRequest).new(1000)
-
-      spawn do
-        loop do
-          message = inbox.receive
-          handle_message(message)
-        end
-      end
-
-      Crig::ToolServerHandle.new("tool-server", nil, self, inbox)
+      Crig::ToolServerHandle.new("tool-server", self)
     end
 
     def handle_message(message : Crig::ToolServerRequest) : Crig::ToolServerResponse
@@ -273,6 +264,8 @@ module Crig
       raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_not_found(name)) unless tool
 
       tool.call(args)
+    rescue ex : Crig::ToolError
+      raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(ex))
     end
 
     def get_tool_definitions(text : String?) : Array(Crig::Completion::ToolDefinition)

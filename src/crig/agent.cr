@@ -1,6 +1,4 @@
 module Crig
-  alias ToolResolver = String, String -> String
-
   UNKNOWN_AGENT_NAME = "Unnamed Agent"
   AGENT_TOOL_NAME    = "agent_tool"
 
@@ -16,39 +14,41 @@ module Crig
   struct ToolServerHandle
     getter id : String
 
+    @resolver : Proc(String, String, String)?
+
     def initialize(
       @id : String,
-      @resolver : ToolResolver? = nil,
       @server : Crig::ToolServer? = nil,
       @inbox : Channel(Crig::ToolServerRequest)? = nil,
+      @resolver : Proc(String, String, String)? = nil,
     )
     end
 
-    def self.with_resolver(id : String, resolver : ToolResolver) : self
-      new(id, resolver)
+    def self.with_resolver(id : String, resolver : Proc(String, String, String)) : self
+      new(id, resolver: resolver)
     end
 
     def call_tool(name : String, arguments : String) : String
+      # Resolver-based handle: call the resolver proc directly
+      if resolver = @resolver
+        return resolver.call(name, arguments)
+      end
+
       # Call the server directly if connected (avoids inbox fiber for tool calls)
       if server = @server
         return server.call_tool(name, arguments)
       end
 
-      if response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments))
-        if response.kind.tool_executed?
-          result = response.result
-          return result if result
-        end
-        if response.kind.tool_error? && (error = response.error)
-          raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(Exception.new(error)))
-        end
-        raise Crig::ToolServerError.invalid_message(response)
+      response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments)) ||
+                 raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+      if response.kind.tool_executed?
+        result = response.result
+        return result if result
       end
-
-      resolver = @resolver
-      raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' has no resolver") unless resolver
-
-      resolver.call(name, arguments)
+      if response.kind.tool_error? && (error = response.error)
+        raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(Exception.new(error)))
+      end
+      raise Crig::ToolServerError.invalid_message(response)
     end
 
     def add_tool(tool : Crig::ToolDyn) : Nil
@@ -88,6 +88,9 @@ module Crig
     end
 
     def get_tool_defs(prompt : String?) : Array(Crig::Completion::ToolDefinition)
+      # Resolver-based handle: tools are defined by the model, not pre-registered
+      return [] of Crig::Completion::ToolDefinition if @resolver
+
       if server = @server
         return server.get_tool_definitions(prompt)
       end
@@ -332,6 +335,10 @@ module Crig
         runner = runner.tool_server_handle(tsh)
       end
       runner = runner.max_turns(@default_max_turns || 0)
+      runner = runner.static_tools(@static_tools)
+      if ap = @additional_params
+        runner = runner.additional_params(ap)
+      end
       if hl = @hooks_arr
         hl.each { |h| runner = runner.add_hook(h) }
       end
@@ -401,24 +408,31 @@ module Crig
     end
   end
 
-  struct AgentToolAdapter(M)
+  struct AgentToolAdapter
     include Crig::ToolDyn
 
-    getter agent : Agent(M)
+    getter name : String
+    @defn : Crig::Completion::ToolDefinition
+    @callable : String -> String
 
-    def initialize(@agent : Agent(M))
+    def initialize(name : String, defn : Crig::Completion::ToolDefinition, &@callable : String -> String)
+      @name = name
+      @defn = defn
     end
 
-    def name : String
-      @agent.name
+    def self.new(agent : Agent(M)) : self forall M
+      new(
+        agent.name,
+        agent.definition(""),
+      ) { |args| agent.call(args) }
     end
 
     def definition(prompt : String) : Crig::Completion::ToolDefinition
-      @agent.definition(prompt)
+      @defn
     end
 
     def call(args : String) : String
-      @agent.call(args)
+      @callable.call(args)
     end
   end
 
@@ -537,7 +551,7 @@ module Crig
 
     # Add a nested agent as a callable tool.
     def tool(tool : Crig::Agent(T)) : self forall T
-      adapter = Crig::AgentToolAdapter(T).new(tool)
+      adapter = Crig::AgentToolAdapter.new(tool)
       handle = tool_server_handle_for_builder
       handle.add_tool(adapter)
       self.class.new(
@@ -587,7 +601,7 @@ module Crig
 
     def tools(tools : Array(Crig::Agent(T))) : self forall T
       handle = tool_server_handle_for_builder
-      adapters = tools.map { |tool| Crig::AgentToolAdapter(T).new(tool) }
+      adapters = tools.map { |tool| Crig::AgentToolAdapter.new(tool) }
       adapters.each { |tool| handle.add_tool(tool) }
       self.class.new(
         @model,

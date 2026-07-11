@@ -385,7 +385,7 @@ module Crig
     end
 
     def schemas : Array(Crig::Embeddings::ToolSchema)
-      @tools.values.compact_map { |t| t.is_a?(Crig::ToolEmbeddingDyn) ? t.embedding_docs : nil }
+      @tools.values.compact_map { |t| t.is_a?(Crig::ToolEmbeddingDyn) ? Crig::Embeddings::ToolSchema.try_from(t) : nil }
     end
 
     def documents : Array(Crig::Completion::Request::Document)
@@ -396,6 +396,33 @@ module Crig
           {} of String => String
         )
       end
+    end
+  end
+
+  # Wrapper enum that holds either a static (Simple) or embedding-backed (Embedding) tool.
+  # Mirrors `ToolType` from the upstream Rust crate.
+  class ToolType
+    def self.embedding(tool : Crig::ToolEmbeddingDyn) : self
+      new(:embedding, tool.as(Crig::ToolDyn))
+    end
+
+    def self.simple(tool : Crig::ToolDyn) : self
+      new(:simple, tool)
+    end
+
+    def initialize(@kind : Symbol, @tool : Crig::ToolDyn)
+    end
+
+    def name : String
+      @tool.name
+    end
+
+    def definition(prompt : String) : Crig::Completion::ToolDefinition
+      @tool.definition(prompt)
+    end
+
+    def call(args : String) : String
+      @tool.call(args)
     end
   end
 
