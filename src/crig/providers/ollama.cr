@@ -513,6 +513,9 @@ module Crig
             Crig::Completion::Message.user(@content)
           in .assistant?
             assistant_contents = [] of Crig::Completion::AssistantContent
+            if (t = @thinking) && !t.empty?
+              assistant_contents << Crig::Completion::AssistantContent.reasoning(t)
+            end
             assistant_contents << Crig::Completion::AssistantContent.text(@content)
             @tool_calls.each do |tool_call|
               assistant_contents << Crig::Completion::AssistantContent.tool_call(
@@ -607,6 +610,9 @@ module Crig
           raise Crig::Completion::CompletionError.new("Chat response does not include an assistant message") unless @message.kind.assistant?
 
           assistant_contents = [] of Crig::Completion::AssistantContent
+          if (thinking = @message.thinking) && !thinking.empty?
+            assistant_contents << Crig::Completion::AssistantContent.reasoning(thinking)
+          end
           assistant_contents << Crig::Completion::AssistantContent.text(@message.content) unless @message.content.empty?
           @message.tool_calls.each do |tool_call|
             assistant_contents << Crig::Completion::AssistantContent.tool_call(
@@ -651,7 +657,7 @@ module Crig
         getter temperature : Float64?
         getter tools : Array(ToolDefinition)
         getter? stream : Bool
-        getter think : Bool | String
+        getter think : (Bool | String)?
         getter max_tokens : Int64?
         getter keep_alive : String?
         getter format : JSON::Any?
@@ -663,7 +669,7 @@ module Crig
           @temperature : Float64? = nil,
           @tools : Array(ToolDefinition) = [] of ToolDefinition,
           @stream : Bool = false,
-          @think : Bool | String = false,
+          @think : (Bool | String)? = nil,
           @max_tokens : Int64? = nil,
           @keep_alive : String? = nil,
           @format : JSON::Any? = nil,
@@ -676,7 +682,8 @@ module Crig
         end
 
         def think? : Bool
-          @think.is_a?(Bool) && @think
+          t = @think
+          t.is_a?(Bool) && t
         end
 
         def self.from_request(default_model : String, req : Crig::Completion::Request::CompletionRequest) : self # ameba:disable Metrics/CyclomaticComplexity
@@ -697,7 +704,7 @@ module Crig
             end
           end
 
-          think = false.as(Bool | String)
+          think = nil
           keep_alive = nil
           temperature_value = req.temperature
           options_hash = {"temperature" => temperature_value.nil? ? JSON.parse("null") : JSON::Any.new(temperature_value)}
@@ -710,13 +717,13 @@ module Crig
               elsif think_s = think_value.as_s?
                 level = think_s.downcase
                 case level
-                when "low", "medium", "high"
+                when "low", "medium", "high", "max"
                   think = level
                 else
-                  raise Crig::Completion::CompletionError.new("`think` must be a 'low', 'medium', 'high', or bool")
+                  raise Crig::Completion::CompletionError.new("`think` must be a 'low', 'medium', 'high', 'max' or bool")
                 end
               else
-                raise Crig::Completion::CompletionError.new("`think` must be a 'low', 'medium', 'high', or bool")
+                raise Crig::Completion::CompletionError.new("`think` must be a 'low', 'medium', 'high', 'max' or bool")
               end
             end
             if keep_alive_value = object.delete("keep_alive")
@@ -758,7 +765,7 @@ module Crig
               end
             end
             json.field "stream", @stream
-            json.field "think", @think
+            json.field "think", @think unless @think.nil?
             json.field "max_tokens", @max_tokens unless @max_tokens.nil?
             json.field "keep_alive", @keep_alive unless @keep_alive.nil?
             json.field "format", @format unless @format.nil?
