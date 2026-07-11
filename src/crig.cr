@@ -8,6 +8,7 @@ module Crig
   UPSTREAM_SOURCE_PATH = "vendor/rig/crates/rig-core"
 end
 
+require "./crig/provider_response"
 require "./crig/completion"
 require "./crig/markers"
 require "./crig/concurrency"
@@ -36,7 +37,6 @@ require "./crig/image_generation"
 require "./crig/http_client"
 require "./crig/json_utils"
 require "./crig/id"
-require "./crig/provider_response"
 require "./crig/rerank"
 require "./crig/loaders"
 require "./crig/model"

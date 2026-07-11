@@ -10,13 +10,15 @@ module Crig
         RequestError
         ResponseError
         ProviderError
+        ProviderResponse
         Other
       end
 
       getter kind : Kind
       getter source_error : Exception?
+      getter provider_response : ProviderResponseError?
 
-      def initialize(message : String, @kind : Kind = Kind::Other, @source_error : Exception? = nil)
+      def initialize(message : String, @kind : Kind = Kind::Other, @source_error : Exception? = nil, @provider_response : ProviderResponseError? = nil)
         super(message)
       end
 
@@ -42,6 +44,32 @@ module Crig
 
       def self.provider_error(message : String) : self
         new("ProviderError: #{message}", Kind::ProviderError)
+      end
+
+      def self.from_http_response(status : Int32, body : String) : self
+        if 200 <= status && status < 300
+          new("ProviderResponseError", Kind::ProviderResponse, provider_response: ProviderResponseError.new(status: status, body: body))
+        else
+          new("HttpError: #{status} #{body}", Kind::HttpError)
+        end
+      end
+
+      def self.from_provider_body(body : String) : self
+        new("ProviderResponseError", Kind::ProviderResponse, provider_response: ProviderResponseError.without_status(body))
+      end
+
+      include Crig::ProviderResponseHelpers
+
+      def provider_response_body : String?
+        if @kind.provider_response?
+          @provider_response.try(&.body)
+        end
+      end
+
+      def provider_response_status : Int32?
+        if @kind.provider_response?
+          @provider_response.try(&.status)
+        end
       end
     end
 

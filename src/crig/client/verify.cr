@@ -1,6 +1,12 @@
 module Crig
   module Client
     class VerifyError < Exception
+      getter provider_response : ProviderResponseError?
+
+      def initialize(message : String, @provider_response : ProviderResponseError? = nil)
+        super(message)
+      end
+
       def self.invalid_authentication : self
         new("invalid authentication")
       end
@@ -11,6 +17,28 @@ module Crig
 
       def self.http_error(message : String) : self
         new("http error: #{message}")
+      end
+
+      def self.from_http_response(status : Int32, body : String) : self
+        if 200 <= status && status < 300
+          new("ProviderResponseError", provider_response: ProviderResponseError.new(status: status, body: body))
+        else
+          new("http error: #{status} #{body}")
+        end
+      end
+
+      def self.from_provider_body(body : String) : self
+        new("ProviderResponseError", provider_response: ProviderResponseError.without_status(body))
+      end
+
+      include Crig::ProviderResponseHelpers
+
+      def provider_response_body : String?
+        @provider_response.try(&.body)
+      end
+
+      def provider_response_status : Int32?
+        @provider_response.try(&.status)
       end
     end
 

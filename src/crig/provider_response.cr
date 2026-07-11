@@ -1,3 +1,5 @@
+require "json"
+
 module Crig
   class ProviderResponseError
     include JSON::Serializable
