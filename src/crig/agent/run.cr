@@ -89,7 +89,7 @@ module Crig
       Continue; NeedsResolution; TurnRetried
     end
     getter kind : Kind
-    getter response_hook_suppressed : Bool
+    getter? response_hook_suppressed : Bool
     getter context : InvalidToolCallContext?
 
     private def initialize(@kind : Kind, @response_hook_suppressed : Bool = false, @context : InvalidToolCallContext? = nil)
@@ -325,7 +325,7 @@ module Crig
       @new_messages
     end
 
-    def is_done? : Bool
+    def done? : Bool
       @state.done?
     end
 
@@ -382,11 +382,11 @@ module Crig
       @new_messages << assistant_msg(turn.message_id, choice)
 
       if has_tc
-        calls = items.select { |i| i.tool_call }.map { |i|
+        calls = items.select(&.tool_call).map do |i|
           t = i.tool_call.not_nil!
-          icid = turn.internal_call_ids.find { |id, _| id == t.id }
+          icid = turn.internal_call_ids.find { |call_id, _| call_id == t.id }
           PendingToolCall.new(tool_call: t, internal_call_id: icid.try(&.[1]))
-        }
+        end
         @pending = calls
         @state = State::ExecutingTools
       else
@@ -432,7 +432,7 @@ module Crig
       cc = CompletionCall.new(@cc_index, turn.usage); @cc_index += 1
       @completion_calls << cc; @usage = @usage + turn.usage
       @items = turn.choice.to_a
-      @has_tc = @items.any? { |i| i.tool_call }
+      @has_tc = @items.any?(&.tool_call)
       @msg_id = turn.message_id; @orig_choice = turn.choice
       @next_idx = 0; @exe_tools = turn.executable_tool_names; @alw_tools = turn.allowed_tool_names
       @skipped.clear; @recovered = false; @any_skipped = false
@@ -484,7 +484,7 @@ module Crig
             @new_messages << Completion::Message.user("Missing field(s): #{missing.join(", ")}. Call `#{oname}` again.")
             return reprompt
           end
-          final = @items.reject { |i| i.tool_call }
+          final = @items.reject(&.tool_call)
           final << Completion::AssistantContent.text(output)
           @new_messages << assistant_msg(@msg_id, OneOrMany(Completion::AssistantContent).many(final))
           all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
@@ -496,21 +496,21 @@ module Crig
         end
       end
 
-      if (c = @orig_choice) && !is_empty_choice?(c)
+      if (c = @orig_choice) && !empty_choice?(c)
         @new_messages << assistant_msg(@msg_id, c)
       end
 
       if @has_tc
         @output_retries = 0
-        calls = @items.select { |i| i.tool_call }.map { |i|
+        calls = @items.select(&.tool_call).map do |i|
           t = i.tool_call.not_nil!
           PendingToolCall.new(tool_call: t, preresolved_result: @skipped[t.id]?)
-        }
+        end
         @pending = calls; @state = State::ExecutingTools
         return ModelTurnOutcome.continue(suppressed: @recovered)
       end
 
-      if (oname = @output_tool_name) && (c = @orig_choice) && !is_empty_choice?(c) && can_reprompt?
+      if (oname = @output_tool_name) && (c = @orig_choice) && !empty_choice?(c) && can_reprompt?
         unless text_ok?(choice_text(c))
           @new_messages << Completion::Message.user("Provide answer by calling `#{oname}` tool.")
           return reprompt
@@ -530,7 +530,7 @@ module Crig
       c.to_a.flat_map { |i| i.text.try(&.text) || [""] }.join("\n")
     end
 
-    private def is_empty_choice?(c) : Bool
+    private def empty_choice?(c) : Bool
       c.to_a.all? { |i| i.text.nil? && i.tool_call.nil? && i.reasoning.nil? }
     end
 
@@ -613,9 +613,9 @@ module Crig
 
     private def advance
       if @turn_has_tc
-        calls = @turn_items.select { |i| i.tool_call }.map { |i|
+        calls = @turn_items.select(&.tool_call).map do |i|
           t = i.tool_call.not_nil!; PendingToolCall.new(tool_call: t, preresolved_result: @skipped[t.id]?)
-        }
+        end
         @pending = calls; @state = State::ExecutingTools
         AgentRunStep.call_tools(calls)
       else

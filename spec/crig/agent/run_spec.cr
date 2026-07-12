@@ -21,7 +21,7 @@ end
 
 def expect_continue(outcome : Crig::ModelTurnOutcome) : Bool
   raise "expected Continue, got #{outcome.kind}" unless outcome.kind.continue?
-  outcome.response_hook_suppressed
+  outcome.response_hook_suppressed?
 end
 
 def expect_needs_resolution(outcome : Crig::ModelTurnOutcome) : Crig::InvalidToolCallContext

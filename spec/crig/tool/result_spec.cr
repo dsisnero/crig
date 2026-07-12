@@ -60,8 +60,8 @@ module Crig::Tool
 
       err = ToolOutcome.error(ToolFailure.not_found("x"))
       err.error?.should be_true
-      err.is_error_kind?(ToolFailureKind::NotFound).should be_true
-      err.is_error_kind?(ToolFailureKind::Timeout).should be_false
+      err.error_kind?(ToolFailureKind::NotFound).should be_true
+      err.error_kind?(ToolFailureKind::Timeout).should be_false
       err.error_kind.should eq(ToolFailureKind::NotFound)
       err.failure.try(&.kind).should eq(ToolFailureKind::NotFound)
       err.as_str.should eq("error")
@@ -96,7 +96,7 @@ module Crig::Tool
     it "failed preserves classification and output" do
       result = ToolReturn.failed(42, ToolFailure.not_found("id 7")).into_execution_result
       result.model_output.should eq("42")
-      result.outcome.is_error_kind?(ToolFailureKind::NotFound).should be_true
+      result.outcome.error_kind?(ToolFailureKind::NotFound).should be_true
     end
 
     it "extensions flow into execution result" do

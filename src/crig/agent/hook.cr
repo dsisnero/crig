@@ -80,6 +80,10 @@ module Crig
     def set_turn(turn : Int32) : Nil
       @turn = turn
     end
+
+    def turn=(value : Int32) : Nil
+      @turn = value
+    end
   end
 
   struct RequestPatch

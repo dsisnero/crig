@@ -338,7 +338,7 @@ module Crig
         runner = runner.additional_params(ap)
       end
       if hl = @hooks_arr
-        hl.each { |h| runner = runner.add_hook(h) }
+        hl.each { |hook| runner = runner.add_hook(hook) }
       end
       runner
     end

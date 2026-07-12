@@ -85,7 +85,7 @@ module Crig
   end
 
   struct ToolCallDeltaState
-    property name_validated : Bool
+    property? name_validated : Bool
     property buffered_arguments : Array(String)
 
     def initialize
@@ -113,7 +113,7 @@ module Crig
     getter executable_tool_names : Set(String)
     getter allowed_tool_names : Set(String)
     getter text : String
-    property saw_text : Bool
+    property? saw_text : Bool
     getter accumulated_reasoning : Array(Completion::Reasoning)
     getter pending_reasoning_delta_text : String
     getter pending_reasoning_delta_id : String?

@@ -175,7 +175,7 @@ module Crig
         @failure.try(&.kind)
       end
 
-      def is_error_kind?(kind : ToolFailureKind) : Bool
+      def error_kind?(kind : ToolFailureKind) : Bool
         error_kind == kind
       end
 

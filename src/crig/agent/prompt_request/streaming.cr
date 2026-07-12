@@ -361,7 +361,7 @@ module Crig
       ctx = HookContext.new(is_streaming: true, agent_name: @agent.name)
       if hs = @hooks
         evt = StepEvent.tool_call(tool_call.function.name, tool_call.call_id, internal_call_id, args)
-        hs.each do |h|
+        hs.each do |hook|
           flow = h.on_event(ctx, evt)
           if flow.kind.terminate?
             raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
@@ -383,7 +383,7 @@ module Crig
 
       if hs = @hooks
         evt = StepEvent.tool_result(tool_call.function.name, tool_call.call_id, internal_call_id, args, result)
-        hs.each do |h|
+        hs.each do |hook|
           flow = h.on_event(ctx, evt)
           if flow.kind.terminate?
             raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))

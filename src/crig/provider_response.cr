@@ -30,7 +30,7 @@ module Crig
     # Parses the provider response body as JSON.
     def provider_response_json : JSON::Any?
       body = provider_response_body
-      return nil if body.nil? || body.empty?
+      return if body.nil? || body.empty?
       JSON.parse(body)
     rescue JSON::ParseException
       nil

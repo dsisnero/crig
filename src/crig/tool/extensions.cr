@@ -32,7 +32,7 @@ module Crig
 
       def get(type : T.class) : T? forall T
         map = @inner
-        return nil unless map
+        return unless map
         json = map[{{T.name.stringify}}]?
         json.try { |j| T.from_json(j) }
       rescue JSON::SerializableError
@@ -51,7 +51,7 @@ module Crig
 
       def remove(type : T.class) : T? forall T
         map = @inner
-        return nil unless map
+        return unless map
         key = {{T.name.stringify}}
         json = map.delete(key)
         @inner = nil if map.empty?
@@ -105,7 +105,7 @@ module Crig
 
       def get(type : T.class) : T? forall T
         map = @inner
-        return nil unless map
+        return unless map
         json = map[{{T.name.stringify}}]?
         json.try { |j| T.from_json(j) }
       rescue JSON::SerializableError
@@ -124,7 +124,7 @@ module Crig
 
       def remove(type : T.class) : T? forall T
         map = @inner
-        return nil unless map
+        return unless map
         json = map.delete({{T.name.stringify}})
         json.try { |j| T.from_json(j) }
       rescue JSON::SerializableError
