@@ -241,7 +241,7 @@ module Crig
       event = StepEvent.completion_call(prompt.rag_text || "", history.size)
       hooks.each do |hook|
         flow = hook.on_event(ctx, event)
-        if flow.terminate?
+        if flow.kind.terminate?
           raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
         end
       end
@@ -269,13 +269,6 @@ module Crig
         in .text?
           if text = item.text
             response_text += text.text
-            if hook = @hook
-              action = hook.on_text_delta(text.text, response_text)
-              if action.kind.terminate?
-                reason = action.reason || "terminated"
-                raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-              end
-            end
 
             items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
               Crig::StreamedAssistantContent(Crig::FinalResponse).text(text.text)
@@ -297,26 +290,6 @@ module Crig
             )
           end
         in .tool_call_delta?
-          if hook = @hook
-            if id = item.id
-              if internal_call_id = item.internal_call_id
-                name = nil.as(String?)
-                delta = ""
-                if content = item.content
-                  if content.kind.name?
-                    name = content.value
-                  else
-                    delta = content.value
-                  end
-                end
-                action = hook.on_tool_call_delta(id, internal_call_id, name, delta)
-                if action.kind.terminate?
-                  reason = action.reason || "terminated"
-                  raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-                end
-              end
-            end
-          end
         in .tool_call?
           if tool_call = item.tool_call
             internal_call_id = item.internal_call_id || tool_call.call_id || tool_call.id
@@ -336,21 +309,11 @@ module Crig
         in .final?
           if final = item.final
             turn_usage += final.token_usage || Crig::Completion::Usage.new
-            if !response_text.empty?
-              if hook = @hook
-                action = hook.on_stream_completion_response_finish(prompt, final)
-                if action.kind.terminate?
-                  reason = action.reason || "terminated"
-                  raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-                end
-              end
-
-              items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-                Crig::StreamedAssistantContent(Crig::FinalResponse).final_response(
-                  Crig::FinalResponse.new(response_text, turn_usage)
-                )
+            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
+              Crig::StreamedAssistantContent(Crig::FinalResponse).final_response(
+                Crig::FinalResponse.new(response_text, turn_usage)
               )
-            end
+            )
           end
         end
       end
@@ -395,15 +358,17 @@ module Crig
     ) : String
       args = tool_call.function.arguments.to_json
 
-      if hook = @hook
-        action = hook.on_tool_call(tool_call.function.name, tool_call.call_id, internal_call_id, args)
-        case action.kind
-        in .terminate?
-          reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-        in .skip?
-          return action.reason || ""
-        in .continue?
+      ctx = HookContext.new(is_streaming: true, agent_name: @agent.name)
+      if hs = @hooks
+        evt = StepEvent.tool_call(tool_call.function.name, tool_call.call_id, internal_call_id, args)
+        hs.each do |h|
+          flow = h.on_event(ctx, evt)
+          if flow.kind.terminate?
+            raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
+          end
+          if flow.kind.skip?
+            return flow.reason || ""
+          end
         end
       end
 
@@ -416,11 +381,13 @@ module Crig
         raise Crig::StreamingError.tool(ex)
       end
 
-      if hook = @hook
-        action = hook.on_tool_result(tool_call.function.name, tool_call.call_id, internal_call_id, args, result)
-        if action.kind.terminate?
-          reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
+      if hs = @hooks
+        evt = StepEvent.tool_result(tool_call.function.name, tool_call.call_id, internal_call_id, args, result)
+        hs.each do |h|
+          flow = h.on_event(ctx, evt)
+          if flow.kind.terminate?
+            raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
+          end
         end
       end
 

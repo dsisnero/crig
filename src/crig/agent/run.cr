@@ -146,6 +146,10 @@ module Crig
     @rb_pending : Bool = false
     @st_rec : Bool = false
 
+    # Streaming support state
+    @rollback_pending : Bool = false
+    @streamed_cc_recorded : Bool = false
+
     @turn_items : Array(Completion::AssistantContent) = [] of Completion::AssistantContent
     @turn_has_tc : Bool = false
     @done_response : PromptResponse?
@@ -327,6 +331,72 @@ module Crig
 
     def full_history : Array(Completion::Message)
       (@chat_history.try(&.dup) || [] of Completion::Message).tap(&.concat(@new_messages))
+    end
+
+    # --- Streamed turn support ---
+
+    def record_streamed_completion_call(usage : Completion::Usage) : CompletionCall
+      raise Completion::PromptError.completion_error(Completion::CompletionError.response_error("record_streamed_completion_call called without a pending model call")) unless @state.awaiting_model? || (@rollback_pending && @state.preparing_request?)
+      raise Completion::PromptError.prompt_cancelled(full_history, "duplicate streamed completion call") if @streamed_cc_recorded
+      @streamed_cc_recorded = true
+      cc = CompletionCall.new(@cc_index, usage)
+      @completion_calls << cc
+      @cc_index += 1
+      @usage = @usage + usage
+      @rollback_pending = false
+      cc
+    end
+
+    def streamed_turn(turn : StreamedTurn) : Nil
+      raise Completion::PromptError.prompt_cancelled(full_history, "streamed_turn without a pending model call") unless @state.awaiting_model?
+
+      unless @streamed_cc_recorded
+        record_streamed_completion_call(Completion::Usage.new)
+      end
+      @streamed_cc_recorded = true
+
+      choice = turn.choice
+
+      # Fail-fast: reject unknown tool calls
+      choice.each do |item|
+        next unless item.kind.tool_call?
+        tc = item.tool_call
+        if tc && !turn.allowed_tool_names.includes?(tc.function.name)
+          @state = State::Failed
+          raise Completion::PromptError.unknown_tool_call(
+            tc.function.name,
+            turn.executable_tool_names.to_a,
+            turn.allowed_tool_names.to_a,
+            full_history,
+          )
+        end
+      end
+
+      @msg_id = turn.message_id
+      @orig_choice = choice
+
+      # Populate the assistant message and scan for tool calls
+      has_tc = choice.any? { |i| !i.tool_call.nil? }
+      items = choice.to_a
+
+      @new_messages << assistant_msg(turn.message_id, choice)
+
+      if has_tc
+        calls = items.select { |i| i.tool_call }.map { |i|
+          t = i.tool_call.not_nil!
+          icid = turn.internal_call_ids.find { |id, _| id == t.id }
+          PendingToolCall.new(tool_call: t, internal_call_id: icid.try(&.[1]))
+        }
+        @pending = calls
+        @state = State::ExecutingTools
+      else
+        text = items.empty? ? "" : choice_text(choice)
+        all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
+        @done_response = PromptResponse.new(text, @usage)
+          .with_messages(all_messages)
+          .with_completion_calls(@completion_calls.dup)
+        @state = State::Done
+      end
     end
 
     def next_step : AgentRunStep

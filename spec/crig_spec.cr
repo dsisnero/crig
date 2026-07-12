@@ -6526,23 +6526,6 @@ describe Crig::HttpClient::ExponentialBackoff do
   end
 end
 
-describe Crig::HttpClient::Constant do
-  it "returns the same delay until max retries" do
-    policy = Crig::HttpClient::Constant.new(200.milliseconds, 1)
-    error = Crig::HttpClient::Error.stream_ended
-
-    policy.retry(error, nil).should eq(200.milliseconds)
-    policy.retry(error, {1, 200.milliseconds}).should be_nil
-  end
-end
-
-describe Crig::HttpClient::Never do
-  it "never retries" do
-    policy = Crig::HttpClient::Never.new
-    policy.retry(Crig::HttpClient::Error.stream_ended, nil).should be_nil
-  end
-end
-
 describe Crig::HttpClient::GenericEventSource, tags: %w[http_client sse] do
   it "emits open and parsed message events through a dedicated channel" do
     client = Crig::HttpClient::MockStreamingClient.new(
@@ -6576,11 +6559,7 @@ describe Crig::HttpClient::GenericEventSource, tags: %w[http_client sse] do
   it "reconnects after stream errors and forwards last-event-id on the next request" do
     client = ReconnectingSseClient.new
     request = HTTP::Request.new("GET", "/events")
-    source = Crig::HttpClient::GenericEventSource.with_retry_policy(
-      client,
-      request,
-      Crig::HttpClient::Constant.new(Time::Span.zero, 1)
-    )
+    source = Crig::HttpClient::GenericEventSource.new(client, request)
 
     first_open = source.receive?.not_nil!.unwrap
     first_open.kind.open?.should be_true
@@ -6612,11 +6591,7 @@ describe Crig::HttpClient::GenericEventSource, tags: %w[http_client sse] do
   it "retries when the initial streaming connection fails before opening" do
     client = FailingConnectSseClient.new
     request = HTTP::Request.new("GET", "/events")
-    source = Crig::HttpClient::GenericEventSource.with_retry_policy(
-      client,
-      request,
-      Crig::HttpClient::Constant.new(Time::Span.zero, 1)
-    )
+    source = Crig::HttpClient::GenericEventSource.new(client, request)
 
     initial_error = source.receive?.not_nil!
     initial_error.error.not_nil!.kind.stream_ended?.should be_true
