@@ -353,7 +353,7 @@ module Crig
           payload = HyperbolicCompletionRequest.from_request(@model, request)
           response = @client.post_json("/v1/chat/completions", payload.to_json)
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           parsed = JSON.parse(body)
           envelope = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
@@ -380,7 +380,7 @@ module Crig
           request_payload = HyperbolicCompletionRequest.new(payload.model, payload.messages, payload.temperature, merged)
           response = @client.post_json("/v1/chat/completions", request_payload.to_json, "text/event-stream")
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           parse_stream_response(body)
         end

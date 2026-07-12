@@ -372,7 +372,7 @@ module Crig
         def list_models : Array(String)
           response = get("/v1/models")
           body = response.body
-          raise Crig::Completion::CompletionError.new("API error: #{response.status_code} - #{body}") if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
           parsed = JSON.parse(body)
           parsed["data"].as_a.map(&.["id"].as_s)
         end
@@ -405,7 +405,7 @@ module Crig
           payload = MiraCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/v1/chat/completions", payload.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.new("API error: #{response.status_code} - #{text}") if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           parsed = CompletionResponse.from_json_value(JSON.parse(text))
           result = parsed.to_crig_response
@@ -421,7 +421,7 @@ module Crig
           payload = MiraCompletionRequest.from_request(@model, request, true).to_json_value
           response = @client.post_json("/v1/chat/completions", payload.to_json, {"Accept" => "text/event-stream"})
           text = response.body
-          raise Crig::Completion::CompletionError.new("API error: #{response.status_code} - #{text}") if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           profile = StreamingProfile.new
           items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(

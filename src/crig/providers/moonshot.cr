@@ -265,14 +265,16 @@ module Crig
           payload = MoonshotCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          if response.status_code >= 400
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, text)
+          end
 
           parsed = JSON.parse(text)
           body = ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) do |value|
             Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(value)
           end
           if error = body.error
-            raise Crig::Completion::CompletionError.new(error.error.message)
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, text)
           end
           response_body = body.ok || raise Crig::Completion::CompletionError.new("Moonshot response did not include a success payload")
           result = response_body.to_completion_response(parsed)
@@ -305,7 +307,7 @@ module Crig
 
           response = @client.post_json("/chat/completions", payload.to_json, {"Accept" => "text/event-stream"})
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           profile = StreamingProfile.new
           items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(

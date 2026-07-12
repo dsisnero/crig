@@ -316,7 +316,7 @@ module Crig
           payload = GroqCompletionRequest.from_request(@model, request)
           response = @client.post_json("/chat/completions", payload.to_json)
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           parsed = JSON.parse(body)
           envelope = ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) do |value|
@@ -349,7 +349,7 @@ module Crig
           )
           response = @client.post_json("/chat/completions", payload.to_json, "text/event-stream")
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           Crig::StreamingCompletionResponse(StreamingCompletionResponse).stream_raw_choices(parse_streaming_choices(body))
         end

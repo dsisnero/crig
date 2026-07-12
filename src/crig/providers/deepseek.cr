@@ -722,7 +722,7 @@ module Crig
           payload = DeepseekCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           parsed = JSON.parse(text)
           body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json_value(value) }
@@ -749,7 +749,7 @@ module Crig
           request_payload = DeepseekCompletionRequest.new(payload.model, payload.messages, payload.temperature, payload.tools, payload.tool_choice, stream_params)
           response = @client.post_json("/chat/completions", request_payload.to_json_value.to_json, "text/event-stream")
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           profile = StreamingProfile.new
           items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(

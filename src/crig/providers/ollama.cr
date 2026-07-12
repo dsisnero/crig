@@ -832,7 +832,7 @@ module Crig
           payload = OllamaCompletionRequest.from_request(@model, request)
           response = @client.post_json("/api/chat", payload.to_json)
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           parsed = JSON.parse(body)
           result = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
@@ -864,7 +864,7 @@ module Crig
           )
           response = @client.post_json("/api/chat", payload.to_json)
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           Crig::StreamingCompletionResponse(StreamingCompletionResponse).stream_raw_choices(parse_streaming_choices(body))
         end

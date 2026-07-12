@@ -326,7 +326,7 @@ module Crig
             payload = model.create_completion_request(request, true)
             response = model.client.post_json("/v1beta/interactions", payload.to_json, sse: true)
             body = response.body
-            raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
             Crig::StreamingCompletionResponse(StreamingCompletionResponse).stream_raw_choices(parse_streaming_choices(body))
           end
 
