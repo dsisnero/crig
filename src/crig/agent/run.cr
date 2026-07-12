@@ -122,7 +122,7 @@ module Crig
     property max_output_retries : Int32 = 0
     @output_retries : Int32 = 0
     property chat_history : Array(Completion::Message)?
-    @new_messages : Array(Completion::Message) = [] of Completion::Message
+    getter new_messages : Array(Completion::Message) = [] of Completion::Message
     @current_turn : Int32 = 0
     @usage : Completion::Usage = Completion::Usage.new
     property completion_calls : Array(CompletionCall) = [] of CompletionCall
@@ -131,7 +131,6 @@ module Crig
     @cc_index : Int32 = 0
     @itc_retries : Int32 = 0
 
-    # Resolving state
     @msg_id : String?
     @items : Array(Completion::AssistantContent) = [] of Completion::AssistantContent
     @orig_choice : OneOrMany(Completion::AssistantContent)?
@@ -143,11 +142,10 @@ module Crig
     @any_skipped : Bool = false
     @has_tc : Bool = false
 
-    @pending : Array(PendingToolCall) = [] of PendingToolCall
+    getter pending : Array(PendingToolCall) = [] of PendingToolCall
     @rb_pending : Bool = false
     @st_rec : Bool = false
 
-    # Turn state
     @turn_items : Array(Completion::AssistantContent) = [] of Completion::AssistantContent
     @turn_has_tc : Bool = false
     @done_response : PromptResponse?
@@ -191,10 +189,6 @@ module Crig
                     if tr = c.tool_result
                       json.field "type", "tool_result"
                       json.field "id", tr.id
-                      result_text = tr.content.to_a.map { |rc|
-                        rc.as(Completion::ToolResultContent).text.try(&.text) || ""
-                      }.join
-                      json.field "result", result_text
                     elsif t = c.text
                       json.field "type", "text"
                       json.field "text", t.text
@@ -218,83 +212,19 @@ module Crig
             end
           end
         end
-      end
-    end
-
-    def self.from_json(json : JSON::PullParser) : self
-      run = allocate
-      run.initialize_from_json(json)
-      run
-    end
-
-    def self.from_json(string : String) : self
-      pull = JSON::PullParser.new(string)
-      from_json(pull)
-    end
-
-    def initialize_from_json(json : JSON::PullParser) : Nil
-      json.read_object do |key|
-        case key
-        when "max_turns"    then @max_turns = json.read_int.to_i32
-        when "current_turn" then @current_turn = json.read_int.to_i32
-        when "state"        then @state = State.parse(json.read_string)
-        when "pending"
-          json.read_array do
-            id = ""; name = ""; args_json = "{}"; call_id = nil; preresolved = nil
-            json.read_object do |k|
-              case k
-              when "id"          then id = json.read_string
-              when "name"        then name = json.read_string
-              when "args"        then args_json = json.read_string
-              when "call_id"     then call_id = json.read_string
-              when "preresolved" then preresolved = json.read_string
-              else                    json.skip
+        json.field "completion_calls" do
+          json.array do
+            @completion_calls.each do |cc|
+              json.object do
+                json.field "call_index", cc.call_index
+                if u = cc.usage
+                  json.field "input_tokens", u.input_tokens
+                  json.field "output_tokens", u.output_tokens
+                  json.field "total_tokens", u.total_tokens
+                end
               end
             end
-            fn = Completion::ToolFunction.new(name, JSON.parse(args_json))
-            tc = Completion::ToolCall.new(id, fn, call_id)
-            @pending << PendingToolCall.new(tc, preresolved_result: nil)
           end
-        when "new_messages"
-          json.read_array do
-            role = ""; msg_type = ""; msg_id = ""; msg_name = ""; msg_args = "{}"; msg_text = ""; msg_result = ""
-            json.read_object do |k|
-              case k
-              when "role"   then role = json.read_string
-              when "type"   then msg_type = json.read_string
-              when "id"     then msg_id = json.read_string
-              when "name"   then msg_name = json.read_string
-              when "args"   then msg_args = json.read_string
-              when "text"   then msg_text = json.read_string
-              when "result" then msg_result = json.read_string
-              else               json.skip
-              end
-            end
-            message = case msg_type
-                      when "tool_call"
-                        fn = Completion::ToolFunction.new(msg_name, JSON.parse(msg_args))
-                        tc = Completion::ToolCall.new(msg_id, fn)
-                        content = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
-                          Completion::AssistantContent.tool_call(msg_id, msg_name, JSON.parse(msg_args)).as(Completion::UserContent | Completion::AssistantContent))
-                        Completion::Message.new(Completion::Message::Role::Assistant, content, msg_id)
-                      when "tool_result"
-                        tr = Completion::UserContent.tool_result(msg_id,
-                          OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text(msg_result)))
-                        content = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(tr.as(Completion::UserContent | Completion::AssistantContent))
-                        Completion::Message.new(Completion::Message::Role::User, content)
-                      else
-                        text = case role
-                               when "User"      then Completion::UserContent.text(msg_text)
-                               when "Assistant" then Completion::AssistantContent.text(msg_text)
-                               else                  Completion::UserContent.text(msg_text)
-                               end
-                        content = OneOrMany(Completion::UserContent | Completion::AssistantContent).one(text.as(Completion::UserContent | Completion::AssistantContent))
-                        role_enum = role == "Assistant" ? Completion::Message::Role::Assistant : Completion::Message::Role::User
-                        Completion::Message.new(role_enum, content)
-                      end
-            @new_messages << message.not_nil!
-          end
-        else json.skip
         end
       end
     end
@@ -306,6 +236,57 @@ module Crig
       to_json(builder)
       builder.end_document
       io.to_s
+    end
+
+    def self.from_json(string : String) : self
+      run = new(Completion::Message.user(""))
+      run.new_messages.clear
+      JSON.parse(string).as_h.each do |key, value|
+        case key
+        when "max_turns"    then run.max_turns = value.as_i.to_i32
+        when "current_turn" then nil # skip
+        when "completion_calls"
+          value.as_a.each do |entry|
+            ci = entry["call_index"]?.try(&.as_i.to_i32) || 0
+            run.completion_calls << CompletionCall.new(ci, nil)
+          end
+        when "new_messages"
+          value.as_a.each do |msg|
+            role = msg["role"]?.try(&.as_s) || "User"
+            mtype = msg["type"]?.try(&.as_s) || "text"
+            mid = msg["id"]?.try(&.as_s) || ""
+            mname = msg["name"]?.try(&.as_s) || ""
+            margs = msg["args"]?.try(&.as_s) || "{}"
+            mtext = msg["text"]?.try(&.as_s) || ""
+
+            message = case mtype
+                      when "tool_call"
+                        fn = Crig::Completion::ToolFunction.new(mname, JSON.parse(margs))
+                        content = OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
+                          Crig::Completion::AssistantContent.tool_call(mid, mname, JSON.parse(margs)).as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+                        Crig::Completion::Message.new(Crig::Completion::Message::Role::Assistant, content, mid)
+                      when "tool_result"
+                        tr = Crig::Completion::UserContent.tool_result(mid,
+                          OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.text(mtext)))
+                        content = OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(tr.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+                        Crig::Completion::Message.new(Crig::Completion::Message::Role::User, content)
+                      else
+                        text = case role
+                               when "User"      then Crig::Completion::UserContent.text(mtext)
+                               when "Assistant" then Crig::Completion::AssistantContent.text(mtext)
+                               else                  Crig::Completion::UserContent.text(mtext)
+                               end
+                        content = OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(text.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+                        re = role == "Assistant" ? Crig::Completion::Message::Role::Assistant : Crig::Completion::Message::Role::User
+                        Crig::Completion::Message.new(re, content)
+                      end
+            run.new_messages << message
+          end
+        when "pending" then nil # skip pending in from_json
+        else                nil
+        end
+      end
+      run
     end
 
     def with_history(h : Array(Completion::Message)) : self
