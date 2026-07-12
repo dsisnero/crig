@@ -11,7 +11,7 @@ Current upstream parity source:
 - Repository: `https://github.com/0xPlaygrounds/rig.git`
 - Submodule path: `vendor/rig`
 - Rust crate under port: `vendor/rig/crates/rig-core`
-- Pinned upstream commit: `f77a5819ec2a71e98583480a68a341f816a75c8a`
+- Pinned upstream commit: `06bc651f4c64d1673ba6af698f6c66602c5d313f`
 
 - [What is crig?](#what-is-crig)
 - [Features](#features)

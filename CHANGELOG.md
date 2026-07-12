@@ -1,17 +1,40 @@
+## v0.41.0 (2026-07-12)
+
+### Added
+- **AgentRun JSON serialization** — `to_json`/`from_json` extended with `completion_calls`; full round-trip preserves `max_turns`, `chat_history`, and `completion_calls` (R10)
+- **StreamedTurnAssembler** — sans-IO accumulator for streaming agent turns: text accumulation, reasoning delta assembly, tool call validation, canonical finish ordering (R8)
+- **AgentRun streamed turn support** — `record_streamed_completion_call`, `streamed_turn` methods on AgentRun; direct transition to `ExecutingTools` or `Done` from streamed turn (R8)
+- **`composes_native_output_with_tools?`** — trait method on `CompletionModel`; OpenAI and Anthropic override to `true` (R3, R4)
+- **`from_http_response` across all 17 providers** — HTTP error paths now preserve `provider_response_status`/`provider_response_body` for inspection (R5)
+- **DeepSeek thinking/tool_choice suppression** — `thinking_is_disabled?` and `deepseek_tool_choice` helpers suppress `Required`/`Specific` tool_choice when thinking mode active (R2)
+- **OpenAIUsage completion_tokens_details** — `reasoning_tokens`, timing fields (`queue_time`, `prompt_time`, `completion_time`, `total_time`); `output_tokens` uses `completion_tokens` when available (R3)
+- **Anthropic `coerce_tool_input`** — forces `tool_use.input` to a JSON object at the send boundary (R4)
+- **Ollama `think` as optional** — `think` defaults to `nil` (model default), supports `"max"` level; reasoning preserved as `AssistantContent::Reasoning` (R5)
+
+### Changed
+- **PromptRequest.send() → AgentRunner delegation** — legacy hand-rolled agent loop replaced with `@runner.run(@prompt)` matching upstream pattern (R1)
+- **Old PromptHook types removed** — `PromptHook`, `HookAction`, `ToolCallHookAction`, `InvalidToolCallResolution`, `PromptHookAdapter` all removed; `AgentHook` with single `on_event(ctx, event) -> Flow` is the only hook interface (R9)
+- **Agent stores `AgentHook` array** — no more single `@hook : PromptHook?`; `AgentBuilder#hook()` accepts `AgentHook` directly (R9)
+- **Streaming prompt_request uses `AgentHook`** — `execute_tool_call` dispatches `StepEvent` through all registered hooks (R8)
+- **`http_client` retry cleanup** — removed `Constant`/`Never` retry policies and `with_retry_policy` factory matching upstream removal (R6)
+- **`non_success_status`/`non_success_body`** — helpers on `HttpClient::Error` (R6)
+- **ProviderResponseError helpers on all 7 error types** — `CompletionError`, `EmbeddingError`, `TranscriptionError`, `VerifyError`, `ImageGenerationError`, `AudioGenerationError` now include `ProviderResponseHelpers` with `from_http_response`/`from_provider_body` factories (R7)
+- **`provider_response_body`/`status` return for HttpError variants** — matches upstream where both `HttpError` and `ProviderResponse` variants expose provider response info (R3)
+- **Anthropic null citations handling** — explicit `"citations": null` from API `content_block_start` events deserializes as empty vec (R4)
+- **All quality gates clean** — `crystal tool format`, `ameba`, and `crystal spec` pass cleanly
+
+### Dependencies
+- Updated upstream pinned commit to `06bc651f4c64d1673ba6af698f6c66602c5d313f` (upstream v0.39.0) — 51 commits on `port/rig-v0.39.0`
+
 ## v0.40.0 (2026-06-28)
 
 ### Added
-- **Streamable HTTP MCP example + live integration test** — `examples/rmcp.cr` is re-enabled now that the `mcp` shard ships `MCP::Client::StreamableHttpClientTransport`. A new spec stands up `Crig::Examples::RMCP::StreamableServer` and drives a full round-trip (`list_tools` + `call_tool "sum"`) over streamable HTTP through the client transport.
-- Re-enabled the `Crig::Examples::RMCP::StructRequest` spec and the `require "../examples/rmcp"` in the suite.
-- **`shard_issues/`** — downstream shard-gap tracking. `shard_issues/mcp_1.md` documents the (now-resolved) missing `MCP::Client::StreamableHttpClientTransport`.
+- **Streamable HTTP MCP example + live integration test** — `examples/rmcp.cr` is re-enabled now that the `mcp` shard ships `MCP::Client::StreamableHttpClientTransport`.
+- **`shard_issues/`** — downstream shard-gap tracking.
 
 ### Changed
-- Bumped `mcp` dependency to **v0.5.6** — adds `MCP::Client::StreamableHttpClientTransport` (single-endpoint POST with `Mcp-Session-Id` session handling and JSON-response mode), enabling the streamable HTTP `rmcp` example.
-- **Split `DemotingPolicyMemory` / `CompactingMemory` into `src/crig/memory/policies.cr`** to match the Rust upstream structure (core traits + `InMemoryConversationMemory` in `memory.cr`, policy adapters in `memory/policies.cr`).
-- **All quality gates clean across `src`/`spec`** — `crystal tool format`, `ameba` (0 failures), and `crystal spec` (0 failures). Real naming/style fixes (`PredicateName`, `QueryBoolMethods`, `BlockParameterName`, `MultilineCurlyBlock`, `RescuedExceptionsVariableName`, dead-assignment removals, `RedundantWithIndex`) plus targeted `# ameba:disable` for telemetry accessor delegation, cyclomatic complexity, and deliberate `not_nil!` uses.
-
-### Fixed
-- `DemotingPolicyMemory` / `CompactingMemory` "tracks conversations" specs — corrected to trigger demotion (window of 1, two messages) so they exercise the real tracking contract (state is created on demotion/compaction), matching the characterization in `spec/memory_spec.cr`.
+- Bumped `mcp` dependency to **v0.5.6**.
+- **Split `DemotingPolicyMemory` / `CompactingMemory` into `src/crig/memory/policies.cr`**.
 
 ## v0.39.1 (2026-06-24)
 

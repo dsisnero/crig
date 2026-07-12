@@ -7,33 +7,21 @@
 
 ## v0.39.0 Features
 
-**Detailed plan**: [plans/v39.md](./v39.md) — 14 completed chunks, 11 remaining with red-green TDD
+**Detailed plan**: [plans/v39.md](./v39.md) — all 24 chunks completed (14 C + 10 R)
 
-### Completed (13 chunks, 45 commits on `port/rig-v0.39.0`)
-- [x] **C1**: Delete upstream-removed modules (pipeline, buffered, old hooks)
-- [x] **C2**: Port new data-type modules (id, rerank, provider_response)
-- [x] **C3**: Structured tool results (ToolFailure, ToolOutcome, ToolExecutionResult)
-- [x] **C4**: Hook system v2 data types (RunId, Scratchpad, HookContext, RequestPatch, Flow)
-- [x] **C5**: AgentRun state machine (next_step, model_response, tool_results)
-- [x] **C6**: AgentRunner sequential (run, hook dispatch, patch merging)
-- [x] **C7**: Concurrent tool execution (errgroup pattern)
-- [x] **C8**: Streaming drive_agent (channel generator)
-- [x] **C9**: Scratchpad Mutex safety
-- [x] **C10**: Wire Agent → AgentRunner bridge
-- [x] **C11**: Fix agent-as-tool crash (ToolType removal, spawn fix)
-- [x] **C12**: Fix assistant message + tool result format
-- [x] **C13**: Port all v0.39.0 vendor examples (8 examples)
-- [x] **C14**: Convenience API (AgentRun.new(String), tool_result(id, text))
-
-### Remaining (11 chunks — see [plans/v39.md](./v39.md))
-- [ ] R1: Migrate PromptRequest.send() to AgentRunner
-- [ ] R2-R5: Sync providers (DeepSeek, OpenAI, Anthropic, 10 others)
-- [ ] R6: Sync http_client module
-- [ ] R7: ProviderResponseError helpers on all capability errors
-- [ ] R8: AgentRun streaming support (streamed.rs)
-- [ ] R9: Cleanup old hook types (PromptHook, HookAction)
-- [ ] R10: Full JSON::Serializable on AgentRun
-- [ ] R11: Update inventory TSVs
+### Completed (24 chunks, 56 commits on `port/rig-v0.39.0`)
+- [x] **C1-C14**: Core porting chunks (data types, agent state machine, runner, streaming, examples)
+- [x] **R1**: Migrate PromptRequest.send() to AgentRunner
+- [x] **R2**: Sync DeepSeek provider (thinking/tool_choice suppression)
+- [x] **R3**: Sync OpenAI (Usage fields, from_http_response, composes_native_output)
+- [x] **R4**: Sync Anthropic (coerce_tool_input, null citations, composes_native_output)
+- [x] **R5**: Sync all remaining providers (Ollama, Cohere, Moonshot, Groq, etc. — from_http_response migration)
+- [x] **R6**: Sync http_client module (remove Constant/Never, add non_success_status/body)
+- [x] **R7**: ProviderResponseError helpers on all 7 capability errors
+- [x] **R8**: AgentRun streaming support (StreamedTurnAssembler, streamed_turn, record_streamed_completion_call)
+- [x] **R9**: Cleanup old hook types (PromptHook, HookAction, ToolCallHookAction — removed)
+- [x] **R10**: Full JSON::Serializable on AgentRun (completion_calls, from_json)
+- [ ] **R11**: ⬅️ you are here (this file) — inventory TSVs regeneration pending
 
 ## v0.38.x Features (completed)
 
