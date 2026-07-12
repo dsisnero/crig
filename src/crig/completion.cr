@@ -230,6 +230,14 @@ module Crig
           stream(request)
         end
       end
+
+      # Whether the model supports native structured output alongside tool calls.
+      # OpenAI Chat Completions defers response_format while tools are present
+      # and no tool result exists yet, then applies it once tools have run.
+      # Override to true for providers where native output composes with tools.
+      def composes_native_output_with_tools? : Bool
+        false
+      end
     end
 
     module CompletionModelDyn
@@ -247,6 +255,10 @@ module Crig
         Crig::Concurrency.run do
           stream(request)
         end
+      end
+
+      def composes_native_output_with_tools? : Bool
+        false
       end
     end
 

@@ -1283,6 +1283,10 @@ module Crig
           self.class.new(@client, @model, @strict_tools, true)
         end
 
+        def composes_native_output_with_tools? : Bool
+          true
+        end
+
         def into_agent_builder : Crig::AgentBuilder(self)
           Crig::AgentBuilder(self).new(self)
         end
@@ -1299,12 +1303,12 @@ module Crig
           text = response.body
 
           if response.status_code >= 400
-            raise Crig::Completion::CompletionError.new(text)
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, text)
           end
 
           body = JSON.parse(text)
           if error = body["error"]?
-            raise Crig::Completion::CompletionError.new(error["message"].as_s)
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, text)
           end
 
           provider_response = Chat::CompletionResponse.from_json_value(body)
@@ -1332,7 +1336,7 @@ module Crig
           text = response.body
 
           if response.status_code >= 400
-            raise Crig::Completion::CompletionError.new(text)
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, text)
           end
 
           raw_choices = parse_streaming_choices(text)

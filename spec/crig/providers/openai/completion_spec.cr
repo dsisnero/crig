@@ -98,6 +98,13 @@ module Crig::Providers::OpenAI
     end
   end
 
+  describe Crig::Completion::CompletionModel do
+    it "default composes_native_output_with_tools returns false" do
+      model = FakeCompletionModel.new
+      model.composes_native_output_with_tools?.should be_false
+    end
+  end
+
   describe "CompletionError error paths" do
     it "non-success status preserves status and body via from_http_response" do
       err = Crig::Completion::CompletionError.from_http_response(503, "service unavailable")
