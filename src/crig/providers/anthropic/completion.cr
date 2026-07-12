@@ -11,6 +11,29 @@ module Crig
       CLAUDE_SONNET_4_6 = "claude-sonnet-4-6"
       CLAUDE_HAIKU_4_5  = "claude-haiku-4-5"
 
+      # The Anthropic Messages API requires tool_use.input to be a JSON OBJECT.
+      # ToolCall.function.arguments can arrive as a JSON-encoded STRING or as
+      # null/empty; coerce to an object at the send boundary.
+      def self.coerce_tool_input(input : JSON::Any) : JSON::Any
+        case raw = input.raw
+        when Hash(String, JSON::Any)
+          input
+        when String
+          begin
+            parsed = JSON.parse(raw)
+            if parsed.as_h?
+              parsed
+            else
+              JSON.parse(%({}))
+            end
+          rescue JSON::ParseException
+            JSON.parse(%({}))
+          end
+        else
+          JSON.parse(%({}))
+        end
+      end
+
       ANTHROPIC_VERSION_2023_01_01 = "2023-01-01"
       ANTHROPIC_VERSION_2023_06_01 = "2023-06-01"
 
@@ -502,7 +525,13 @@ module Crig
           hash = value.as_h
           case hash["type"].as_s
           when "text"
-            citations = hash["citations"]?.try(&.as_a?).try(&.map { |citation| Citation.from_json(citation.to_json) })
+            citations = hash["citations"]?.try do |val|
+              if val.raw.nil?
+                [] of Citation
+              else
+                val.as_a.map { |citation| Citation.from_json(citation.to_json) }
+              end
+            end
             new(Kind::Text, text: hash["text"].as_s, cache_control: parse_cache_control(hash["cache_control"]?), citations: citations)
           when "image"
             image(ImageSource.from_json_value(hash["source"]), parse_cache_control(hash["cache_control"]?))
@@ -809,7 +838,7 @@ module Crig
             raise Crig::Completion::MessageError.new("Anthropic currently doesn't support images.")
           in .tool_call?
             tool_call = content.tool_call || raise Crig::Completion::MessageError.new("Missing assistant tool call")
-            [Content.tool_use(tool_call.id, tool_call.function.name, tool_call.function.arguments)]
+            [Content.tool_use(tool_call.id, tool_call.function.name, ::Crig::Providers::Anthropic.coerce_tool_input(tool_call.function.arguments))]
           in .reasoning?
             reasoning = content.reasoning || raise Crig::Completion::MessageError.new("Missing reasoning content")
             converted = [] of Content
@@ -1352,6 +1381,10 @@ module Crig
           self.class.new(@client, @model, @default_max_tokens, true, CacheTtl::OneHour)
         end
 
+        def composes_native_output_with_tools? : Bool
+          true
+        end
+
         def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
           builder = Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt).model(@model)
           if max_tokens = @default_max_tokens
@@ -1390,12 +1423,13 @@ module Crig
           )
           response = @client.post_json("/v1/messages", payload.to_json_value.to_json)
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          if response.status_code >= 400
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, body)
+          end
 
           parsed = JSON.parse(body)
           if error = parsed["error"]?
-            message = error["message"]?.try(&.as_s?) || body
-            raise Crig::Completion::CompletionError.new(message)
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, body)
           end
 
           provider_response = CompletionResponse.from_json_value(parsed)
