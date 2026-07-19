@@ -1,7 +1,7 @@
 require "./spec_helper"
 require "../examples/agent"
 require "../examples/agent_stream_chat"
-require "../examples/agent_with_agent_tool"
+require "../examples/agent_with_agent_tool/agent_with_agent_tool"
 require "../examples/agent_prompt_chaining"
 require "../examples/agent_with_cohere"
 require "../examples/agent_with_galadriel"
@@ -531,35 +531,6 @@ class FakeToolEmbedding
   end
 end
 
-struct EchoArgs
-  include JSON::Serializable
-
-  getter value : String
-
-  def initialize(@value : String)
-  end
-end
-
-struct EchoTool
-  include Crig::Tool(EchoArgs, String)
-
-  def name : String
-    "echo"
-  end
-
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
-  end
-
-  def call_typed(args : EchoArgs) : String
-    args.value
-  end
-end
-
 Crig.rig_tool(
   description: "Perform basic arithmetic operations",
   params: {
@@ -605,44 +576,6 @@ end
 Crig.rig_tool do
   def count_rs(s : String) : Crig::ToolMacro::Result(Int32, Crig::ToolError)
     Crig::ToolMacro::Result(Int32, Crig::ToolError).ok(s.chars.count { |ch| ch == 'r' || ch == 'R' }.to_i)
-  end
-end
-
-struct DefaultNamedTool
-  include Crig::Tool(EchoArgs, String)
-
-  NAME = "default-named"
-
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "default-named",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
-  end
-
-  def call_typed(args : EchoArgs) : String
-    args.value
-  end
-end
-
-struct FailingEchoTool
-  include Crig::Tool(EchoArgs, String)
-
-  def name : String
-    "echo"
-  end
-
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
-  end
-
-  def call_typed(args : EchoArgs) : String
-    raise "boom"
   end
 end
 
@@ -971,45 +904,6 @@ class FakeCompletionModel
   end
 end
 
-class FakeStructuredCompletionModel
-  include Crig::Completion::CompletionModel
-
-  getter last_request : Crig::Completion::Request::CompletionRequest?
-
-  def completion(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    submit_tool = request.tools.find { |tool| tool.name == "submit" }
-    choice = if submit_tool
-               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-                 Crig::Completion::AssistantContent.tool_call(
-                   "tool_call_submit",
-                   "submit",
-                   JSON.parse(%({"city":"Denver","temperature":72})),
-                 )
-               )
-             else
-               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-                 Crig::Completion::AssistantContent.text(%({"city":"Denver","temperature":72}))
-               )
-             end
-
-    Crig::Completion::CompletionResponse(String).new(
-      choice,
-      Crig::Completion::Usage.new(output_tokens: 4),
-      "raw",
-    )
-  end
-
-  def stream(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    ["streamed"]
-  end
-
-  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-end
-
 class FakeChatIntegration
   include Crig::Completion::Chat
 
@@ -1159,31 +1053,6 @@ class MetricFixedJSONCompletionModel
   end
 end
 
-class PipelineMockModel
-  include Crig::Completion::Prompt
-
-  def prompt(prompt : Crig::Completion::Message | String) : String
-    text = prompt.is_a?(String) ? prompt : (prompt.rag_text || prompt.role)
-    "Mock response: #{text}"
-  end
-end
-
-class PipelineMockIndex
-  def top_n(request : Crig::VectorSearchRequest, type : T.class) : Array(Tuple(Float64, String, T)) forall T
-    _ = request
-    [{1.0, "doc1", T.from_json(%({"foo":"bar"}))}]
-  end
-end
-
-struct PipelineFoo
-  include JSON::Serializable
-
-  getter foo : String
-
-  def initialize(@foo : String)
-  end
-end
-
 struct DummyJudgment
   include JSON::Serializable
   include Crig::Judgment
@@ -1214,198 +1083,18 @@ struct MetricDummyJudgment
   end
 end
 
-class RecordingPromptHook < Crig::PromptHook
-  getter events : Array(String)
+class RecordingAgentHook
+  include Crig::AgentHook
 
-  def initialize(@terminate_on_call : Bool = false, @terminate_on_response : Bool = false)
-    @events = [] of String
-  end
-
-  def on_completion_call(
-    prompt : Crig::Completion::Message,
-    history : Array(Crig::Completion::Message),
-  ) : Crig::HookAction
-    @events << "call:#{prompt.rag_text || prompt.role}"
-    return Crig::HookAction.terminate("stop-before-send") if @terminate_on_call
-    Crig::HookAction.cont
-  end
-
-  def on_completion_response(
-    prompt : Crig::Completion::Message,
-    response,
-  ) : Crig::HookAction
-    @events << "response:#{response.raw_response}"
-    return Crig::HookAction.terminate("stop-after-send") if @terminate_on_response
-    Crig::HookAction.cont
-  end
-end
-
-class RecordingStreamingPromptHook < Crig::PromptHook
   getter events : Array(String)
 
   def initialize
     @events = [] of String
   end
 
-  def on_tool_call_delta(
-    tool_call_id : String,
-    internal_call_id : String,
-    tool_name : String?,
-    tool_call_delta : String,
-  ) : Crig::HookAction
-    @events << "tool-call-delta:#{tool_call_id}:#{internal_call_id}:#{tool_name}:#{tool_call_delta}"
-    Crig::HookAction.cont
-  end
-end
-
-class TerminatingTextDeltaHook < Crig::PromptHook
-  def on_text_delta(text_delta : String, aggregated_text : String) : Crig::HookAction
-    Crig::HookAction.terminate("stop-now")
-  end
-end
-
-class TerminatingToolCallHook < Crig::PromptHook
-  def on_tool_call(
-    tool_name : String,
-    tool_call_id : String?,
-    internal_call_id : String,
-    args : String,
-  ) : Crig::ToolCallHookAction
-    Crig::ToolCallHookAction.terminate("stop-tool-call")
-  end
-end
-
-class SkippingToolCallHook < Crig::PromptHook
-  def on_tool_call(
-    tool_name : String,
-    tool_call_id : String?,
-    internal_call_id : String,
-    args : String,
-  ) : Crig::ToolCallHookAction
-    Crig::ToolCallHookAction.skip("tool skipped")
-  end
-end
-
-class TerminatingToolResultHook < Crig::PromptHook
-  def on_tool_result(
-    tool_name : String,
-    tool_call_id : String?,
-    internal_call_id : String,
-    args : String,
-    result : String,
-  ) : Crig::HookAction
-    Crig::HookAction.terminate("stop-tool-result")
-  end
-end
-
-class FakeMultiToolPromptModel
-  include Crig::Completion::CompletionModel
-
-  getter turn_counter = 0
-
-  def completion(request : Crig::Completion::Request::CompletionRequest)
-    turn = @turn_counter
-    @turn_counter += 1
-
-    choice = if turn == 0
-               Crig::OneOrMany(Crig::Completion::AssistantContent).many([
-                 Crig::Completion::AssistantContent.tool_call_with_call_id(
-                   "tool_call_1",
-                   "call_1",
-                   "missing_tool",
-                   JSON.parse(%({"input":"one"})),
-                 ),
-                 Crig::Completion::AssistantContent.tool_call_with_call_id(
-                   "tool_call_2",
-                   "call_2",
-                   "missing_tool",
-                   JSON.parse(%({"input":"two"})),
-                 ),
-               ])
-             else
-               Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-                 Crig::Completion::AssistantContent.text("done")
-               )
-             end
-
-    usage = turn == 0 ? Crig::Completion::Usage.new(total_tokens: 4) : Crig::Completion::Usage.new(total_tokens: 6)
-    Crig::Completion::CompletionResponse(String).new(
-      choice,
-      usage,
-      "raw-prompt",
-      turn == 0 ? "msg-tool" : "msg-final",
-    )
-  end
-
-  def stream(request : Crig::Completion::Request::CompletionRequest)
-    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).stream(
-      ["unused"],
-      Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 1)),
-    )
-  end
-
-  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-
-  def completion_request(prompt : Crig::Completion::Message) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-end
-
-class TerminatingToolCallDeltaHook < Crig::PromptHook
-  def on_tool_call_delta(
-    tool_call_id : String,
-    internal_call_id : String,
-    tool_name : String?,
-    tool_call_delta : String,
-  ) : Crig::HookAction
-    Crig::HookAction.terminate("stop-tool-call-delta")
-  end
-end
-
-class TerminatingStreamFinishHook < Crig::PromptHook
-  def on_stream_completion_response_finish(
-    prompt : Crig::Completion::Message,
-    response,
-  ) : Crig::HookAction
-    Crig::HookAction.terminate("stop-stream-finish")
-  end
-end
-
-class FakeCompletionClientModel
-  include Crig::Completion::CompletionModel
-  include Crig::Completion::CompletionModelDyn
-
-  getter name : String
-  getter last_request : Crig::Completion::Request::CompletionRequest?
-
-  def initialize(@name : String)
-  end
-
-  def completion(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    Crig::Completion::CompletionResponse(String).new(
-      Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text("completion:#{@name}")),
-      Crig::Completion::Usage.new(output_tokens: 1),
-      "raw:#{@name}",
-    )
-  end
-
-  def stream(request : Crig::Completion::Request::CompletionRequest)
-    @last_request = request
-    Crig::StreamingCompletionResponse(Crig::FinalCompletionResponse).stream(
-      ["chunk:#{@name}"],
-      Crig::FinalCompletionResponse.new(Crig::Completion::Usage.new(total_tokens: 3)),
-    )
-  end
-
-  def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-  end
-
-  def completion_request(prompt : Crig::Completion::Message) : Crig::Completion::Request::CompletionRequestBuilder
-    Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
+  def on_event(ctx : Crig::HookContext, event : Crig::StepEvent) : Crig::Flow
+    @events << event.kind.to_s
+    Crig::Flow.cont
   end
 end
 
@@ -2358,16 +2047,6 @@ struct StoredDoc
   end
 end
 
-struct WeatherPayload
-  include JSON::Serializable
-
-  getter city : String
-  getter temperature : Int32
-
-  def initialize(@city : String, @temperature : Int32)
-  end
-end
-
 class RecordedFilter
   getter description : String
 
@@ -2430,16 +2109,6 @@ end
 
 private def vector_embedding(document : String, values : Array(Float64)) : Crig::OneOrMany(Crig::Embeddings::Embedding)
   Crig::OneOrMany(Crig::Embeddings::Embedding).one(Crig::Embeddings::Embedding.new(document, values))
-end
-
-describe Crig do
-  it "tracks the pinned upstream commit" do
-    Crig::UPSTREAM_COMMIT.should eq("f77a5819ec2a71e98583480a68a341f816a75c8a")
-  end
-
-  it "exposes the upstream source path" do
-    Crig::UPSTREAM_SOURCE_PATH.should eq("vendor/rig/crates/rig-core")
-  end
 end
 
 describe Crig::VerifyError, tags: %w[verify error] do
@@ -3485,208 +3154,6 @@ describe Crig::PromptResponse do
   end
 end
 
-describe Crig::HookAction, tags: %w[agent hooks] do
-  it "supports continue and terminate helpers" do
-    Crig::HookAction.cont.kind.continue?.should be_true
-    terminated = Crig::HookAction.terminate("stop")
-
-    terminated.kind.terminate?.should be_true
-    terminated.reason.should eq("stop")
-  end
-end
-
-describe Crig::ToolCallHookAction, tags: %w[agent tool_hooks] do
-  it "supports continue, skip, and terminate helpers" do
-    Crig::ToolCallHookAction.cont.kind.continue?.should be_true
-    skipped = Crig::ToolCallHookAction.skip("not allowed")
-    terminated = Crig::ToolCallHookAction.terminate("stop")
-
-    skipped.kind.skip?.should be_true
-    skipped.reason.should eq("not allowed")
-    terminated.kind.terminate?.should be_true
-    terminated.reason.should eq("stop")
-  end
-end
-
-describe Crig::PromptHook, tags: %w[agent prompt_hooks] do
-  it "runs per-request hooks through the prompt request path" do
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    hook = RecordingPromptHook.new
-
-    response = agent.prompt("Hello").with_hook(hook).extended_details.send
-
-    response.output.should eq("completion:gpt-4o")
-    hook.events.should eq(["call:Hello", "response:raw:gpt-4o"])
-  end
-
-  it "can terminate before the completion call" do
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    hook = RecordingPromptHook.new(terminate_on_call: true)
-
-    expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-before-send") do
-      agent.prompt("Hello").with_hook(hook).send
-    end
-  end
-
-  it "can terminate after the completion response" do
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    hook = RecordingPromptHook.new(terminate_on_response: true)
-
-    expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-after-send") do
-      agent.prompt("Hello").with_hook(hook).send
-    end
-  end
-end
-
-describe Crig::PromptRequest(Crig::Extended, FakeMultiTurnPromptModel) do
-  it "continues through tool calls until a final text response is returned" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").max_turns(3).extended_details.send
-
-    response.output.should eq("done")
-    response.usage.total_tokens.should eq(10)
-    response.messages.should_not be_nil
-    response.messages.try(&.size).should eq(4)
-    response.messages.try(&.[0].role.user?).should be_true
-    response.messages.try(&.[1].role.assistant?).should be_true
-    response.messages.try(&.[1].content.first.as(Crig::Completion::AssistantContent).kind.tool_call?).should be_true
-    response.messages.try(&.[2].role.user?).should be_true
-    response.messages.try(&.[2].content.first.as(Crig::Completion::UserContent).kind.tool_result?).should be_true
-    response.messages.try(&.[3].role.assistant?).should be_true
-    response.messages.try(&.[3].content.first.as(Crig::Completion::AssistantContent).text).try(&.text).should eq("done")
-    model.turn_counter.should eq(2)
-  end
-
-  it "raises after consecutive tool-call turns exceed max turns" do
-    model = FakeMultiTurnPromptModel.new(2)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::Completion::PromptError, "MaxTurnsExceeded: 0") do
-      agent.prompt("do tool work").extended_details.send
-    end
-
-    error.reason.should eq("MaxTurnsExceeded: 0")
-    error.chat_history.should_not be_nil
-    error.prompt.should eq(Crig::Completion::Message.tool_result_with_call_id("tool_call_1", "call_1", "tool-result"))
-  end
-
-  it "wraps tool-call termination with prompt-cancelled history" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-tool-call") do
-      agent.prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolCallHook.new).extended_details.send
-    end
-
-    error.reason.should eq("stop-tool-call")
-    error.chat_history.should_not be_nil
-    error.chat_history.try(&.size).should eq(2)
-    error.chat_history.try(&.[0].role.user?).should be_true
-    error.chat_history.try(&.[1].role.assistant?).should be_true
-    error.chat_history.try(&.[1].content.first.as(Crig::Completion::AssistantContent).kind.tool_call?).should be_true
-  end
-
-  it "wraps tool-result termination with prompt-cancelled history" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::Completion::PromptError, "PromptCancelled: stop-tool-result") do
-      agent.prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolResultHook.new).extended_details.send
-    end
-
-    error.reason.should eq("stop-tool-result")
-    error.chat_history.should_not be_nil
-    error.chat_history.try(&.size).should eq(2)
-    error.chat_history.try(&.[0].role.user?).should be_true
-    error.chat_history.try(&.[1].role.assistant?).should be_true
-    error.chat_history.try(&.[1].content.first.as(Crig::Completion::AssistantContent).kind.tool_call?).should be_true
-  end
-
-  it "turns skipped tool calls into tool-result user messages" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").with_hook(SkippingToolCallHook.new).extended_details.send
-
-    response.output.should eq("done")
-    response.messages.should_not be_nil
-    tool_result_message = response.messages.try(&.[2])
-    tool_result_message.should_not be_nil
-    tool_result_message.try(&.role.user?).should be_true
-    user_content = tool_result_message.try(&.content.first).try(&.as(Crig::Completion::UserContent))
-    user_content.should_not be_nil
-    user_content.try(&.kind.tool_result?).should be_true
-    user_content.try(&.tool_result).try(&.content.first.text).try(&.text).should eq("tool skipped")
-  end
-
-  it "stringifies tool execution errors into tool-result user messages" do
-    model = FakeMultiTurnPromptModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { raise "resolver boom" })
-    agent = Crig::AgentBuilder(FakeMultiTurnPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").extended_details.send
-
-    response.output.should eq("done")
-    tool_result_message = response.messages.try(&.[2])
-    tool_result_message.should_not be_nil
-    user_content = tool_result_message.try(&.content.first).try(&.as(Crig::Completion::UserContent))
-    user_content.should_not be_nil
-    tool_result_text = user_content.try(&.tool_result).try(&.content.first.text).try(&.text)
-    tool_result_text.not_nil!.should contain("resolver boom")
-  end
-end
-
-describe Crig::PromptRequest(Crig::Extended, FakeMultiToolPromptModel) do
-  it "keeps tool result messages in tool-call order when concurrency is enabled" do
-    model = FakeMultiToolPromptModel.new
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, args : String) {
-      parsed = JSON.parse(args)
-      value = parsed["input"].as_s
-      value == "one" ? "result-one" : "result-two"
-    })
-    agent = Crig::AgentBuilder(FakeMultiToolPromptModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    response = agent.prompt("do tool work").with_tool_concurrency(2).extended_details.send
-
-    response.output.should eq("done")
-    tool_result_message = response.messages.try(&.[2])
-    tool_result_message.should_not be_nil
-    tool_result_message.try(&.content.size).should eq(2)
-    first = tool_result_message.try(&.content.to_a[0]).try(&.as(Crig::Completion::UserContent))
-    second = tool_result_message.try(&.content.to_a[1]).try(&.as(Crig::Completion::UserContent))
-    first.should_not be_nil
-    second.should_not be_nil
-    first.try(&.tool_result).try(&.id).should eq("tool_call_1")
-    first.try(&.tool_result).try(&.content.first.text).try(&.text).should eq("result-one")
-    second.try(&.tool_result).try(&.id).should eq("tool_call_2")
-    second.try(&.tool_result).try(&.content.first.text).try(&.text).should eq("result-two")
-  end
-end
-
 describe Crig::FinalResponse do
   it "supports the upstream empty helper and accessors" do
     response = Crig::FinalResponse.empty
@@ -3829,41 +3296,6 @@ describe Crig::StreamingPromptRequest(FakeCompletionClientModel) do
 
     response.response.try(&.history).try(&.size).should eq(3)
   end
-
-  it "supports multi-turn storage and streaming hook termination" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-    hook = RecordingPromptHook.new
-    request = agent.stream_prompt("hello").multi_turn(3).with_hook(hook)
-
-    request.max_turns.should eq(3)
-    request.send.chunks.should eq(["chunk:gpt-4o"])
-  end
-
-  it "wraps text-delta termination with prompt-cancelled history" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).with_hook(TerminatingTextDeltaHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-now")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-now")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("hello")])
-  end
-
-  it "wraps stream-finish termination with prompt-cancelled history" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).with_hook(TerminatingStreamFinishHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-stream-finish")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-stream-finish")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("hello")])
-  end
 end
 
 describe Crig::StreamingPromptRequest(FakeStreamingAgentModel) do
@@ -3934,40 +3366,6 @@ describe Crig::StreamingPromptRequest(FakeMultiTurnStreamingModel) do
     expect_raises(Crig::StreamingError, "PromptError: MaxTurnsExceeded: 0") do
       agent.stream_prompt("do tool work").send_items
     end
-  end
-
-  it "wraps tool-call termination with prompt-cancelled history" do
-    model = FakeMultiTurnStreamingModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnStreamingModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolCallHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-tool-call")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-tool-call")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("do tool work")])
-  end
-
-  it "wraps tool-result termination with prompt-cancelled history" do
-    model = FakeMultiTurnStreamingModel.new(1)
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeMultiTurnStreamingModel).new(model)
-      .tool_server_handle(handle)
-      .build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("do tool work").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolResultHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-tool-result")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-tool-result")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("do tool work")])
   end
 end
 
@@ -4068,43 +3466,6 @@ describe Crig::StreamingPromptRequest(FakeDeltaStreamingModel) do
     assistant_content.try(&.kind.reasoning?).should be_true
     assistant_content.try(&.reasoning).try(&.content.first.text).should eq("step one")
   end
-
-  it "sends tool call delta events to the hook before the tool call turn completes" do
-    hook = RecordingStreamingPromptHook.new
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeDeltaStreamingModel).new(
-      FakeDeltaStreamingModel.new(FakeDeltaStreamingModel::Mode::ToolCallDeltaAndToolCall)
-    ).tool_server_handle(handle).default_max_turns(1).build
-
-    result = agent.stream_prompt("hello").with_hook(hook).send_items
-
-    hook.events.should eq([
-      "tool-call-delta:tool_call_1:internal_1:missing_tool:",
-      "tool-call-delta:tool_call_1:internal_1::{\"input\":\"value\"}",
-    ])
-    result.items.any? { |item| item.user_item.try(&.kind.tool_result?) == true }.should be_true
-    result.items.any? do |item|
-      item.assistant_item.try(&.kind.final?) == true &&
-        item.assistant_item.try(&.final).try(&.response) == "done"
-    end.should be_true
-    result.items.last.final_response.try(&.response).should eq("done")
-  end
-
-  it "wraps tool-call-delta termination with prompt-cancelled history" do
-    handle = Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    agent = Crig::AgentBuilder(FakeDeltaStreamingModel).new(
-      FakeDeltaStreamingModel.new(FakeDeltaStreamingModel::Mode::ToolCallDeltaAndToolCall)
-    ).tool_server_handle(handle).default_max_turns(1).build
-
-    error = expect_raises(Crig::StreamingError) do
-      agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).with_hook(TerminatingToolCallDeltaHook.new).send_items
-    end
-
-    error.message.should eq("PromptError: PromptCancelled: stop-tool-call-delta")
-    error.prompt_error.should_not be_nil
-    error.prompt_error.try(&.reason).should eq("stop-tool-call-delta")
-    error.prompt_error.try(&.chat_history).should eq([Crig::Completion::Message.user("hello")])
-  end
 end
 
 describe "Crig streaming helpers" do
@@ -4199,29 +3560,6 @@ describe "Crig streaming helpers" do
     io.to_s.should eq("Response: hello world")
     final_response.response.should eq("hello world")
     final_response.usage.total_tokens.should eq(2)
-  end
-end
-
-describe Crig::TypedPromptRequest(WeatherPayload, Crig::Standard, FakeStructuredCompletionModel) do
-  it "parses typed prompt responses and carries a generated schema title" do
-    model = FakeStructuredCompletionModel.new
-    prompt_agent = Crig::Agent(FakeStructuredCompletionModel).new(
-      model,
-      output_schema: JSON.parse(%({"title":"old"})),
-    )
-
-    typed_request = prompt_agent.prompt_typed(WeatherPayload, "weather")
-    payload = typed_request.send
-    detailed = typed_request.extended_details.send
-
-    payload.city.should eq("Denver")
-    payload.temperature.should eq(72)
-    detailed.output.city.should eq("Denver")
-    detailed.usage.output_tokens.should eq(4)
-    last_request = model.last_request
-    last_request.should_not be_nil
-    last_request.try(&.output_schema).should_not be_nil
-    last_request.try(&.output_schema).try(&.["title"].as_s).should eq("WeatherPayload")
   end
 end
 
@@ -6053,306 +5391,6 @@ describe Crig::ExtractionError do
   end
 end
 
-describe Crig::Pipeline::AgentOps do
-  it "looks up typed documents from an index" do
-    lookup = Crig::Pipeline::AgentOps.lookup(PipelineMockIndex.new, 1, PipelineFoo)
-
-    result = lookup.call("query").unwrap
-
-    result.should eq([{1.0, "doc1", PipelineFoo.new("bar")}])
-  end
-
-  it "prompts through the prompt adapter" do
-    prompt = Crig::Pipeline::AgentOps.prompt(PipelineMockModel.new, String)
-
-    prompt.call("hello").unwrap.should eq("Mock response: hello")
-  end
-
-  it "prompts through agent instances using the same adapter" do
-    model = FakeCompletionClientModel.new("gpt-4")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-    prompt = Crig::Pipeline::AgentOps.prompt(agent, String)
-
-    prompt.call("hello").unwrap.should eq("completion:gpt-4")
-    model.last_request.not_nil!.chat_history.last.rag_text.should eq("hello")
-  end
-
-  it "extracts structured output through the extractor adapter" do
-    result = run_crig_probe <<-'CRYSTAL'
-      require "./src/crig"
-
-      struct WeatherPayload
-        include JSON::Serializable
-
-        getter city : String
-        getter temperature : Int32
-
-        def initialize(@city : String, @temperature : Int32)
-        end
-      end
-
-      class ProbeStructuredModel
-        include Crig::Completion::CompletionModel
-
-        def completion(request : Crig::Completion::Request::CompletionRequest)
-          Crig::Completion::CompletionResponse(String).new(
-            Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-              Crig::Completion::AssistantContent.tool_call(
-                "tool_call_submit",
-                "submit",
-                JSON.parse(%({"city":"Denver","temperature":72})),
-              )
-            ),
-            Crig::Completion::Usage.new(output_tokens: 4),
-            "raw",
-          )
-        end
-
-        def stream(request : Crig::Completion::Request::CompletionRequest)
-          ["streamed"]
-        end
-
-        def completion_request(prompt : Crig::Completion::Message | String) : Crig::Completion::Request::CompletionRequestBuilder
-          Crig::Completion::Request::CompletionRequestBuilder.from_prompt(prompt)
-        end
-      end
-
-      extractor = Crig::ExtractorBuilder(ProbeStructuredModel, WeatherPayload).new(
-        ProbeStructuredModel.new
-      ).build
-      result = Crig::Pipeline::AgentOps.extract(extractor, String).call("weather").unwrap
-
-      puts(JSON.build do |json|
-        json.object do
-          json.field "city", result.city
-          json.field "temperature", result.temperature
-        end
-      end)
-    CRYSTAL
-
-    result["city"].as_s.should eq("Denver")
-    result["temperature"].as_i.should eq(72)
-  end
-end
-
-describe Crig::Pipeline do
-  it "builds prompt pipelines from the root builder" do
-    pipeline = Crig::Pipeline.new
-      .map(->(input : String) { "User query: #{input}" })
-      .prompt(PipelineMockModel.new)
-
-    pipeline.call("What is a flurbo?").unwrap.should eq("Mock response: User query: What is a flurbo?")
-  end
-
-  it "supports explicit error builders with try_call" do
-    pipeline = Crig::Pipeline.with_error(Nil)
-      .map(->(input : String) { "User query: #{input}" })
-      .prompt(PipelineMockModel.new)
-
-    pipeline.try_call("What is a flurbo?").unwrap.should eq("Mock response: User query: What is a flurbo?")
-  end
-
-  it "supports lookup pipelines with map_ok" do
-    pipeline = Crig::Pipeline.new
-      .lookup(PipelineMockIndex.new, 1, PipelineFoo)
-      .map_ok(->(docs : Array(Tuple(Float64, String, PipelineFoo))) { "Top documents:\n#{docs[0][2].foo}" })
-
-    pipeline.try_call("What is a flurbo?").unwrap.should eq("Top documents:\nbar")
-  end
-
-  it "supports rag-style pipelines with parallel ops" do
-    pipeline = Crig::Pipeline.new
-      .chain(
-        Crig::Pipeline.parallel(
-          Crig::Pipeline::Passthrough(String).new,
-          Crig::Pipeline::AgentOps.lookup(PipelineMockIndex.new, 1, PipelineFoo)
-        )
-      )
-      .map(->(payload : Tuple(String, Crig::Pipeline::Result(Array(Tuple(Float64, String, PipelineFoo)), Crig::VectorStoreError))) do
-        query = payload[0]
-        maybe_docs = payload[1]
-        docs = maybe_docs.unwrap
-        "User query: #{query}\n\nTop documents:\n#{docs[0][2].foo}"
-      end)
-      .prompt(PipelineMockModel.new)
-
-    pipeline.call("What is a flurbo?").unwrap.should eq(
-      "Mock response: User query: What is a flurbo?\n\nTop documents:\nbar"
-    )
-  end
-end
-
-describe Crig::Pipeline::Op do
-  it "supports sequential constructors and chained combinators" do
-    op1 = Crig::Pipeline.map(->(x : Int32) { x + 1 })
-    op2 = Crig::Pipeline.map(->(x : Int32) { x * 2 })
-    op3 = Crig::Pipeline.map(->(x : Int32) { x * 3 })
-
-    pipeline = Crig::Pipeline::Sequential(
-      Crig::Pipeline::Sequential(
-        typeof(op1),
-        typeof(op2),
-        Int32,
-        Int32,
-      ),
-      typeof(op3),
-      Int32,
-      Int32,
-    ).new(
-      Crig::Pipeline::Sequential(typeof(op1), typeof(op2), Int32, Int32).new(op1, op2),
-      op3
-    )
-
-    pipeline.call(1).should eq(12)
-
-    chained = Crig::Pipeline.map(->(x : Int32) { x + 1 })
-      .map(->(x : Int32) { x * 2 })
-      .and_then(->(x : Int32) { x * 3 })
-
-    chained.call(1).should eq(12)
-  end
-
-  it "supports passthrough and batch calls" do
-    passthrough = Crig::Pipeline::Passthrough(String).new
-    passthrough.call("hello").should eq("hello")
-
-    batch = Crig::Pipeline.map(->(x : Int32) { x + 1 }).batch_call(2, [1, 2, 3])
-    batch.should eq([2, 3, 4])
-  end
-
-  it "supports async calls through channels" do
-    async_result = Crig::Pipeline.map(->(x : Int32) { x + 1 }).call_async(1).receive
-
-    async_result.unwrap.should eq(2)
-  end
-
-  it "runs plain parallel ops concurrently" do
-    started = Atomic(Int32).new(0)
-
-    op1 = Crig::Pipeline.map(->(x : Int32) do
-      started.add(1)
-      deadline = Time.instant + 100.milliseconds
-      until started.get == 2
-        raise "parallel branch did not overlap" if Time.instant >= deadline
-        Fiber.yield
-      end
-      x + 1
-    end)
-
-    op2 = Crig::Pipeline.map(->(x : Int32) do
-      started.add(1)
-      deadline = Time.instant + 100.milliseconds
-      until started.get == 2
-        raise "parallel branch did not overlap" if Time.instant >= deadline
-        Fiber.yield
-      end
-      x * 2
-    end)
-
-    Crig::Pipeline.parallel(op1, op2).call(3).should eq({4, 6})
-  end
-end
-
-describe Crig::Pipeline::TryOp do
-  it "supports try_call and try_batch_call on result ops" do
-    op = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end)
-
-    op.try_call(2).unwrap.should eq(2)
-    op.try_batch_call(2, [2, 4]).unwrap.should eq([2, 4])
-  end
-
-  it "supports async try calls through channels" do
-    op = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end)
-
-    op.try_call_async(2).receive.unwrap.unwrap.should eq(2)
-  end
-
-  it "maps successful results" do
-    pipeline = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end)
-      .map_ok(->(x : Int32) { x * 2 })
-      .map_ok(->(x : Int32) { x - 1 })
-
-    pipeline.try_call(2).unwrap.should eq(3)
-  end
-
-  it "maps error results" do
-    pipeline = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end)
-      .map_err(->(error : String) { "Error: #{error}" })
-      .map_err(->(error : String) { error.size })
-
-    pipeline.try_call(1).error.should eq(15)
-  end
-
-  it "supports and_then and or_else chaining" do
-    and_then_pipeline = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end).and_then(->(x : Int32) { Crig::Pipeline::Result(Int32, String).ok((x * 2) - 1) })
-
-    and_then_pipeline.try_call(2).unwrap.should eq(3)
-
-    or_else_pipeline = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end).or_else(->(error : String) { Crig::Pipeline::Result(Int32, Int32).err("Error: #{error}".size) })
-
-    or_else_pipeline.try_call(1).error.should eq(15)
-  end
-
-  it "chains normal ops on successful results" do
-    pipeline = Crig::Pipeline.map(->(x : Int32) do
-      if x.even?
-        Crig::Pipeline::Result(Int32, String).ok(x)
-      else
-        Crig::Pipeline::Result(Int32, String).err("x is odd")
-      end
-    end).chain_ok(
-      Crig::Pipeline.map(->(x : Int32) { x + 1 })
-    )
-
-    pipeline.try_call(2).unwrap.should eq(3)
-  end
-
-  it "runs try-parallel branches with fiber-backed channels" do
-    op = Crig::Pipeline.parallel(
-      Crig::Pipeline.map(->(x : Int32) { Crig::Pipeline::Result(Int32, String).ok(x + 1) }),
-      Crig::Pipeline.map(->(x : Int32) { Crig::Pipeline::Result(Int32, String).ok(x - 1) })
-    )
-
-    op.try_call(5).unwrap.should eq({6, 4})
-  end
-end
-
 describe Crig::Telemetry do
   it "exposes provider request metadata through the request extension protocol" do
     request = FakeTelemetryRequest.new
@@ -7488,23 +6526,6 @@ describe Crig::HttpClient::ExponentialBackoff do
   end
 end
 
-describe Crig::HttpClient::Constant do
-  it "returns the same delay until max retries" do
-    policy = Crig::HttpClient::Constant.new(200.milliseconds, 1)
-    error = Crig::HttpClient::Error.stream_ended
-
-    policy.retry(error, nil).should eq(200.milliseconds)
-    policy.retry(error, {1, 200.milliseconds}).should be_nil
-  end
-end
-
-describe Crig::HttpClient::Never do
-  it "never retries" do
-    policy = Crig::HttpClient::Never.new
-    policy.retry(Crig::HttpClient::Error.stream_ended, nil).should be_nil
-  end
-end
-
 describe Crig::HttpClient::GenericEventSource, tags: %w[http_client sse] do
   it "emits open and parsed message events through a dedicated channel" do
     client = Crig::HttpClient::MockStreamingClient.new(
@@ -7538,11 +6559,7 @@ describe Crig::HttpClient::GenericEventSource, tags: %w[http_client sse] do
   it "reconnects after stream errors and forwards last-event-id on the next request" do
     client = ReconnectingSseClient.new
     request = HTTP::Request.new("GET", "/events")
-    source = Crig::HttpClient::GenericEventSource.with_retry_policy(
-      client,
-      request,
-      Crig::HttpClient::Constant.new(Time::Span.zero, 1)
-    )
+    source = Crig::HttpClient::GenericEventSource.new(client, request)
 
     first_open = source.receive?.not_nil!.unwrap
     first_open.kind.open?.should be_true
@@ -7574,11 +6591,7 @@ describe Crig::HttpClient::GenericEventSource, tags: %w[http_client sse] do
   it "retries when the initial streaming connection fails before opening" do
     client = FailingConnectSseClient.new
     request = HTTP::Request.new("GET", "/events")
-    source = Crig::HttpClient::GenericEventSource.with_retry_policy(
-      client,
-      request,
-      Crig::HttpClient::Constant.new(Time::Span.zero, 1)
-    )
+    source = Crig::HttpClient::GenericEventSource.new(client, request)
 
     initial_error = source.receive?.not_nil!
     initial_error.error.not_nil!.kind.stream_ended?.should be_true
@@ -7793,7 +6806,7 @@ describe Crig::Providers::Ollama do
     })))
   end
 
-  it "defaults think to false when omitted" do
+  it "omits think when omitted so Ollama can use the model default" do
     completion_request = Crig::Completion::Request::CompletionRequest.new(
       Crig::OneOrMany(Crig::Completion::Message).one(Crig::Completion::Message.user("Hello!")),
       preamble: "You are a helpful assistant.",
@@ -7811,7 +6824,6 @@ describe Crig::Providers::Ollama do
       ],
       "temperature":0.5,
       "stream":false,
-      "think":false,
       "options":{"temperature":0.5}
     })))
   end
@@ -8865,31 +7877,6 @@ describe Crig::ToolServer do
     handle = server.run
 
     handle.get_tool_defs("find extra").map(&.name).should eq(["echo"])
-  end
-
-  it "wraps toolset call errors as tool server errors" do
-    server = Crig::ToolServer.new.tool(FailingEchoTool.new)
-    handle = server.run
-
-    expect_raises(Crig::ToolServerError, "ToolsetError: ToolCallError: boom") do
-      handle.call_tool("echo", %({"value":"hello"}))
-    end
-  end
-
-  it "raises a tool server send error when a detached handle is used" do
-    handle = Crig::ToolServerHandle.new("detached")
-
-    expect_raises(Crig::ToolServerError, "SendError: Tool server handle 'detached' is not attached to a server") do
-      handle.get_tool_defs(nil)
-    end
-  end
-
-  it "raises a tool server send error when a resolver-backed handle has no resolver" do
-    handle = Crig::ToolServerHandle.new("missing-resolver")
-
-    expect_raises(Crig::ToolServerError, "SendError: Tool server handle 'missing-resolver' has no resolver") do
-      handle.call_tool("echo", "{}")
-    end
   end
 
   it "supports Rust-style builder helpers for static names, toolsets, and dynamic tools" do
@@ -15402,33 +14389,6 @@ describe Crig::Providers::Copilot do
   end
 end
 
-describe Crig::Providers::Internal do
-  it "builds completion_usage with token counts" do
-    usage = Crig::Providers::Internal.completion_usage(10_i64, 5_i64, 15_i64, 2_i64)
-    usage.input_tokens.should eq(10)
-    usage.output_tokens.should eq(5)
-    usage.total_tokens.should eq(15)
-    usage.cached_input_tokens.should eq(2)
-  end
-
-  it "adapts buffered response to streaming via stream_from_completion_response" do
-    response = Crig::Completion::CompletionResponse(JSON::Any).new(
-      Crig::OneOrMany(Crig::Completion::AssistantContent).one(
-        Crig::Completion::AssistantContent.text("hello"),
-      ),
-      Crig::Completion::Usage.new(output_tokens: 1),
-      JSON.parse(%({"text": "hello"})),
-    )
-
-    stream = Crig::Providers::Internal.stream_from_completion_response(response) do |content|
-      text = content.text.try(&.text) || ""
-      [Crig::RawStreamingChoice(JSON::Any).message(text)]
-    end
-
-    stream.should be_a(Crig::StreamingCompletionResponse(JSON::Any))
-  end
-end
-
 describe Crig::Providers::OpenAI::OpenAIModelLister do
   it "instantiates with an OpenAI client" do
     client = Crig::Providers::OpenAI::Client.new("test-key")
@@ -16206,46 +15166,6 @@ describe Crig::Examples::AgentWithGaladriel, tags: %w[examples agent_with_galadr
     Crig::Examples::AgentWithGaladriel.run_prompt(
       Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("galadriel-model")).build
     ).should eq("completion:galadriel-model")
-  end
-end
-
-describe Crig::Examples::AgentWithGrok, tags: %w[examples agent_with_grok] do
-  it "builds the upstream grok basic agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_basic_agent(client)
-
-    agent.model.model.should eq(Crig::Providers::XAI::GROK_3_MINI)
-    agent.preamble.should eq(Crig::Examples::AgentWithGrok::BASIC_PREAMBLE)
-    agent.default_max_turns.should eq(32)
-  end
-
-  it "builds the upstream grok tools agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_tools_agent(client)
-
-    agent.preamble.should eq(Crig::Examples::AgentWithGrok::TOOLS_PREAMBLE)
-    agent.max_tokens.should eq(1024_i64)
-    agent.default_max_turns.should eq(32)
-    agent.static_tools.map(&.name).should eq(%w[add subtract])
-  end
-
-  it "builds the upstream grok loader-backed agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_loaders_agent(
-      client,
-      glob: "vendor/rig/examples/agent.rs"
-    )
-
-    agent.static_context.size.should eq(1)
-    agent.static_context.first.text.includes?("Rust Example").should be_true
-  end
-
-  it "builds the upstream grok context agent helper" do
-    client = Crig::Providers::XAI::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGrok.build_context_agent(client)
-
-    agent.static_context.map(&.text).should eq(Crig::Examples::AgentWithContext::CONTEXTS)
-    agent.default_max_turns.should eq(32)
   end
 end
 
@@ -17630,51 +16550,6 @@ describe Crig::Examples::OpenAIAgentCompletionsApiOtel, tags: %w[examples openai
   end
 end
 
-describe Crig::Examples::RequestHook, tags: %w[examples request_hook] do
-  it "builds the upstream deepseek request-hook agent helper" do
-    client = Crig::Providers::DeepSeek::Client.new("test-key")
-    agent = Crig::Examples::RequestHook.build_agent(client)
-
-    agent.model.model.should eq(Crig::Providers::DeepSeek::DEEPSEEK_CHAT)
-    agent.static_tools.map(&.name).should eq(["calculator"])
-  end
-
-  it "records completion hook events for prompt requests" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat"))
-      .tool(Crig::Examples::RequestHook::CalculatorTool.new)
-      .build
-    hook = Crig::Examples::RequestHook::SessionIdHook.new("abc123")
-
-    response = Crig::Examples::RequestHook.run_prompt(agent, hook, "Entertain me!")
-
-    response.should eq("completion:deepseek-chat")
-    hook.events.any?(&.includes?("[Session abc123] Sending prompt: Entertain me!")).should be_true
-    hook.events.any?(&.includes?("[Session abc123] Received response: completion:deepseek-chat")).should be_true
-  end
-
-  it "records streaming hook events for stream requests" do
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-chat"))
-      .tool(Crig::Examples::RequestHook::CalculatorTool.new)
-      .build
-    hook = Crig::Examples::RequestHook::SessionIdHook.new("abc123")
-
-    stream = Crig::Examples::RequestHook.run_stream(agent, hook, "Entertain me!")
-    final = stream.response
-
-    final.not_nil!.response.should eq("chunk:deepseek-chat")
-    hook.events.any?(&.includes?("[Session abc123] Sending prompt: Entertain me!")).should be_true
-    hook.events.any?(&.includes?("Text delta: 'chunk:deepseek-chat'")).should be_true
-  end
-
-  it "builds the calculator tool definition and arithmetic behavior" do
-    tool = Crig::Examples::RequestHook::CalculatorTool.new
-    definition = tool.definition("")
-
-    definition.name.should eq("calculator")
-    tool.call_typed(Crig::Examples::RequestHook::CalculatorArgs.new("multiply", 6, 7)).should eq(42)
-  end
-end
-
 describe Crig::Examples::ReqwestMiddleware, tags: %w[examples reqwest_middleware] do
   it "builds the upstream retrying transport helper" do
     inner = Crig::HttpClient::MockStreamingClient.new
@@ -17901,44 +16776,6 @@ describe Crig::Examples::AgentWithCohere, tags: %w[examples agent_with_cohere] d
   end
 end
 
-describe Crig::Examples::AgentWithHuggingFace, tags: %w[examples agent_with_huggingface] do
-  it "builds the upstream huggingface partial and basic agent helpers" do
-    client = Crig::Providers::HuggingFace::Client.new("test-key")
-    builder = Crig::Examples::AgentWithHuggingFace.build_partial_agent(client)
-    agent = Crig::Examples::AgentWithHuggingFace.build_basic_agent(client)
-
-    builder.model.model.should eq(Crig::Examples::AgentWithHuggingFace::MODEL)
-    agent.model.model.should eq(Crig::Examples::AgentWithHuggingFace::MODEL)
-    agent.preamble.should eq(Crig::Examples::AgentWithHuggingFace::BASIC_PREAMBLE)
-  end
-
-  it "builds the upstream huggingface tools agent helper" do
-    client = Crig::Providers::HuggingFace::Client.new("test-key")
-    agent = Crig::Examples::AgentWithHuggingFace.build_tools_agent(client)
-
-    agent.preamble.should eq(Crig::Examples::AgentWithHuggingFace::TOOLS_PREAMBLE)
-    agent.max_tokens.should eq(1024_i64)
-    agent.static_tools.map(&.name).should eq(%w[add subtract])
-  end
-
-  it "loads upstream rust examples for the huggingface loader helper" do
-    loaded = Crig::Examples::AgentWithHuggingFace.load_examples("vendor/rig/examples/agent.rs")
-    entry = loaded.first.as(Tuple(String, String))
-
-    loaded.size.should eq(1)
-    entry[1].includes?("comedian").should be_true
-  end
-
-  it "builds the upstream huggingface context agent helper and prompts through a provided agent" do
-    client = Crig::Providers::HuggingFace::Client.new("test-key")
-    context_agent = Crig::Examples::AgentWithHuggingFace.build_context_agent(client)
-    prompt_agent = Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("deepseek-r1")).build
-
-    context_agent.static_context.size.should eq(3)
-    Crig::Examples::AgentWithHuggingFace.run_prompt(prompt_agent, "Entertain me!").should eq("completion:deepseek-r1")
-  end
-end
-
 describe Crig::Examples::AgentWithEchochambers, tags: %w[examples agent_with_echochambers] do
   it "builds the upstream echochambers agent and chatbot helpers" do
     client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
@@ -18132,35 +16969,6 @@ describe Crig::Examples::AgentWithMira, tags: %w[examples agent_with_mira] do
   end
 end
 
-describe Crig::Examples::AgentWithLoaders, tags: %w[examples agent_with_loaders] do
-  it "loads upstream rust example files through the file loader helper" do
-    loaded = Crig::Examples::AgentWithLoaders.load_examples("vendor/rig/examples/agent.rs")
-    entry = loaded.first.as(Tuple(String, String))
-
-    loaded.size.should eq(1)
-    entry[0].ends_with?("vendor/rig/examples/agent.rs").should be_true
-    entry[1].includes?("comedian").should be_true
-  end
-
-  it "builds the upstream loader-backed context agent helper" do
-    client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
-    agent = Crig::Examples::AgentWithLoaders.build_agent(
-      client,
-      glob: "vendor/rig/examples/agent.rs"
-    )
-
-    agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4O)
-    agent.static_context.size.should eq(1)
-    agent.static_context.first.text.includes?("Rust Example").should be_true
-  end
-
-  it "runs the loader-backed example prompt through a provided agent" do
-    Crig::Examples::AgentWithLoaders.run_prompt(
-      Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("gpt-4o")).build
-    ).should eq("completion:gpt-4o")
-  end
-end
-
 describe Crig::Examples::AgentPromptChaining, tags: %w[examples agent_prompt_chaining] do
   it "builds the upstream prompt-chaining helper agents" do
     client = Crig::Providers::OpenAI::CompletionsClient.new("test-key")
@@ -18171,25 +16979,6 @@ describe Crig::Examples::AgentPromptChaining, tags: %w[examples agent_prompt_cha
     adder_agent.model.model.should eq(Crig::Providers::OpenAI::GPT_4)
     rng_agent.preamble.should eq(Crig::Examples::AgentPromptChaining::RNG_PREAMBLE)
     adder_agent.preamble.should eq(Crig::Examples::AgentPromptChaining::ADDER_PREAMBLE)
-  end
-
-  it "chains agent prompts through the pipeline adapter" do
-    rng_model = FakeCompletionClientModel.new("rng")
-    adder_model = FakeCompletionClientModel.new("adder")
-    rng_agent = Crig::AgentBuilder(FakeCompletionClientModel).new(rng_model)
-      .preamble(Crig::Examples::AgentPromptChaining::RNG_PREAMBLE)
-      .build
-    adder_agent = Crig::AgentBuilder(FakeCompletionClientModel).new(adder_model)
-      .preamble(Crig::Examples::AgentPromptChaining::ADDER_PREAMBLE)
-      .build
-
-    result = Crig::Examples::AgentPromptChaining.run_prompt(
-      Crig::Examples::AgentPromptChaining.build_chain(rng_agent, adder_agent)
-    )
-
-    result.unwrap.should eq("completion:adder")
-    rng_model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::AgentPromptChaining.default_prompt)
-    adder_model.last_request.not_nil!.chat_history.last.rag_text.should eq("completion:rng")
   end
 end
 
@@ -18257,20 +17046,6 @@ describe Crig::Examples::Chain, tags: %w[examples chain] do
 
     store.len.should eq(3)
     store.get_document("doc1", Crig::Examples::Chain::DictionaryEntry).not_nil!.text.includes?("glarb-glarb").should be_true
-  end
-
-  it "builds the chain example pipeline and threads retrieved context into the prompt" do
-    store = Crig::Examples::Chain.build_store(FakeEmbeddingModel.new)
-    index = store.index(FakeEmbeddingModel.new)
-    model = FakeCompletionClientModel.new("gpt-4o")
-    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
-
-    response = Crig::Examples::Chain.build_chain(index, agent).call(Crig::Examples::Chain.default_prompt)
-
-    response.unwrap.should eq("completion:gpt-4o")
-    prompt = model.last_request.not_nil!.chat_history.last.rag_text || raise "missing prompt"
-    prompt.includes?("Non standard word definitions").should be_true
-    prompt.includes?("glarb-glarb").should be_true
   end
 end
 
@@ -19181,52 +17956,6 @@ describe Crig::Completion::Message, tags: %w[completion message] do
 
     assistant_message.role.assistant?.should be_true
     assistant_message.content.first.as(Crig::Completion::AssistantContent).kind.text?.should be_true
-  end
-end
-
-describe "Crig::Pipeline parallel N-arity", tags: %w[pipeline parallel narity] do
-  it "parallel with 3 ops produces nested tuple" do
-    op1 = Crig::Pipeline.map(->(x : Int32) { x + 1 })
-    op2 = Crig::Pipeline.map(->(x : Int32) { x * 3 })
-    op3 = Crig::Pipeline.map(->(x : Int32) { "#{x} is the number!" })
-
-    result = Crig::Pipeline.parallel(op1, op2, op3).call(1)
-    result.should eq({ {2, 3}, "1 is the number!" })
-  end
-
-  it "parallel with 4 ops produces nested tuple" do
-    op1 = Crig::Pipeline.map(->(x : Int32) { x + 1 })
-    op2 = Crig::Pipeline.map(->(x : Int32) { x * 3 })
-    op3 = Crig::Pipeline.map(->(x : Int32) { "#{x} is the number!" })
-    op4 = Crig::Pipeline.map(->(x : Int32) { x == 1 })
-
-    result = Crig::Pipeline.parallel(op1, op2, op3, op4).call(1)
-    result.should eq({ { {2, 3}, "1 is the number!" }, true })
-  end
-
-  it "nested parallel with passthrough" do
-    op = Crig::Pipeline.parallel(
-      Crig::Pipeline.passthrough(Int32),
-      Crig::Pipeline.passthrough(Int32),
-      Crig::Pipeline.passthrough(Int32),
-    )
-
-    result = op.call(1)
-    result.should eq({ {1, 1}, 1 })
-  end
-
-  it "sequential and parallel combined" do
-    op1 = Crig::Pipeline.map(->(x : Int32) { x + 1 })
-    op2 = Crig::Pipeline.map(->(x : Int32) { x * 2 })
-    op3 = Crig::Pipeline.map(->(x : Int32) { x * 3 })
-    op4 = Crig::Pipeline.map(->(t : Tuple(Int32, Int32)) { t[0] + t[1] })
-
-    pipeline = op1
-      .chain(Crig::Pipeline.parallel(op2, op3))
-      .chain(op4)
-
-    result = pipeline.call(1)
-    result.should eq(10)
   end
 end
 

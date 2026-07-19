@@ -79,6 +79,18 @@ module Crig
           source: error
         )
       end
+
+      def non_success_status : Int32?
+        if @kind.invalid_status_code? || @kind.invalid_status_code_with_message?
+          @status_code
+        end
+      end
+
+      def non_success_body : String?
+        if @kind.invalid_status_code_with_message?
+          @detail
+        end
+      end
     end
 
     struct Result(T, E)

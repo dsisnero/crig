@@ -1,7 +1,7 @@
 module Crig
   module HttpClient
     alias BoxedStream = StreamingResponse
-    alias RetryPolicyCarrier = ExponentialBackoff | Constant | Never
+    alias RetryPolicyCarrier = ExponentialBackoff
 
     struct MessageEvent
       getter data : String
@@ -72,14 +72,6 @@ module Crig
       def allow_missing_content_type : self
         @allow_missing_content_type = true
         self
-      end
-
-      def self.with_retry_policy(
-        client : HttpClientType,
-        req : HTTP::Request,
-        retry_policy : RetryPolicyCarrier,
-      ) : GenericEventSource(HttpClientType) forall HttpClientType
-        new(client, req, retry_policy)
       end
 
       def close : Nil

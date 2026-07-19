@@ -381,7 +381,7 @@ module Crig
 
           response = @client.post_json("/v1/messages", JSON.parse(stream_payload.to_json).to_json)
           body = response.body
-          raise Crig::Completion::CompletionError.new(body) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
           raw_choices = [] of Crig::RawStreamingChoice(StreamingCompletionResponse)
           current_tool_call = nil.as(ToolCallState?)

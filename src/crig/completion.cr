@@ -10,13 +10,15 @@ module Crig
         RequestError
         ResponseError
         ProviderError
+        ProviderResponse
         Other
       end
 
       getter kind : Kind
       getter source_error : Exception?
+      getter provider_response : ProviderResponseError?
 
-      def initialize(message : String, @kind : Kind = Kind::Other, @source_error : Exception? = nil)
+      def initialize(message : String, @kind : Kind = Kind::Other, @source_error : Exception? = nil, @provider_response : ProviderResponseError? = nil)
         super(message)
       end
 
@@ -42,6 +44,33 @@ module Crig
 
       def self.provider_error(message : String) : self
         new("ProviderError: #{message}", Kind::ProviderError)
+      end
+
+      def self.from_http_response(status : Int32, body : String) : self
+        pr = ProviderResponseError.new(status: status, body: body)
+        if 200 <= status && status < 300
+          new("ProviderResponseError", Kind::ProviderResponse, provider_response: pr)
+        else
+          new("HttpError: #{status} #{body}", Kind::HttpError, provider_response: pr)
+        end
+      end
+
+      def self.from_provider_body(body : String) : self
+        new("ProviderResponseError", Kind::ProviderResponse, provider_response: ProviderResponseError.without_status(body))
+      end
+
+      include Crig::ProviderResponseHelpers
+
+      def provider_response_body : String?
+        if @kind.http_error? || @kind.provider_response?
+          @provider_response.try(&.body)
+        end
+      end
+
+      def provider_response_status : Int32?
+        if @kind.http_error? || @kind.provider_response?
+          @provider_response.try(&.status)
+        end
       end
     end
 
@@ -201,6 +230,14 @@ module Crig
           stream(request)
         end
       end
+
+      # Whether the model supports native structured output alongside tool calls.
+      # OpenAI Chat Completions defers response_format while tools are present
+      # and no tool result exists yet, then applies it once tools have run.
+      # Override to true for providers where native output composes with tools.
+      def composes_native_output_with_tools? : Bool
+        false
+      end
     end
 
     module CompletionModelDyn
@@ -218,6 +255,10 @@ module Crig
         Crig::Concurrency.run do
           stream(request)
         end
+      end
+
+      def composes_native_output_with_tools? : Bool
+        false
       end
     end
 

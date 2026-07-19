@@ -121,16 +121,15 @@ module Crig
     getter prompt : Crig::Completion::Message
     getter chat_history : Array(Crig::Completion::Message)?
     getter max_turns : Int32
-    getter hook : Crig::PromptHook?
     getter memory : Crig::Memory::ConversationMemory?
     getter conversation_id : String?
+    @hooks : Array(AgentHook)?
 
     def initialize(
       @agent : Crig::Agent(M),
       @prompt : Crig::Completion::Message,
       @chat_history : Array(Crig::Completion::Message)? = nil,
       @max_turns : Int32 = 0,
-      @hook : Crig::PromptHook? = nil,
       @memory : Crig::Memory::ConversationMemory? = nil,
       @conversation_id : String? = nil,
     )
@@ -138,29 +137,30 @@ module Crig
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0, hook: agent.hook, memory: agent.memory, conversation_id: agent.default_conversation_id)
+      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
     def multi_turn(turns : Int) : self
-      self.class.new(@agent, @prompt, @chat_history, turns.to_i32, @hook, @memory, @conversation_id)
+      self.class.new(@agent, @prompt, @chat_history, turns.to_i32, @memory, @conversation_id)
     end
 
     def with_history(history : Array(Crig::Completion::Message)) : self
-      self.class.new(@agent, @prompt, history.dup, @max_turns, @hook, @memory, @conversation_id)
+      self.class.new(@agent, @prompt, history.dup, @max_turns, @memory, @conversation_id)
     end
 
-    def with_hook(hook : Crig::PromptHook) : self
-      self.class.new(@agent, @prompt, @chat_history, @max_turns, hook, @memory, @conversation_id)
+    def with_hook(hook : AgentHook) : self
+      @hooks = (@hooks || [] of AgentHook).tap(&.<<(hook))
+      self
     end
 
     # Set the conversation id used to load and persist memory for this request.
     def conversation(id : String) : self
-      self.class.new(@agent, @prompt, @chat_history, @max_turns, @hook, @memory, id)
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, @memory, id)
     end
 
     # Disable conversation memory for this request.
     def without_memory : self
-      self.class.new(@agent, @prompt, @chat_history, @max_turns, @hook, nil, nil)
+      self.class.new(@agent, @prompt, @chat_history, @max_turns, nil, nil)
     end
 
     def send_items : Crig::MultiTurnStreamingResult(Crig::FinalResponse)
@@ -236,11 +236,13 @@ module Crig
       prompt : Crig::Completion::Message,
       history : Array(Crig::Completion::Message),
     ) : Nil
-      if hook = @hook
-        action = hook.on_completion_call(prompt, history)
-        if action.kind.terminate?
-          reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
+      return unless hooks = @hooks
+      ctx = HookContext.new(is_streaming: true, agent_name: @agent.name)
+      event = StepEvent.completion_call(prompt.rag_text || "", history.size)
+      hooks.each do |hook|
+        flow = hook.on_event(ctx, event)
+        if flow.kind.terminate?
+          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
         end
       end
     end
@@ -253,6 +255,7 @@ module Crig
       items : Array(Crig::MultiTurnStreamItem(Crig::FinalResponse)),
     ) : StreamTurnResult
       response_text = ""
+      saw_text = false
       saw_tool_call = false
       tool_calls = [] of Crig::Completion::AssistantContent
       tool_results = [] of Tuple(String, String?, String)
@@ -266,14 +269,8 @@ module Crig
         case item.kind
         in .text?
           if text = item.text
+            saw_text = true
             response_text += text.text
-            if hook = @hook
-              action = hook.on_text_delta(text.text, response_text)
-              if action.kind.terminate?
-                reason = action.reason || "terminated"
-                raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-              end
-            end
 
             items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
               Crig::StreamedAssistantContent(Crig::FinalResponse).text(text.text)
@@ -295,26 +292,6 @@ module Crig
             )
           end
         in .tool_call_delta?
-          if hook = @hook
-            if id = item.id
-              if internal_call_id = item.internal_call_id
-                name = nil.as(String?)
-                delta = ""
-                if content = item.content
-                  if content.kind.name?
-                    name = content.value
-                  else
-                    delta = content.value
-                  end
-                end
-                action = hook.on_tool_call_delta(id, internal_call_id, name, delta)
-                if action.kind.terminate?
-                  reason = action.reason || "terminated"
-                  raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-                end
-              end
-            end
-          end
         in .tool_call?
           if tool_call = item.tool_call
             internal_call_id = item.internal_call_id || tool_call.call_id || tool_call.id
@@ -334,15 +311,7 @@ module Crig
         in .final?
           if final = item.final
             turn_usage += final.token_usage || Crig::Completion::Usage.new
-            if !response_text.empty?
-              if hook = @hook
-                action = hook.on_stream_completion_response_finish(prompt, final)
-                if action.kind.terminate?
-                  reason = action.reason || "terminated"
-                  raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-                end
-              end
-
+            if saw_text
               items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
                 Crig::StreamedAssistantContent(Crig::FinalResponse).final_response(
                   Crig::FinalResponse.new(response_text, turn_usage)
@@ -393,15 +362,17 @@ module Crig
     ) : String
       args = tool_call.function.arguments.to_json
 
-      if hook = @hook
-        action = hook.on_tool_call(tool_call.function.name, tool_call.call_id, internal_call_id, args)
-        case action.kind
-        in .terminate?
-          reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
-        in .skip?
-          return action.reason || ""
-        in .continue?
+      ctx = HookContext.new(is_streaming: true, agent_name: @agent.name)
+      if hs = @hooks
+        evt = StepEvent.tool_call(tool_call.function.name, tool_call.call_id, internal_call_id, args)
+        hs.each do |hook|
+          flow = hook.on_event(ctx, evt)
+          if flow.kind.terminate?
+            raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
+          end
+          if flow.kind.skip?
+            return flow.reason || ""
+          end
         end
       end
 
@@ -414,11 +385,13 @@ module Crig
         raise Crig::StreamingError.tool(ex)
       end
 
-      if hook = @hook
-        action = hook.on_tool_result(tool_call.function.name, tool_call.call_id, internal_call_id, args, result)
-        if action.kind.terminate?
-          reason = action.reason || "terminated"
-          raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, reason))
+      if hs = @hooks
+        evt = StepEvent.tool_result(tool_call.function.name, tool_call.call_id, internal_call_id, args, result)
+        hs.each do |hook|
+          flow = hook.on_event(ctx, evt)
+          if flow.kind.terminate?
+            raise Crig::StreamingError.prompt(Crig::Completion::PromptError.prompt_cancelled(history.dup, flow.reason || "terminated"))
+          end
         end
       end
 

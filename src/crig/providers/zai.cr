@@ -245,7 +245,7 @@ module Crig
           payload = ZAiCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           parsed = JSON.parse(text)
           body = ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) do |value|

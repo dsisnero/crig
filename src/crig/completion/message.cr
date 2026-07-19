@@ -39,7 +39,7 @@ module Crig
     struct ToolFunction
       include JSON::Serializable
 
-      getter name : String
+      property name : String
       getter arguments : JSON::Any
 
       def initialize(@name : String, @arguments : JSON::Any)
@@ -911,6 +911,7 @@ module Crig
         end
       end
 
+      # ameba:disable Metrics/CyclomaticComplexity
       def self.from_tool_output(output : String) : Crig::OneOrMany(self)
         case classify_tool_output(output)
         when :hybrid
@@ -932,6 +933,19 @@ module Crig
         when :image
           payload = ParsedImagePayload.from_json(output)
           return Crig::OneOrMany(self).one(content_from_image_payload(payload.data, payload.mime_type))
+        end
+
+        # If the output is a JSON-encoded string, unwrap it (matching upstream
+        # serde_json::from_str behaviour where the tool output round-trips through
+        # to_string / from_tool_output).
+        if output.starts_with?('"') && output.ends_with?('"')
+          begin
+            parsed = JSON.parse(output)
+            if parsed.is_a?(JSON::Any) && parsed.raw.is_a?(String)
+              return Crig::OneOrMany(self).one(text(parsed.as_s))
+            end
+          rescue JSON::ParseException
+          end
         end
 
         Crig::OneOrMany(self).one(text(output))
@@ -984,8 +998,16 @@ module Crig
         new(Kind::ToolResult, tool_result: ToolResult.new(id, content))
       end
 
+      def self.tool_result(id : String, text : String) : self
+        tool_result(id, OneOrMany(ToolResultContent).one(ToolResultContent.text(text)))
+      end
+
       def self.tool_result_with_call_id(id : String, call_id : String, content : Crig::OneOrMany(ToolResultContent)) : self
         new(Kind::ToolResult, tool_result: ToolResult.new(id, content, call_id))
+      end
+
+      def self.tool_result_with_call_id(id : String, call_id : String, text : String) : self
+        tool_result_with_call_id(id, call_id, OneOrMany(ToolResultContent).one(ToolResultContent.text(text)))
       end
 
       def self.image_base64(data : String, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil) : self

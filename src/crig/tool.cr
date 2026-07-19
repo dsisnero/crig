@@ -37,12 +37,20 @@ module Crig
     end
 
     macro json_schema_for(type)
-      {% type_name = type.stringify %}
-      {% if type_name.includes?("String") && !type_name.starts_with?("Array(") %}
+      {% if type.resolve < Enum %}
         json.field "type", "string"
-      {% elsif type_name.includes?("Bool") %}
+        json.field "enum" do
+          json.array do
+            {% for const in type.resolve.constants %}
+              json.string {{ const.stringify }}
+            {% end %}
+          end
+        end
+      {% elsif type.stringify.includes?("String") && !type.stringify.starts_with?("Array(") %}
+        json.field "type", "string"
+      {% elsif type.stringify.includes?("Bool") %}
         json.field "type", "boolean"
-      {% elsif type_name.starts_with?("Int") || type_name.starts_with?("UInt") || type_name.starts_with?("Float") || type_name.includes?("Int") || type_name.includes?("UInt") || type_name.includes?("Float") %}
+      {% elsif type.stringify.starts_with?("Int") || type.stringify.starts_with?("UInt") || type.stringify.starts_with?("Float") || type.stringify.includes?("Int") || type.stringify.includes?("UInt") || type.stringify.includes?("Float") %}
         json.field "type", "number"
       {% elsif type.is_a?(Generic) && type.name.resolve == Array %}
         json.field "type", "array"
@@ -52,29 +60,38 @@ module Crig
           end
         end
       {% else %}
-        json.field "type", "object"
-        {% if type.resolve.instance_vars.size > 0 %}
-          json.field "title", {{ type.resolve.stringify }}
-          json.field "properties" do
-            json.object do
-              {% for ivar in type.resolve.instance_vars %}
-                json.field {{ ivar.name.stringify }} do
-                  json.object do
-                    Crig::ToolMacro.json_schema_for({{ ivar.type }})
+        {% if type.resolve %}
+          json.field "type", "object"
+          {% if type.resolve.instance_vars.size > 0 %}
+            json.field "title", {{ type.resolve.stringify }}
+            json.field "properties" do
+              json.object do
+                {% for ivar in type.resolve.instance_vars %}
+                  json.field {{ ivar.name.stringify }} do
+                    json.object do
+                      {% if ivar.type.resolve && ivar.type.resolve.union_types.size > 0 %}
+                        {% non_nil_type = ivar.type.resolve.union_types.reject(&.==(Nil)).first %}
+                        {% if non_nil_type %}
+                          Crig::ToolMacro.json_schema_for({{ non_nil_type }})
+                        {% end %}
+                      {% else %}
+                        Crig::ToolMacro.json_schema_for({{ ivar.type }})
+                      {% end %}
+                    end
                   end
-                end
-              {% end %}
-            end
-          end
-          json.field "required" do
-            json.array do
-              {% for ivar in type.resolve.instance_vars %}
-                {% unless ivar.type.stringify.includes?("Nil") %}
-                  json.string {{ ivar.name.stringify }}
                 {% end %}
-              {% end %}
+              end
             end
-          end
+            json.field "required" do
+              json.array do
+                {% for ivar in type.resolve.instance_vars %}
+                  {% unless ivar.type.stringify.includes?("Nil") %}
+                    json.string {{ ivar.name.stringify }}
+                  {% end %}
+                {% end %}
+              end
+            end
+          {% end %}
         {% end %}
       {% end %}
     end
@@ -303,99 +320,13 @@ module Crig
     end
   end
 
-  struct ToolType
-    enum Kind
-      Simple
-      Embedding
-    end
-
-    getter kind : Kind
-
-    def initialize(
-      @kind : Kind,
-      @simple : Crig::ToolDyn? = nil,
-      @embedding_tool : Crig::ToolDyn? = nil,
-      @embedding_schema_source : Crig::ToolEmbeddingDyn? = nil,
-    )
-    end
-
-    def self.simple(tool : Crig::ToolDyn) : self
-      new(Kind::Simple, simple: tool)
-    end
-
-    def self.embedding(tool : T) : self forall T
-      boxed = Crig::EmbeddedToolBox(T).new(tool)
-      new(Kind::Embedding, embedding_tool: boxed, embedding_schema_source: boxed)
-    end
-
-    def name : String
-      case @kind
-      in .simple?
-        if tool = @simple
-          tool.name
-        else
-          raise "missing simple tool"
-        end
-      in .embedding?
-        if tool = @embedding_tool
-          tool.name
-        else
-          raise "missing embedding tool"
-        end
-      end
-    end
-
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      case @kind
-      in .simple?
-        if tool = @simple
-          tool.definition(prompt)
-        else
-          raise "missing simple tool"
-        end
-      in .embedding?
-        if tool = @embedding_tool
-          tool.definition(prompt)
-        else
-          raise "missing embedding tool"
-        end
-      end
-    end
-
-    def call(args : String) : String
-      case @kind
-      in .simple?
-        if tool = @simple
-          tool.call(args)
-        else
-          raise "missing simple tool"
-        end
-      in .embedding?
-        if tool = @embedding_tool
-          tool.call(args)
-        else
-          raise "missing embedding tool"
-        end
-      end
-    end
-
-    def embedding_schema? : Crig::Embeddings::ToolSchema?
-      return unless @kind.embedding?
-
-      source = @embedding_schema_source || @embedding_tool.try(&.as?(Crig::ToolEmbeddingDyn))
-      return unless source
-
-      Crig::Embeddings::ToolSchema.try_from(source)
-    end
-  end
-
   # ToolSet is the runtime collection used by agents and tool servers.
   # It mirrors Rig's builder-first toolset API and keeps both static and
   # embedding-backed tools under one interface.
   struct ToolSet
-    getter tools : Hash(String, Crig::ToolType)
+    getter tools : Hash(String, Crig::ToolDyn)
 
-    def initialize(@tools : Hash(String, Crig::ToolType) = {} of String => Crig::ToolType)
+    def initialize(@tools : Hash(String, Crig::ToolDyn) = {} of String => Crig::ToolDyn)
     end
 
     def self.from_tools(tools : Enumerable(Crig::ToolDyn)) : self
@@ -418,7 +349,7 @@ module Crig
     end
 
     def add_tool(tool : Crig::ToolDyn) : Nil
-      @tools[tool.name] = Crig::ToolType.simple(tool)
+      @tools[tool.name] = tool
     end
 
     def add_tool_boxed(tool : Crig::ToolDyn) : Nil
@@ -433,7 +364,7 @@ module Crig
       @tools.merge!(toolset.tools)
     end
 
-    def get(toolname : String) : Crig::ToolType?
+    def get(toolname : String) : Crig::ToolDyn?
       @tools[toolname]?
     end
 
@@ -454,7 +385,7 @@ module Crig
     end
 
     def schemas : Array(Crig::Embeddings::ToolSchema)
-      @tools.values.compact_map(&.embedding_schema?)
+      @tools.values.compact_map { |tool| tool.is_a?(Crig::ToolEmbeddingDyn) ? Crig::Embeddings::ToolSchema.try_from(tool) : nil }
     end
 
     def documents : Array(Crig::Completion::Request::Document)
@@ -468,20 +399,48 @@ module Crig
     end
   end
 
+  # Wrapper enum that holds either a static (Simple) or embedding-backed (Embedding) tool.
+  # Mirrors `ToolType` from the upstream Rust crate.
+  class ToolType
+    def self.embedding(tool : Crig::ToolEmbeddingDyn) : self
+      new(:embedding, tool.as(Crig::ToolDyn))
+    end
+
+    def self.simple(tool : Crig::ToolDyn) : self
+      new(:simple, tool)
+    end
+
+    def initialize(@kind : Symbol, @tool : Crig::ToolDyn)
+    end
+
+    def name : String
+      @tool.name
+    end
+
+    def definition(prompt : String) : Crig::Completion::ToolDefinition
+      @tool.definition(prompt)
+    end
+
+    def call(args : String) : String
+      @tool.call(args)
+    end
+  end
+
   # Builder for ToolSet. This is the ergonomic path used when composing mixed
   # static and embedding-backed tools before handing them to an agent or tool server.
   struct ToolSetBuilder
-    def initialize(@tools : Array(Crig::ToolType) = [] of Crig::ToolType)
+    def initialize(@tools : Array(Crig::ToolDyn) = [] of Crig::ToolDyn)
     end
 
     # Add a standard executable tool.
     def static_tool(tool : Crig::ToolDyn) : self
-      self.class.new(@tools + [Crig::ToolType.simple(tool)])
+      self.class.new(@tools + [tool])
     end
 
-    # Add an embedding-backed tool that can later participate in tool schema retrieval.
+    # Add an embedding-backed tool.
     def dynamic_tool(tool : T) : self forall T
-      self.class.new(@tools + [Crig::ToolType.embedding(tool)])
+      boxed = Crig::EmbeddedToolBox(T).new(tool)
+      self.class.new(@tools + [boxed.as(Crig::ToolDyn)])
     end
 
     def build : Crig::ToolSet

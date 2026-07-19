@@ -1,0 +1,699 @@
+module Crig
+  enum OutputMode
+    Auto; Tool; Native; Prompted
+
+    def self.default : OutputMode
+      Auto
+    end
+  end
+
+  struct PendingToolCall
+    include JSON::Serializable
+    getter tool_call : Completion::ToolCall
+    getter preresolved_result : Completion::UserContent?
+    getter internal_call_id : String?
+
+    def initialize(@tool_call : Completion::ToolCall, @preresolved_result : Completion::UserContent? = nil, @internal_call_id : String? = nil)
+    end
+  end
+
+  struct ModelTurn
+    include JSON::Serializable
+    getter message_id : String?
+    getter choice : OneOrMany(Completion::AssistantContent)
+    getter usage : Completion::Usage
+    getter executable_tool_names : Array(String)
+    getter allowed_tool_names : Array(String)
+
+    def initialize(@message_id : String? = nil, @choice : OneOrMany(Completion::AssistantContent) = OneOrMany(Completion::AssistantContent).one(Completion::AssistantContent.text("")),
+                   @usage : Completion::Usage = Completion::Usage.new, @executable_tool_names : Array(String) = [] of String,
+                   @allowed_tool_names : Array(String) = [] of String)
+    end
+
+    # Named-argument constructor for ergonomic use
+    def self.new(*, message_id : String? = nil, choice : OneOrMany(Completion::AssistantContent)? = nil,
+                 usage : Completion::Usage? = nil, executable_tool_names : Array(String)? = nil,
+                 allowed_tools : Array(String)? = nil)
+      new(
+        message_id: message_id,
+        choice: choice || OneOrMany(Completion::AssistantContent).one(Completion::AssistantContent.text("")),
+        usage: usage || Completion::Usage.new,
+        executable_tool_names: executable_tool_names || (allowed_tools || [] of String),
+        allowed_tool_names: allowed_tools || (executable_tool_names || [] of String),
+      )
+    end
+  end
+
+  struct AgentRunStep
+    enum Kind
+      CallModel; CallTools; Done
+    end
+    getter kind : Kind
+    getter prompt : Completion::Message?
+    getter history : Array(Completion::Message)?
+    getter turn : Int32?
+    getter calls : Array(PendingToolCall)?
+    getter response : PromptResponse?
+
+    private def initialize(@kind : Kind, @prompt : Completion::Message? = nil, @history : Array(Completion::Message)? = nil,
+                           @turn : Int32? = nil, @calls : Array(PendingToolCall)? = nil, @response : PromptResponse? = nil)
+    end
+
+    def self.call_model(p : Completion::Message, h : Array(Completion::Message), t : Int32) : self
+      new(Kind::CallModel, prompt: p, history: h, turn: t)
+    end
+
+    def self.call_tools(c : Array(PendingToolCall)) : self
+      new(Kind::CallTools, calls: c)
+    end
+
+    def self.done(r : PromptResponse) : self
+      new(Kind::Done, response: r)
+    end
+
+    def call_model? : Bool
+      @kind.call_model?
+    end
+
+    def call_tools? : Bool
+      @kind.call_tools?
+    end
+
+    def done? : Bool
+      @kind.done?
+    end
+  end
+
+  struct ModelTurnOutcome
+    enum Kind
+      Continue; NeedsResolution; TurnRetried
+    end
+    getter kind : Kind
+    getter? response_hook_suppressed : Bool
+    getter context : InvalidToolCallContext?
+
+    private def initialize(@kind : Kind, @response_hook_suppressed : Bool = false, @context : InvalidToolCallContext? = nil)
+    end
+
+    def self.continue(suppressed : Bool = false) : self
+      new(Kind::Continue, response_hook_suppressed: suppressed)
+    end
+
+    def self.needs_resolution(ctx : InvalidToolCallContext) : self
+      new(Kind::NeedsResolution, context: ctx)
+    end
+
+    def self.turn_retried : self
+      new(Kind::TurnRetried)
+    end
+  end
+
+  # Sans-IO state machine
+  class AgentRun
+    enum State
+      PreparingRequest; AwaitingModel; ResolvingToolCalls; AwaitingAdvance; ExecutingTools; Done; Failed
+    end
+
+    property max_turns : Int32 = 0
+    property max_invalid_tool_call_retries : Int32 = 0
+    property tool_choice : Completion::ToolChoice?
+    property output_tool_name : String?
+    property output_schema : JSON::Any?
+    property max_output_retries : Int32 = 0
+    @output_retries : Int32 = 0
+    property chat_history : Array(Completion::Message)?
+    getter new_messages : Array(Completion::Message) = [] of Completion::Message
+    @current_turn : Int32 = 0
+    @usage : Completion::Usage = Completion::Usage.new
+    property completion_calls : Array(CompletionCall) = [] of CompletionCall
+
+    @state : State = State::PreparingRequest
+    @cc_index : Int32 = 0
+    @itc_retries : Int32 = 0
+
+    @msg_id : String?
+    @items : Array(Completion::AssistantContent) = [] of Completion::AssistantContent
+    @orig_choice : OneOrMany(Completion::AssistantContent)?
+    @next_idx : Int32 = 0
+    @exe_tools : Array(String) = [] of String
+    @alw_tools : Array(String) = [] of String
+    @skipped : Hash(String, Completion::UserContent) = {} of String => Completion::UserContent
+    @recovered : Bool = false
+    @any_skipped : Bool = false
+    @has_tc : Bool = false
+
+    getter pending : Array(PendingToolCall) = [] of PendingToolCall
+    @rb_pending : Bool = false
+    @st_rec : Bool = false
+
+    # Streaming support state
+    @rollback_pending : Bool = false
+    @streamed_cc_recorded : Bool = false
+
+    @turn_items : Array(Completion::AssistantContent) = [] of Completion::AssistantContent
+    @turn_has_tc : Bool = false
+    @done_response : PromptResponse?
+
+    def initialize(prompt : Completion::Message)
+      @new_messages = [prompt]
+    end
+
+    def self.new(prompt : String) : self
+      new(Completion::Message.user(prompt))
+    end
+
+    def to_json(json : JSON::Builder)
+      json.object do
+        json.field "max_turns", @max_turns
+        json.field "current_turn", @current_turn
+        json.field "state", @state.to_s
+        json.field "pending" do
+          json.array do
+            @pending.each do |pending_item|
+              json.object do
+                tc = pending_item.tool_call
+                json.field "id", tc.id
+                json.field "name", tc.function.name
+                json.field "args", tc.function.arguments.to_json
+                if cid = tc.call_id
+                  json.field "call_id", cid
+                end
+              end
+            end
+          end
+        end
+        json.field "new_messages" do
+          json.array do
+            @new_messages.each do |msg|
+              json.object do
+                json.field "role", msg.role.to_s
+                msg.content.each do |content_item|
+                  case content_item
+                  when Completion::UserContent
+                    if tr = content_item.tool_result
+                      json.field "type", "tool_result"
+                      json.field "id", tr.id
+                    elsif t = content_item.text
+                      json.field "type", "text"
+                      json.field "text", t.text
+                    end
+                  when Completion::AssistantContent
+                    if tc = content_item.tool_call
+                      json.field "type", "tool_call"
+                      json.field "id", tc.id
+                      json.field "name", tc.function.name
+                      json.field "args", tc.function.arguments.to_json
+                    elsif t = content_item.text
+                      json.field "type", "text"
+                      json.field "text", t.text
+                    elsif r = content_item.reasoning
+                      json.field "type", "reasoning"
+                      json.field "text", r.display_text
+                    end
+                  end
+                end
+              end
+            end
+          end
+        end
+        json.field "completion_calls" do
+          json.array do
+            @completion_calls.each do |call|
+              json.object do
+                json.field "call_index", call.call_index
+                if u = call.usage
+                  json.field "input_tokens", u.input_tokens
+                  json.field "output_tokens", u.output_tokens
+                  json.field "total_tokens", u.total_tokens
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+
+    def to_json : String
+      io = IO::Memory.new
+      builder = JSON::Builder.new(io)
+      builder.start_document
+      to_json(builder)
+      builder.end_document
+      io.to_s
+    end
+
+    # ameba:disable Metrics/CyclomaticComplexity
+    def self.from_json(string : String) : self
+      run = new(Completion::Message.user(""))
+      run.new_messages.clear
+      JSON.parse(string).as_h.each do |key, value|
+        case key
+        when "max_turns"    then run.max_turns = value.as_i.to_i32
+        when "current_turn" then run.current_turn = value.as_i.to_i32
+        when "state"
+          run.state = State.parse(value.as_s)
+        when "pending"
+          run.pending = value.as_a.map do |entry|
+            id = entry["id"]?.try(&.as_s) || ""
+            name = entry["name"]?.try(&.as_s) || ""
+            args = entry["args"]?.try(&.as_s) || "{}"
+            cid = entry["call_id"]?.try(&.as_s)
+            fn = Completion::ToolFunction.new(name, JSON.parse(args))
+            tc = Completion::ToolCall.new(id, fn, cid, nil, nil)
+            PendingToolCall.new(tool_call: tc)
+          end
+        when "completion_calls"
+          value.as_a.each do |entry|
+            ci = entry["call_index"]?.try(&.as_i.to_i32) || 0
+            run.completion_calls << CompletionCall.new(ci, nil)
+          end
+        when "new_messages"
+          value.as_a.each do |msg|
+            role = msg["role"]?.try(&.as_s) || "User"
+            mtype = msg["type"]?.try(&.as_s) || "text"
+            mid = msg["id"]?.try(&.as_s) || ""
+            mname = msg["name"]?.try(&.as_s) || ""
+            margs = msg["args"]?.try(&.as_s) || "{}"
+            mtext = msg["text"]?.try(&.as_s) || ""
+
+            message = case mtype
+                      when "tool_call"
+                        parsed_args = JSON.parse(margs)
+                        content = OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(
+                          Crig::Completion::AssistantContent.tool_call(mid, mname, parsed_args).as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+                        Crig::Completion::Message.new(Crig::Completion::Message::Role::Assistant, content, mid)
+                      when "tool_result"
+                        tr = Crig::Completion::UserContent.tool_result(mid,
+                          OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.text(mtext)))
+                        content = OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(tr.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+                        Crig::Completion::Message.new(Crig::Completion::Message::Role::User, content)
+                      else
+                        text = case role
+                               when "User"      then Crig::Completion::UserContent.text(mtext)
+                               when "Assistant" then Crig::Completion::AssistantContent.text(mtext)
+                               else                  Crig::Completion::UserContent.text(mtext)
+                               end
+                        content = OneOrMany(Crig::Completion::UserContent | Crig::Completion::AssistantContent).one(text.as(Crig::Completion::UserContent | Crig::Completion::AssistantContent))
+                        re = role == "Assistant" ? Crig::Completion::Message::Role::Assistant : Crig::Completion::Message::Role::User
+                        Crig::Completion::Message.new(re, content)
+                      end
+            run.new_messages << message
+          end
+        end
+      end
+      run
+    end
+
+    def with_history(h : Array(Completion::Message)) : self
+      @chat_history = h; self
+    end
+
+    def max_turns(v : Int32) : self
+      @max_turns = v; self
+    end
+
+    def max_invalid_tool_call_retries(v : Int32) : self
+      @max_invalid_tool_call_retries = v; self
+    end
+
+    def with_tool_choice(v : Completion::ToolChoice) : self
+      @tool_choice = v; self
+    end
+
+    def with_output_tool_name(v : String) : self
+      @output_tool_name = v; self
+    end
+
+    def with_output_validation(s : JSON::Any?, r : Int32) : self
+      @output_schema = s; @max_output_retries = r; self
+    end
+
+    def turn : Int32
+      @current_turn
+    end
+
+    def current_turn=(v : Int32) : Nil
+      @current_turn = v
+    end
+
+    def state=(s : State) : Nil
+      @state = s
+    end
+
+    def pending=(p : Array(PendingToolCall)) : Nil
+      @pending = p
+    end
+
+    def messages : Array(Completion::Message)
+      @new_messages
+    end
+
+    def done? : Bool
+      @state.done?
+    end
+
+    def full_history : Array(Completion::Message)
+      (@chat_history.try(&.dup) || [] of Completion::Message).tap(&.concat(@new_messages))
+    end
+
+    # --- Streamed turn support ---
+
+    def record_streamed_completion_call(usage : Completion::Usage) : CompletionCall
+      raise Completion::PromptError.completion_error(Completion::CompletionError.response_error("record_streamed_completion_call called without a pending model call")) unless @state.awaiting_model? || (@rollback_pending && @state.preparing_request?)
+      raise Completion::PromptError.prompt_cancelled(full_history, "duplicate streamed completion call") if @streamed_cc_recorded
+      @streamed_cc_recorded = true
+      cc = CompletionCall.new(@cc_index, usage)
+      @completion_calls << cc
+      @cc_index += 1
+      @usage = @usage + usage
+      @rollback_pending = false
+      cc
+    end
+
+    def streamed_turn(turn : StreamedTurn) : Nil
+      raise Completion::PromptError.prompt_cancelled(full_history, "streamed_turn without a pending model call") unless @state.awaiting_model?
+
+      unless @streamed_cc_recorded
+        record_streamed_completion_call(Completion::Usage.new)
+      end
+      @streamed_cc_recorded = true
+
+      choice = turn.choice
+
+      # Fail-fast: reject unknown tool calls
+      choice.each do |item|
+        next unless item.kind.tool_call?
+        tc = item.tool_call
+        if tc && !turn.allowed_tool_names.includes?(tc.function.name)
+          @state = State::Failed
+          raise Completion::PromptError.unknown_tool_call(
+            tc.function.name,
+            turn.executable_tool_names.to_a,
+            turn.allowed_tool_names.to_a,
+            full_history,
+          )
+        end
+      end
+
+      @msg_id = turn.message_id
+      @orig_choice = choice
+
+      # Populate the assistant message and scan for tool calls
+      has_tc = choice.any? { |i| !i.tool_call.nil? }
+      items = choice.to_a
+
+      @new_messages << assistant_msg(turn.message_id, choice)
+
+      if has_tc
+        calls = items.compact_map do |i|
+          if t = i.tool_call
+            icid = turn.internal_call_ids.find { |call_id, _| call_id == t.id }
+            PendingToolCall.new(tool_call: t, internal_call_id: icid.try(&.[1]))
+          end
+        end
+        @pending = calls
+        @state = State::ExecutingTools
+      else
+        text = items.empty? ? "" : choice_text(choice)
+        all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
+        @done_response = PromptResponse.new(text, @usage)
+          .with_messages(all_messages)
+          .with_completion_calls(@completion_calls.dup)
+        @state = State::Done
+      end
+    end
+
+    def next_step : AgentRunStep
+      case @state
+      in .preparing_request?    then prep_request
+      in .awaiting_model?       then raise Completion::PromptError.prompt_cancelled(full_history, "next_step while awaiting model")
+      in .resolving_tool_calls? then raise Completion::PromptError.prompt_cancelled(full_history, "next_step while resolving tool calls")
+      in .awaiting_advance?     then advance
+      in .executing_tools?      then AgentRunStep.call_tools(@pending)
+      in .done?                 then AgentRunStep.done(done_response)
+      in .failed?               then raise Completion::PromptError.prompt_cancelled(full_history, "run failed")
+      end
+    end
+
+    private def prep_request
+      raise Completion::PromptError.prompt_cancelled(full_history, "no pending prompt") if @new_messages.empty?
+      @rb_pending = false; @st_rec = false
+      if @current_turn > @max_turns + 1
+        raise Completion::PromptError.max_turns_exceeded(@max_turns, full_history, @new_messages.last)
+      end
+      @current_turn += 1
+      p = @new_messages.last
+      h = (@chat_history.try(&.dup) || [] of Completion::Message)
+      h.concat(@new_messages[0...-1])
+      @state = State::AwaitingModel
+      AgentRunStep.call_model(p, h, @current_turn)
+    end
+
+    def model_response(turn : ModelTurn) : ModelTurnOutcome
+      raise Completion::PromptError.prompt_cancelled(full_history, "model_response without pending CallModel") unless @state.awaiting_model?
+      raise Completion::PromptError.prompt_cancelled(full_history, "model_response after streamed record") if @st_rec
+
+      cc = CompletionCall.new(@cc_index, turn.usage); @cc_index += 1
+      @completion_calls << cc; @usage = @usage + turn.usage
+      @items = turn.choice.to_a
+      @has_tc = @items.any?(&.tool_call)
+      @msg_id = turn.message_id; @orig_choice = turn.choice
+      @next_idx = 0; @exe_tools = turn.executable_tool_names; @alw_tools = turn.allowed_tool_names
+      @skipped.clear; @recovered = false; @any_skipped = false
+      @state = State::ResolvingToolCalls
+      advance_resolution
+    end
+
+    private def advance_resolution
+      while @next_idx < @items.size
+        item = @items[@next_idx]
+        if tc = item.tool_call
+          break unless @alw_tools.includes?(tc.function.name)
+        end
+        @next_idx += 1
+      end
+      return finalize_turn if @next_idx >= @items.size
+
+      tc = @items[@next_idx].tool_call || raise "Bug: expected tool_call at index #{@next_idx}"
+      ctx = InvalidToolCallContext.new(tool_name: tc.function.name, tool_call_id: tc.id,
+        args: tc.function.arguments.to_json, available_tools: @exe_tools,
+        allowed_tools: @alw_tools, tool_choice: @tool_choice,
+        chat_history: diagnostic_history, is_streaming: false)
+      ModelTurnOutcome.needs_resolution(ctx)
+    end
+
+    private def diagnostic_history
+      hist = full_history[0...-1]? || [] of Completion::Message
+      if !@items.empty? && (c = @orig_choice)
+        hist + [assistant_msg(@msg_id, c)]
+      else
+        hist
+      end
+    end
+
+    private def assistant_msg(id, choice : OneOrMany(Completion::AssistantContent))
+      items = choice.to_a.map(&.as(Completion::UserContent | Completion::AssistantContent))
+      mixed = OneOrMany(Completion::UserContent | Completion::AssistantContent).many(items)
+      Completion::Message.new(Completion::Message::Role::Assistant, mixed, id)
+    end
+
+    # ameba:disable Metrics/CyclomaticComplexity
+    private def finalize_turn
+      choice = @orig_choice
+      if @has_tc && (oname = @output_tool_name)
+        otc = @items.find { |i| tc = i.tool_call; tc && tc.function.name == oname }
+        if otc && (tc = otc.tool_call)
+          output = tc.function.arguments.to_json
+          missing = missing_output_fields(tc.function.arguments)
+          if !missing.empty? && can_reprompt?
+            @new_messages << assistant_msg(@msg_id, choice) if choice
+            @new_messages << Completion::Message.user("Missing field(s): #{missing.join(", ")}. Call `#{oname}` again.")
+            return reprompt
+          end
+          final = @items.reject(&.tool_call)
+          final << Completion::AssistantContent.text(output)
+          @new_messages << assistant_msg(@msg_id, OneOrMany(Completion::AssistantContent).many(final))
+          all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
+          @done_response = PromptResponse.new(output, @usage)
+            .with_messages(all_messages)
+            .with_completion_calls(@completion_calls.dup)
+          @state = State::Done
+          return ModelTurnOutcome.continue
+        end
+      end
+
+      if (c = @orig_choice) && !empty_choice?(c)
+        @new_messages << assistant_msg(@msg_id, c)
+      end
+
+      if @has_tc
+        @output_retries = 0
+        calls = @items.compact_map do |i|
+          if t = i.tool_call
+            PendingToolCall.new(tool_call: t, preresolved_result: @skipped[t.id]?)
+          end
+        end
+        @pending = calls; @state = State::ExecutingTools
+        return ModelTurnOutcome.continue(suppressed: @recovered)
+      end
+
+      if (oname = @output_tool_name) && (c = @orig_choice) && !empty_choice?(c) && can_reprompt?
+        unless text_ok?(choice_text(c))
+          @new_messages << Completion::Message.user("Provide answer by calling `#{oname}` tool.")
+          return reprompt
+        end
+      end
+
+      text = choice ? choice_text(choice) : ""
+      all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
+      @done_response = PromptResponse.new(text, @usage)
+        .with_messages(all_messages)
+        .with_completion_calls(@completion_calls.dup)
+      @state = State::Done
+      ModelTurnOutcome.continue
+    end
+
+    private def choice_text(c) : String
+      c.to_a.flat_map { |i| i.text.try(&.text) || [""] }.join("\n")
+    end
+
+    private def empty_choice?(c) : Bool
+      c.to_a.all? { |i| i.text.nil? && i.tool_call.nil? && i.reasoning.nil? }
+    end
+
+    private def can_reprompt?
+      @output_retries < @max_output_retries && @current_turn <= @max_turns + 1
+    end
+
+    private def reprompt
+      @output_retries += 1; @state = State::PreparingRequest
+      ModelTurnOutcome.turn_retried
+    end
+
+    private def missing_output_fields(args : JSON::Any) : Array(String)
+      s = @output_schema.try &.as_h?; return [] of String unless s
+      req = s["required"]?.try &.as_a?; return [] of String unless req
+      obj = args.as_h?
+      fields = req.compact_map(&.as_s?)
+      fields.reject { |field| obj.try &.has_key?(field) }
+    end
+
+    private def text_ok?(text : String) : Bool
+      v = JSON.parse(text.strip); missing_output_fields(v).empty?
+    rescue
+      false
+    end
+
+    def resolve_invalid_tool_call(action : InvalidToolCallHookAction) : ModelTurnOutcome
+      raise Completion::PromptError.prompt_cancelled(full_history, "no pending") unless @state.resolving_tool_calls?
+      tc = @items[@next_idx].tool_call || raise "Bug: expected tool_call at index #{@next_idx}"
+      raise Completion::PromptError.prompt_cancelled(full_history, "tool call is valid") if @alw_tools.includes?(tc.function.name)
+
+      case action.kind
+      in .fail?
+        raise Completion::PromptError.unknown_tool_call(tc.function.name, @exe_tools, @alw_tools, diagnostic_history)
+      in .retry?
+        retry_invalid_tool_call(tc, action.feedback)
+      in .repair?
+        repair_invalid_tool_call(action.tool_name)
+      in .skip?
+        skip_invalid_tool_call(tc, action.reason)
+      end
+    end
+
+    def tool_results(results : Array(Completion::UserContent)) : Nil
+      raise Completion::PromptError.prompt_cancelled(full_history, "tool_results without CallTools") unless @state.executing_tools?
+      raise Completion::PromptError.prompt_cancelled(full_history, "empty results") if results.empty?
+      unanswered = @pending.map(&.tool_call.id)
+      results.each do |result_item|
+        tr = result_item.tool_result
+        raise Completion::PromptError.prompt_cancelled(full_history, "not a tool result") unless tr
+        idx = unanswered.index(tr.id)
+        raise Completion::PromptError.prompt_cancelled(full_history, "unknown/duplicate: #{tr.id}") unless idx
+        unanswered.delete_at(idx)
+      end
+      raise Completion::PromptError.prompt_cancelled(full_history, "unanswered: #{unanswered}") unless unanswered.empty?
+      @new_messages << Completion::Message.user(results)
+      @state = State::PreparingRequest
+    end
+
+    private def advance
+      if @turn_has_tc
+        calls = @turn_items.compact_map do |i|
+          if t = i.tool_call
+            PendingToolCall.new(tool_call: t, preresolved_result: @skipped[t.id]?)
+          end
+        end
+        @pending = calls; @state = State::ExecutingTools
+        AgentRunStep.call_tools(calls)
+      else
+        text = @turn_items.empty? ? "" : choice_text(OneOrMany(Completion::AssistantContent).many(@turn_items))
+        all_messages = (@chat_history.try(&.dup) || [] of Completion::Message) + @new_messages
+        @done_response = PromptResponse.new(text, @usage)
+          .with_messages(all_messages)
+          .with_completion_calls(@completion_calls.dup)
+        @state = State::Done
+        AgentRunStep.done(done_response)
+      end
+    end
+
+    private def done_response : PromptResponse
+      @done_response || raise Completion::PromptError.prompt_cancelled(full_history, "done_response expected")
+    end
+
+    private def retry_invalid_tool_call(
+      tc : Completion::ToolCall,
+      feedback : String?,
+    ) : ModelTurnOutcome
+      if @itc_retries >= @max_invalid_tool_call_retries
+        raise Completion::PromptError.unknown_tool_call(tc.function.name, @exe_tools, @alw_tools, diagnostic_history)
+      end
+
+      @itc_retries += 1
+      if oc = @orig_choice
+        @new_messages << assistant_msg(@msg_id, oc)
+      end
+      if fb = feedback
+        @new_messages << Completion::Message.user(fb)
+      end
+      @state = State::PreparingRequest
+      ModelTurnOutcome.turn_retried
+    end
+
+    private def repair_invalid_tool_call(tool_name : String?) : ModelTurnOutcome
+      if rn = tool_name
+        raise Completion::PromptError.unknown_tool_call(rn, @exe_tools, @alw_tools, diagnostic_history) unless @alw_tools.includes?(rn)
+        old_tc = @items[@next_idx].tool_call || raise "Bug: expected tool_call at index #{@next_idx}"
+        new_fn = Completion::ToolFunction.new(rn, old_tc.function.arguments)
+        new_tc = Completion::ToolCall.new(old_tc.id, new_fn, old_tc.call_id, old_tc.signature, old_tc.additional_params)
+        @items[@next_idx] = Completion::AssistantContent.new(
+          Completion::AssistantContent::Kind::ToolCall, tool_call: new_tc)
+      end
+
+      @recovered = true
+      advance_resolution
+    end
+
+    private def skip_invalid_tool_call(
+      tc : Completion::ToolCall,
+      reason : String?,
+    ) : ModelTurnOutcome
+      raise Completion::PromptError.unknown_tool_call(tc.function.name, @exe_tools, @alw_tools, diagnostic_history) if @tool_choice.try(&.none?)
+
+      if skip_reason = reason
+        content = Completion::UserContent.tool_result(
+          tc.id,
+          OneOrMany(Completion::ToolResultContent).one(
+            Completion::ToolResultContent.text(skip_reason)
+          )
+        )
+        @skipped[tc.id] = content
+      end
+
+      @recovered = true
+      @any_skipped = true
+      @next_idx += 1
+      advance_resolution
+    end
+  end
+end

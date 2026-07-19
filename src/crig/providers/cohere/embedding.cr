@@ -108,7 +108,7 @@ module Crig
 
           response = @client.post_json("/v1/embed", body.to_json)
           text = response.body
-          raise Crig::Embeddings::EmbeddingError.new(text) if response.status_code >= 400
+          raise Crig::Embeddings::EmbeddingError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           parsed = JSON.parse(text)
           if error = parsed["message"]?.try(&.as_s?)

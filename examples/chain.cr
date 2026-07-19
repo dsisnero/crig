@@ -43,26 +43,9 @@ module Crig::Examples::Chain
       .build
   end
 
-  def self.build_chain(index, agent)
-    Crig::Pipeline.new
-      .chain(
-        Crig::Pipeline.parallel(
-          Crig::Pipeline.passthrough(String),
-          Crig::Pipeline.new.lookup(index, 1, DictionaryEntry),
-        )
-      )
-      .map(->(input : Tuple(String, Crig::Pipeline::Result(Array(Tuple(Float64, String, DictionaryEntry)), Crig::VectorStoreError))) do
-        prompt = input[0]
-        maybe_docs = input[1]
-
-        if error = maybe_docs.error
-          "Error: #{error}! Prompting without additional context\n\n#{prompt}"
-        else
-          docs = maybe_docs.value || [] of Tuple(Float64, String, DictionaryEntry)
-          "Non standard word definitions:\n#{docs.map(&.[2].text).join("\n")}\n\n#{prompt}"
-        end
-      end)
-      .prompt(agent)
+  def self.lookup_context(docs : Array(Tuple(Float64, String, DictionaryEntry)), prompt : String) : String
+    definitions = docs.map(&.[2].text).join("\n")
+    "Non standard word definitions:\n#{definitions}\n\n#{prompt}"
   end
 
   def self.default_prompt : String

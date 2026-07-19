@@ -1,6 +1,4 @@
 module Crig
-  alias ToolResolver = String, String -> String
-
   UNKNOWN_AGENT_NAME = "Unnamed Agent"
   AGENT_TOOL_NAME    = "agent_tool"
 
@@ -16,34 +14,41 @@ module Crig
   struct ToolServerHandle
     getter id : String
 
+    @resolver : Proc(String, String, String)?
+
     def initialize(
       @id : String,
-      @resolver : ToolResolver? = nil,
       @server : Crig::ToolServer? = nil,
       @inbox : Channel(Crig::ToolServerRequest)? = nil,
+      @resolver : Proc(String, String, String)? = nil,
     )
     end
 
-    def self.with_resolver(id : String, resolver : ToolResolver) : self
-      new(id, resolver)
+    def self.with_resolver(id : String, resolver : Proc(String, String, String)) : self
+      new(id, resolver: resolver)
     end
 
     def call_tool(name : String, arguments : String) : String
-      if response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments))
-        if response.kind.tool_executed?
-          result = response.result
-          return result if result
-        end
-        if response.kind.tool_error? && (error = response.error)
-          raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(Exception.new(error)))
-        end
-        raise Crig::ToolServerError.invalid_message(response)
+      # Resolver-based handle: call the resolver proc directly
+      if resolver = @resolver
+        return resolver.call(name, arguments)
       end
 
-      resolver = @resolver
-      raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' has no resolver") unless resolver
+      # Call the server directly if connected (avoids inbox fiber for tool calls)
+      if server = @server
+        return server.call_tool(name, arguments)
+      end
 
-      resolver.call(name, arguments)
+      response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments)) ||
+                 raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+      if response.kind.tool_executed?
+        result = response.result
+        return result if result
+      end
+      if response.kind.tool_error? && (error = response.error)
+        raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(Exception.new(error)))
+      end
+      raise Crig::ToolServerError.invalid_message(response)
     end
 
     def add_tool(tool : Crig::ToolDyn) : Nil
@@ -83,6 +88,13 @@ module Crig
     end
 
     def get_tool_defs(prompt : String?) : Array(Crig::Completion::ToolDefinition)
+      # Resolver-based handle: tools are defined by the model, not pre-registered
+      return [] of Crig::Completion::ToolDefinition if @resolver
+
+      if server = @server
+        return server.get_tool_definitions(prompt)
+      end
+
       response = request(Crig::ToolServerRequestMessageKind.get_tool_defs(prompt)) ||
                  raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
       definitions = response.tool_definitions
@@ -196,7 +208,7 @@ module Crig
     getter output_schema : JSON::Any?
     getter memory : Crig::Memory::ConversationMemory?
     getter default_conversation_id : String?
-    getter hook : Crig::PromptHook?
+    @hooks_arr : Array(AgentHook)? = nil
 
     def initialize(
       @model : M,
@@ -216,7 +228,6 @@ module Crig
       @output_schema : JSON::Any? = nil,
       @memory : Crig::Memory::ConversationMemory? = nil,
       @default_conversation_id : String? = nil,
-      @hook : Crig::PromptHook? = nil,
     )
     end
 
@@ -237,7 +248,8 @@ module Crig
     end
 
     def call(args : Crig::AgentToolArgs) : String
-      prompt(args.prompt).send
+      msg = Crig::Completion::Message.user(args.prompt)
+      runner(msg).run(msg).output
     end
 
     def call(args : String) : String
@@ -301,6 +313,41 @@ module Crig
       Crig::PromptRequest(Crig::Standard, M).from_agent(self, prompt)
     end
 
+    # Create a runner for this agent using the new v0.39.0 architecture.
+    # The runner drives the AgentRun state machine with hook dispatch.
+    def runner(prompt : Crig::Completion::Message) : AgentRunner(M)
+      runner = AgentRunner(M).new(@model)
+      if p = @preamble
+        runner = runner.preamble(p)
+      end
+      if t = @temperature
+        runner = runner.temperature(t)
+      end
+      if mt = @max_tokens
+        runner = runner.max_tokens(mt.to_u64)
+      end
+      if tc = @tool_choice
+        runner = runner.tool_choice(tc)
+      end
+      if tsh = @tool_server_handle
+        runner = runner.tool_server_handle(tsh)
+      end
+      runner = runner.max_turns(@default_max_turns || 0)
+      runner = runner.static_tools(@static_tools)
+      if ap = @additional_params
+        runner = runner.additional_params(ap)
+      end
+      if hl = @hooks_arr
+        hl.each { |hook| runner = runner.add_hook(hook) }
+      end
+      runner
+    end
+
+    def add_hook(hook : AgentHook) : self
+      @hooks_arr = (@hooks_arr || [] of AgentHook).tap(&.<<(hook))
+      self
+    end
+
     def prompt(prompt : Crig::Completion::Image | Crig::Completion::Audio | Crig::Completion::Document | Crig::Completion::UserContent) : Crig::PromptRequest(Crig::Standard, M)
       prompt(Crig::Completion::Message.from(prompt))
     end
@@ -332,12 +379,12 @@ module Crig
     end
 
     private def dynamic_context_documents(text : String) : Array(Crig::Completion::Request::Document)
-      Crig::Concurrency.flat_map_ordered(@dynamic_context) do |source|
+      Crig::Concurrency.map_ordered(@dynamic_context) do |source|
         request = Crig::VectorSearchRequest.new(text, source.sample.to_u64)
         source.search(request).map do |_, id, document|
           Crig::Completion::Request::Document.new(id, document.to_s)
         end
-      end
+      end.flatten
     end
 
     private def dynamic_tool_definitions(text : String) : Array(Crig::Completion::ToolDefinition)
@@ -359,24 +406,31 @@ module Crig
     end
   end
 
-  struct AgentToolAdapter(M)
+  struct AgentToolAdapter
     include Crig::ToolDyn
 
-    getter agent : Agent(M)
+    getter name : String
+    @defn : Crig::Completion::ToolDefinition
+    @callable : String -> String
 
-    def initialize(@agent : Agent(M))
+    def initialize(name : String, defn : Crig::Completion::ToolDefinition, &@callable : String -> String)
+      @name = name
+      @defn = defn
     end
 
-    def name : String
-      @agent.name
+    def self.new(agent : Agent(M)) : self forall M
+      new(
+        agent.name,
+        agent.definition(""),
+      ) { |args| agent.call(args) }
     end
 
     def definition(prompt : String) : Crig::Completion::ToolDefinition
-      @agent.definition(prompt)
+      @defn
     end
 
     def call(args : String) : String
-      @agent.call(args)
+      @callable.call(args)
     end
   end
 
@@ -402,7 +456,7 @@ module Crig
     getter output_schema_value : JSON::Any?
     getter memory_value : Crig::Memory::ConversationMemory?
     getter default_conversation_id_value : String?
-    getter hook_value : Crig::PromptHook?
+    getter hook_value : AgentHook?
 
     def initialize(
       @model : M,
@@ -422,7 +476,7 @@ module Crig
       @output_schema_value : JSON::Any? = nil,
       @memory_value : Crig::Memory::ConversationMemory? = nil,
       @default_conversation_id_value : String? = nil,
-      @hook_value : Crig::PromptHook? = nil,
+      @hook_value : AgentHook? = nil,
     )
     end
 
@@ -495,7 +549,7 @@ module Crig
 
     # Add a nested agent as a callable tool.
     def tool(tool : Crig::Agent(T)) : self forall T
-      adapter = Crig::AgentToolAdapter(T).new(tool)
+      adapter = Crig::AgentToolAdapter.new(tool)
       handle = tool_server_handle_for_builder
       handle.add_tool(adapter)
       self.class.new(
@@ -545,7 +599,7 @@ module Crig
 
     def tools(tools : Array(Crig::Agent(T))) : self forall T
       handle = tool_server_handle_for_builder
-      adapters = tools.map { |tool| Crig::AgentToolAdapter(T).new(tool) }
+      adapters = tools.map { |tool| Crig::AgentToolAdapter.new(tool) }
       adapters.each { |tool| handle.add_tool(tool) }
       self.class.new(
         @model,
@@ -650,12 +704,12 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value, @memory_value, id)
     end
 
-    def hook(hook : Crig::PromptHook) : self
+    def hook(hook : AgentHook) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, @tool_server_handle_value, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value, @memory_value, @default_conversation_id_value, hook)
     end
 
     def build : Agent(M)
-      Agent(M).new(
+      agent = Agent(M).new(
         @model,
         name: @name_value,
         description: @description_value,
@@ -673,8 +727,11 @@ module Crig
         output_schema: @output_schema_value,
         memory: @memory_value,
         default_conversation_id: @default_conversation_id_value,
-        hook: @hook_value,
       )
+      if h = @hook_value
+        agent.add_hook(h)
+      end
+      agent
     end
   end
 end

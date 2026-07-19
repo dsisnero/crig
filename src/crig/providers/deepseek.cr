@@ -160,6 +160,7 @@ module Crig
             output_tokens: @completion_tokens.to_i64,
             total_tokens: @total_tokens.to_i64,
             cached_input_tokens: (@prompt_tokens_details.try(&.cached_tokens) || 0).to_i64,
+            reasoning_tokens: (@completion_tokens_details.try(&.reasoning_tokens) || 0).to_i64,
           )
         end
       end
@@ -514,7 +515,7 @@ module Crig
         getter messages : Array(Message)
         getter temperature : Float64?
         getter tools : Array(ToolDefinition)
-        getter tool_choice : Crig::Providers::OpenRouter::ToolChoice?
+        getter tool_choice : JSON::Any?
         getter additional_params : JSON::Any?
 
         def initialize(
@@ -522,9 +523,36 @@ module Crig
           @messages : Array(Message),
           @temperature : Float64? = nil,
           @tools : Array(ToolDefinition) = [] of ToolDefinition,
-          @tool_choice : Crig::Providers::OpenRouter::ToolChoice? = nil,
+          @tool_choice : JSON::Any? = nil,
           @additional_params : JSON::Any? = nil,
         )
+        end
+
+        private def self.thinking_is_disabled?(additional_params : JSON::Any?) : Bool
+          additional_params
+            .try(&.as_h?)
+            .try(&.["thinking"]?)
+            .try(&.as_h?)
+            .try(&.["type"]?)
+            .try(&.as_s?) == "disabled"
+        end
+
+        private def self.deepseek_tool_choice(tool_choice : Crig::Completion::ToolChoice, additional_params : JSON::Any?) : JSON::Any?
+          thinking_disabled = thinking_is_disabled?(additional_params)
+          if tool_choice.auto?
+            JSON.parse(%("auto"))
+          elsif tool_choice.none?
+            JSON.parse(%("none"))
+          elsif tool_choice.required?
+            if thinking_disabled
+              JSON.parse(%("required"))
+            end
+          elsif tool_choice.specific?
+            names = tool_choice.function_names
+            if thinking_disabled && names.size == 1
+              JSON.parse(%({"type":"function","function":{"name":"#{names.first}"}}))
+            end
+          end
         end
 
         def self.from_request(default_model : String, req : Crig::Completion::Request::CompletionRequest) : self
@@ -539,7 +567,7 @@ module Crig
           req.chat_history.each do |message|
             full_history.concat(Message.from_core_messages(message))
           end
-          tool_choice = req.tool_choice.try { |choice| Crig::Providers::OpenRouter::ToolChoice.from_core(choice) }
+          tool_choice = req.tool_choice.try { |choice| deepseek_tool_choice(choice, req.additional_params) }
           new(
             model,
             full_history,
@@ -561,8 +589,8 @@ module Crig
               unless @tools.empty?
                 json.field "tools" { json.array { @tools.each(&.to_json(json)) } }
               end
-              if tool_choice = @tool_choice
-                json.field "tool_choice" { tool_choice.to_json_value.to_json(json) }
+              if tc = @tool_choice
+                json.field "tool_choice", tc
               end
             end
           end
@@ -688,7 +716,7 @@ module Crig
           payload = DeepseekCompletionRequest.from_request(@model, request).to_json_value
           response = @client.post_json("/chat/completions", payload.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           parsed = JSON.parse(text)
           body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json_value(value) }
@@ -715,7 +743,7 @@ module Crig
           request_payload = DeepseekCompletionRequest.new(payload.model, payload.messages, payload.temperature, payload.tools, payload.tool_choice, stream_params)
           response = @client.post_json("/chat/completions", request_payload.to_json_value.to_json, "text/event-stream")
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           profile = StreamingProfile.new
           items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(

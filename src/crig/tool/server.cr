@@ -133,7 +133,7 @@ module Crig
       @static_tool_names : Array(String) = [] of String,
       @dynamic_tools : Array(Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String))))) = [] of Tuple(Int32, Proc(Crig::VectorSearchRequest, Array(Tuple(Float64, String)))),
       @toolset : Crig::ToolSet = Crig::ToolSet.new,
-      @lock = Mutex.new,
+      @lock = Mutex.new(:reentrant),
     )
     end
 
@@ -184,20 +184,7 @@ module Crig
     end
 
     def run : Crig::ToolServerHandle
-      inbox = Channel(Crig::ToolServerRequest).new(1000)
-
-      spawn do
-        loop do
-          message = inbox.receive
-          if message.data.kind.call_tool?
-            spawn { handle_message(message) }
-          else
-            handle_message(message)
-          end
-        end
-      end
-
-      Crig::ToolServerHandle.new("tool-server", nil, self, inbox)
+      Crig::ToolServerHandle.new("tool-server", self)
     end
 
     def handle_message(message : Crig::ToolServerRequest) : Crig::ToolServerResponse
@@ -276,13 +263,9 @@ module Crig
       end
       raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_not_found(name)) unless tool
 
-      begin
-        tool.call(args)
-      rescue ex : Crig::ToolError
-        raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(ex))
-      end
-    rescue ex : Crig::ToolSetError
-      raise Crig::ToolServerError.toolset_error(ex)
+      tool.call(args)
+    rescue ex : Crig::ToolError
+      raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(ex))
     end
 
     def get_tool_definitions(text : String?) : Array(Crig::Completion::ToolDefinition)
@@ -298,13 +281,13 @@ module Crig
       tools = [] of Crig::Completion::ToolDefinition
 
       if query = text
-        dynamic_tool_ids = Crig::Concurrency.flat_map_ordered(dynamic_tools_snapshot) do |sample, index|
+        dynamic_tool_ids = Crig::Concurrency.map_ordered(dynamic_tools_snapshot) do |sample, index|
           request = Crig::VectorSearchRequest.builder
             .query(query)
             .samples(sample.to_u64)
             .build
-          index.call(request).map(&.[1])
-        end
+          index.call(request).map(&.[1]).as(Array(String))
+        end.flatten
 
         dynamic_tool_ids.each do |id|
           # Re-check under lock since tool definitions may have changed during search.

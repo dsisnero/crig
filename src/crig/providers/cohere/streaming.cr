@@ -122,7 +122,7 @@ module Crig
             request_payload = CohereCompletionRequest.new(payload.model, payload.messages, payload.documents, payload.temperature, payload.tools, payload.tool_choice, params)
             response = @model.client.post_json("/v2/chat", request_payload.to_json_value.to_json)
             text = response.body
-            raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+            raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
             Crig::Streaming::StreamingCompletionResponse(StreamingCompletionResponse).from_raw_choices(parse_streaming_choices(text))
           end
 

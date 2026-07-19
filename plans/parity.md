@@ -2,10 +2,28 @@
 
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
 - **Crates**: `crates/rig-core`
-- **Pinned upstream**: `536c44f9f3ef8cac10ead3535528c7ceab3497f9` (rig-core v0.38.x)
-- **Crystal tag**: `v0.38.4`
+- **Pinned upstream**: `06bc651f4c64d1673ba6af698f6c66602c5d313f` (rig-core v0.39.0)
+- **Crystal tag**: `v0.40.0`
 
-## v0.37.0 Features (completed)
+## v0.39.0 Features
+
+**Detailed plan**: [plans/v39.md](./v39.md) — all 24 chunks completed (14 C + 10 R)
+
+### Completed (24 chunks, 56 commits on `port/rig-v0.39.0`)
+- [x] **C1-C14**: Core porting chunks (data types, agent state machine, runner, streaming, examples)
+- [x] **R1**: Migrate PromptRequest.send() to AgentRunner
+- [x] **R2**: Sync DeepSeek provider (thinking/tool_choice suppression)
+- [x] **R3**: Sync OpenAI (Usage fields, from_http_response, composes_native_output)
+- [x] **R4**: Sync Anthropic (coerce_tool_input, null citations, composes_native_output)
+- [x] **R5**: Sync all remaining providers (Ollama, Cohere, Moonshot, Groq, etc. — from_http_response migration)
+- [x] **R6**: Sync http_client module (remove Constant/Never, add non_success_status/body)
+- [x] **R7**: ProviderResponseError helpers on all 7 capability errors
+- [x] **R8**: AgentRun streaming support (StreamedTurnAssembler, streamed_turn, record_streamed_completion_call)
+- [x] **R9**: Cleanup old hook types (PromptHook, HookAction, ToolCallHookAction — removed)
+- [x] **R10**: Full JSON::Serializable on AgentRun (completion_calls, from_json)
+- [ ] **R11**: ⬅️ you are here (this file) — inventory TSVs regeneration pending
+
+## v0.38.x Features (completed)
 
 - [x] Text::additional_params & Citation Support (22 tests)
 - [x] tool_use_prompt_tokens on Usage (4 tests)

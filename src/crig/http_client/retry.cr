@@ -50,49 +50,6 @@ module Crig
       # ameba:enable Naming/AccessorMethodName
     end
 
-    struct Constant
-      include RetryPolicy
-
-      property delay : Time::Span
-      getter max_retries : Int32?
-
-      def initialize(@delay : Time::Span, @max_retries : Int32? = nil)
-      end
-
-      def retry(error : Error, last_retry : {Int32, Time::Span}?) : Time::Span?
-        _ = error
-        return @delay unless last_retry
-
-        retry_num, _ = last_retry
-        if max_retries = @max_retries
-          return if retry_num >= max_retries
-        end
-        @delay
-      end
-
-      # ameba:disable Naming/AccessorMethodName
-      def set_reconnection_time(duration : Time::Span) : Nil
-        @delay = duration
-      end
-      # ameba:enable Naming/AccessorMethodName
-    end
-
-    struct Never
-      include RetryPolicy
-
-      def retry(error : Error, last_retry : {Int32, Time::Span}?) : Time::Span?
-        _ = error
-        _ = last_retry
-        nil
-      end
-
-      # ameba:disable Naming/AccessorMethodName
-      def set_reconnection_time(duration : Time::Span) : Nil
-        _ = duration
-      end
-      # ameba:enable Naming/AccessorMethodName
-    end
-
     DEFAULT_RETRY = ExponentialBackoff.new(
       300.milliseconds,
       2.0,
