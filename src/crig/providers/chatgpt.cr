@@ -207,7 +207,7 @@ module Crig
           chatgpt_request = create_chatgpt_request(request)
           response = @client.post("/responses", chatgpt_request.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.provider_error("ChatGPT (#{response.status_code}): #{text}") unless response.success?
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) unless response.success?
 
           body = Crig::Providers::OpenAI::CompletionResponsePayload.from_json(text)
           if error = body.error
@@ -226,7 +226,7 @@ module Crig
           chatgpt_request = create_chatgpt_request(request)
           response = @client.post("/responses", chatgpt_request.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.provider_error("ChatGPT (#{response.status_code}): #{text}") unless response.success?
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) unless response.success?
 
           raw_choices = parse_streaming_choices(text)
           Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
