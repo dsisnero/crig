@@ -1,13 +1,159 @@
-require "../../src/crig" # Ported from vendor/rig/examples/agent_with_durable_approval/src/main.rs## Durable human-in-the-loop tool-call approval using serializable AgentRun.# The entire run is JSON-serialized between approval rounds — the state# machine carries no live state, only serializable data. This mirrors# LangGraph's interrupt() + checkpointer pattern.## Requires DEEPSEEK_API_KEY.# Two tools: one read-only, one side-effecting.struct GetBalance  include Crig::ToolDyn  def name : String    "get_balance"  end    def description : String
+require "../../src/crig"
+
+struct GetBalance
+  include Crig::ToolDyn
+
+  def name : String
+    "get_balance"
+  end
+
+  def description : String
     "Get the balance of an account."
   end
 
   def parameters : JSON::Any
-    JSON.parse(%({      "type": "object",      "properties": { "account": { "type": "string", "description": "Account id" } },      "required": ["account"]    }))
-  end  def call(args : String) : String    account = JSON.parse(args)["account"].as_s    puts "   💰 [get_balance] -> #{account}"    "account #{account} balance: $1000"  endendstruct TransferFunds  include Crig::ToolDyn  def name : String    "transfer_funds"  end    def description : String
+    JSON.parse(%({"type":"object","properties":{"account":{"type":"string","description":"Account id"}},"required":["account"]}))
+  end
+
+  def call(args : String) : String
+    account = JSON.parse(args)["account"].as_s
+    "account #{account} balance: $1000"
+  end
+end
+
+struct TransferFunds
+  include Crig::ToolDyn
+
+  def name : String
+    "transfer_funds"
+  end
+
+  def description : String
     "Transfer funds to an account."
   end
 
   def parameters : JSON::Any
-    JSON.parse(%({      "type": "object",      "properties": {        "to": { "type": "string", "description": "Destination account id" },        "amount": { "type": "integer", "description": "Amount in whole dollars" }      },      "required": ["to", "amount"]    }))
-  end  def call(args : String) : String    parsed = JSON.parse(args)    to = parsed["to"].as_s    amount = parsed["amount"].as_i    puts "   🏦 [transfer_funds] -> $#{amount} to #{to}"    "transferred $#{amount} to #{to}"  endend# Fail-closed stdin reader.private def ask(prompt : String) : String?  print prompt  STDOUT.flush  line = STDIN.gets  line.try(&.strip).try { |s| s.empty? ? nil : s }endclient = Crig::Providers::DeepSeek::Client.from_envmodel = Crig::Providers::DeepSeek::DEEPSEEK_CHATcompletion_model = client.completion_model(model)agent = client.agent(model)  .preamble("You are a banking assistant. Use the tools to carry out the user's request. Call one tool at a time.")  .tool(GetBalance.new)  .tool(TransferFunds.new)  .buildts_handle = agent.tool_server_handle.not_nil!tool_defs = ts_handle.get_tool_defs(nil)tool_names = tool_defs.map(&.name)prompt = "Check the balance of account A-1, then transfer $500 to account B-2."puts "User: #{prompt}"state_path = File.join(Dir.tempdir, "rig_durable_approval.json")File.delete(state_path) if File.exists?(state_path)run = Crig::AgentRun.new(prompt).max_turns(10)loop do  step = run.next_step  case step.kind  in .call_model?    turn = step.turn.not_nil!    sprompt = step.prompt.not_nil!    shistory = step.history.not_nil!    puts "\n-> model call ##{turn}"    builder = agent.completion(sprompt, shistory)    response = completion_model.completion(builder.build)    turn_data = Crig::ModelTurn.new(      choice: response.choice,      usage: response.usage,      allowed_tools: tool_names,    )    outcome = run.model_response(turn_data)    while outcome.kind.needs_resolution?      ctx = outcome.context.not_nil!      STDERR.puts "model called unknown tool `#{ctx.tool_name}`"      outcome = run.resolve_invalid_tool_call(Crig::InvalidToolCallHookAction.fail)    end  in .call_tools?    # Durable pause: serialize the run, then reconstruct from file.    File.write(state_path, run.to_json)    puts "\n💾 run suspended to #{state_path}"    # --- imagine process exits here ---    resumed = Crig::AgentRun.from_json(File.read(state_path))    step2 = resumed.next_step    raise "expected CallTools" unless step2.call_tools?    calls = step2.calls.not_nil!    results = [] of Crig::Completion::UserContent    aborted = false    calls.each do |call|      if pr = call.preresolved_result        results << pr        next      end      id = call.tool_call.id      name = call.tool_call.function.name      args = call.tool_call.function.arguments.to_json      puts "\n⏸  approval required: #{name}(#{args})"      choice = ask("     [a]pprove / [d]eny / [e]dit args / a[b]ort? ")      case choice.try(&.downcase)      when "a", "approve"        output = ts_handle.call_tool(name, args)        results << Crig::Completion::UserContent.tool_result(id,          Crig::Completion::ToolResultContent.from_tool_output(output))      when "e", "edit"        edited = ask("     replacement JSON args (single line): ")        begin          value = edited ? JSON.parse(edited) : nil          if value            output = ts_handle.call_tool(name, value.to_json)            results << Crig::Completion::UserContent.tool_result(              id,              Crig::OneOrMany(Crig::Completion::ToolResultContent).one(                Crig::Completion::ToolResultContent.text(output),              ),            )          else            puts "     ! no valid JSON; denying"            results << Crig::Completion::UserContent.tool_result(id, "denied: no JSON")          end        rescue ex : JSON::ParseException          puts "     ! invalid JSON; denying"          results << Crig::Completion::UserContent.tool_result(id, "denied: invalid JSON")        end      when "b", "abort", nil        aborted = true        break      else        reason = if choice.try(&.downcase) == "d" || choice.try(&.downcase) == "deny"                   ask("     reason (shown to the model): ") || "denied by reviewer"                 else                   "denied: no clear approval given"                 end        results << Crig::Completion::UserContent.tool_result(id, reason)      end    end    if aborted      File.delete(state_path) if File.exists?(state_path)      puts "\nrun aborted by the reviewer"      exit 0    end    resumed.tool_results(results)    File.delete(state_path) if File.exists?(state_path)    run = resumed  in .done?    response = step.response.not_nil!    puts "\nDone: #{response.output}"    break  endend
+    JSON.parse(%({"type":"object","properties":{"to":{"type":"string","description":"Destination account id"},"amount":{"type":"integer","description":"Amount in whole dollars"}},"required":["to","amount"]}))
+  end
+
+  def call(args : String) : String
+    parsed = JSON.parse(args)
+    to = parsed["to"].as_s
+    amount = parsed["amount"].as_i
+    "transferred $#{amount} to #{to}"
+  end
+end
+
+private def ask(prompt : String) : String?
+  print prompt
+  STDOUT.flush
+  line = STDIN.gets
+  line.try(&.strip).try { |s| s.empty? ? nil : s }
+end
+
+client = Crig::Providers::DeepSeek::Client.from_env
+model = Crig::Providers::DeepSeek::DEEPSEEK_CHAT
+completion_model = client.completion_model(model)
+
+agent = client.agent(model)
+  .preamble("You are a banking assistant. Use the tools to carry out the user's request. Call one tool at a time.")
+  .tool(GetBalance.new)
+  .tool(TransferFunds.new)
+  .build
+
+ts_handle = agent.tool_server_handle.not_nil!
+tool_defs = ts_handle.get_tool_defs(nil)
+tool_names = tool_defs.map(&.name)
+
+prompt = "Check the balance of account A-1, then transfer $500 to account B-2."
+puts "User: #{prompt}"
+
+state_path = File.join(Dir.tempdir, "rig_durable_approval.json")
+File.delete(state_path) if File.exists?(state_path)
+
+run = Crig::AgentRun.new(prompt).max_turns(10)
+
+loop do
+  step = run.next_step
+
+  case step.kind
+  in .call_model?
+    turn = step.turn.not_nil!
+    sprompt = step.prompt.not_nil!
+    shistory = step.history.not_nil!
+    puts "\n-> model call ##{turn}"
+
+    builder = agent.completion(sprompt, shistory)
+    response = completion_model.completion(builder.build)
+
+    turn_data = Crig::ModelTurn.new(
+      choice: response.choice,
+      usage: response.usage,
+      allowed_tools: tool_names,
+    )
+
+    outcome = run.model_response(turn_data)
+
+    while outcome.kind.needs_resolution?
+      ctx = outcome.context.not_nil!
+      STDERR.puts "model called unknown tool `#{ctx.tool_name}`"
+      outcome = run.resolve_invalid_tool_call(Crig::InvalidToolCallHookAction.fail)
+    end
+  in .call_tools?
+    File.write(state_path, run.to_json)
+    puts "\n💾 run suspended to #{state_path}"
+
+    resumed = Crig::AgentRun.from_json(File.read(state_path))
+    step2 = resumed.next_step
+    raise "expected CallTools" unless step2.call_tools?
+
+    calls = step2.calls.not_nil!
+    results = [] of Crig::Completion::UserContent
+    aborted = false
+
+    calls.each do |call|
+      if pr = call.preresolved_result
+        results << pr
+        next
+      end
+
+      id = call.tool_call.id
+      name = call.tool_call.function.name
+      args = call.tool_call.function.arguments.to_json
+
+      puts "\n⏸  approval required: #{name}(#{args})"
+      choice = ask("     [a]pprove / [d]eny / [e]dit args / a[b]ort? ")
+
+      case choice.try(&.downcase)
+      when "a", "approve"
+        output = ts_handle.call_tool(name, args)
+        results << Crig::Completion::UserContent.tool_result(id,
+          Crig::Completion::ToolResultContent.from_tool_output(output))
+      when "b", "abort", nil
+        aborted = true
+        break
+      else
+        reason = if choice.try(&.downcase) == "d" || choice.try(&.downcase) == "deny"
+                   ask("     reason (shown to the model): ") || "denied by reviewer"
+                 else
+                   "denied: no clear approval given"
+                 end
+        results << Crig::Completion::UserContent.tool_result(id, reason)
+      end
+    end
+
+    if aborted
+      File.delete(state_path) if File.exists?(state_path)
+      puts "\nrun aborted by the reviewer"
+      exit 0
+    end
+
+    resumed.tool_results(results)
+    File.delete(state_path) if File.exists?(state_path)
+    run = resumed
+  in .done?
+    response = step.response.not_nil!
+    puts "\nDone: #{response.output}"
+    break
+  end
+end
