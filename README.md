@@ -11,7 +11,7 @@ Current upstream parity source:
 - Repository: `https://github.com/0xPlaygrounds/rig.git`
 - Submodule path: `vendor/rig`
 - Rust crate under port: `vendor/rig/crates/rig-core`
-- Pinned upstream commit: `06bc651f4c64d1673ba6af698f6c66602c5d313f`
+- Pinned upstream commit: `a551c4c5c5df5d26b07111c722cc26ffb2777561` (upstream `v0.40.0`)
 
 - [What is crig?](#what-is-crig)
 - [Features](#features)
@@ -174,7 +174,6 @@ puts
 | Cohere | ✓ | ✓ | ✓ | — | — | — |
 | Copilot | ✓ | — | ✓ | — | — | — |
 | DeepSeek | ✓ | ✓ | — | — | — | — |
-| Galadriel | ✓ | ✓ | — | — | — | — |
 | Gemini | ✓ | ✓ | ✓ | ✓ | — | — |
 | Groq | ✓ | ✓ | — | — | — | — |
 | Hugging Face | ✓ | ✓ | — | ✓ | ✓ | — |
@@ -264,7 +263,7 @@ Parity tracking lives under `plans/inventory/`. Bootstrap and validate:
 ```
 
 Current parity: 2,500 source items ported, 249 intentional divergences, 0 missing.
-Source parity tracks 2,155 API items; test parity tracks 507 upstream test equivalents.
+Source parity tracks 2,368 API items; test parity tracks 903 upstream test equivalents.
 
 ## Upstream Relationship
 

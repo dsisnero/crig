@@ -1,3 +1,19 @@
+## v0.42.0 (2026-07-24)
+
+### Added
+- **GenericCompletionModel** — shared `send_completion_request`/`send_streaming_request` helper with telemetry span lifecycle; 12 OpenAI-compatible providers migrated (OpenRouter, Perplexity, Together, Groq, Hyperbolic, DeepSeek, HuggingFace, Mira, ZAI, XiaomiMimo, MiniMax, Moonshot)
+- **`force_tool_first_turn` example** — demonstrates hook-based `ToolChoice::Required` patch gated on turn index vs the footgun of re-forcing every turn
+
+### Changed
+- **Telemetry** — `record_model_input`/`record_model_output` removed from `SpanCombinator`; `gen_ai.input.messages` no longer populated in `chat_span`; message-content span fields kept empty
+- **Tool metadata API** — flattened: `ToolDyn#definition(prompt)` replaced with `ToolDyn#description` + `ToolDyn#parameters`; `Crig.tool_definition(tool)` helper uses registered name as source of truth; all tool implementations and examples updated
+- **ChatGPT error handling** — non-2xx Responses API errors now use `from_http_response` instead of bare `provider_error`, preserving HTTP status and body via `provider_response_status()`/`provider_response_body()`
+- **Pinned upstream** — bumped to `a551c4c5c5df5d26b07111c722cc26ffb2777561` (upstream `v0.40.0`)
+- **Parity inventory** — `rust_source_parity.tsv` tracks 2,368 API items; `rust_test_parity.tsv` tracks 903 test equivalents
+
+### Removed
+- **Galadriel provider** — marked for removal (upstream `#695490d`); still present in crig pending final cleanup
+
 ## v0.41.0 (2026-07-12)
 
 ### Added
