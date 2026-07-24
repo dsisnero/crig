@@ -236,28 +236,24 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("together", @model, request.preamble, nil)
-
           payload = TogetherAICompletionRequest.from_request(@model, request)
-          response = @client.post_json("/v1/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          parsed = JSON.parse(text)
-          body = ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) do |value|
-            Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(value)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/v1/chat/completions",
+            payload.to_json,
+            "together",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            if parsed.as_h.has_key?("code")
+              error = Crig::Providers::Together::ApiErrorResponse.from_json(parsed.to_json)
+              raise Crig::Completion::CompletionError.new(error.message)
+            end
+            body = Crig::Providers::Together::ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) { |value| Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(value) }
+            response_body = body.ok || raise Crig::Completion::CompletionError.new("Together response did not include a success payload")
+            response_body.to_completion_response(parsed)
           end
-          if error = body.error
-            raise Crig::Completion::CompletionError.new(error.error)
-          end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("Together response did not include a success payload")
-          result = response_body.to_completion_response(parsed)
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
@@ -275,23 +271,24 @@ module Crig
             end,
           )
 
-          response = @client.post_json(
+          Crig::Providers::Internal::GenericCompletionModel.send_streaming_request(
+            @client,
             "/v1/chat/completions",
             request_payload.to_json,
-            {"Accept" => "text/event-stream"}
-          )
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
-
-          profile = StreamingProfile.new
-          items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(
-            text, profile
-          )
-          raw_choices = items.map { |item| Crig::Providers::Internal::OpenAICompatible.convert_to_raw_choice(item, Crig::Client::FinalCompletionResponse) }
-          raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).final_response(
-            profile.build_final_response(final_usage)
-          )
-          Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
+            "together",
+            @model,
+            request.preamble,
+          ) do |text|
+            profile = StreamingProfile.new
+            items, final_usage = Crig::Providers::Internal::OpenAICompatible.process_compatible_sse_stream(
+              text, profile
+            )
+            raw_choices = items.map { |item| Crig::Providers::Internal::OpenAICompatible.convert_to_raw_choice(item, Crig::Client::FinalCompletionResponse) }
+            raw_choices << Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse).final_response(
+              profile.build_final_response(final_usage)
+            )
+            Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
+          end
         end
 
         def into_agent_builder : Crig::AgentBuilder(self)

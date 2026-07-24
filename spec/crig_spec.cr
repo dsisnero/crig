@@ -432,14 +432,6 @@ class FakeSpanCombinator
   def record_response_metadata(response) : Nil
     @events << "response:#{response.get_response_id}:#{response.get_response_model_name}"
   end
-
-  def record_model_input(messages) : Nil
-    @events << "input:#{messages.to_json}"
-  end
-
-  def record_model_output(messages) : Nil
-    @events << "output:#{messages.to_json}"
-  end
 end
 
 struct DerivedCompanyMultiple
@@ -3154,13 +3146,13 @@ describe Crig::PromptResponse do
   end
 end
 
-describe Crig::FinalResponse do
+describe Crig::PromptResponse do
   it "supports the upstream empty helper and accessors" do
-    response = Crig::FinalResponse.empty
+    response = Crig::PromptResponse.empty
 
-    response.response.should eq("")
+    response.output.should eq("")
     response.usage.total_tokens.should eq(0)
-    response.history.should be_nil
+    response.messages.should be_nil
   end
 end
 
@@ -3172,8 +3164,8 @@ describe Crig::MultiTurnStreamItem(String) do
     )
 
     item.kind.final_response?.should be_true
-    item.final_response.try(&.response).should eq("done")
-    item.final_response.try(&.history).should be_nil
+    item.final_response.try(&.output).should eq("done")
+    item.final_response.try(&.messages).should be_nil
   end
 
   it "builds final-response items with history" do
@@ -3185,8 +3177,8 @@ describe Crig::MultiTurnStreamItem(String) do
     )
 
     item.kind.final_response?.should be_true
-    item.final_response.try(&.response).should eq("done")
-    item.final_response.try(&.history).should eq(history)
+    item.final_response.try(&.output).should eq("done")
+    item.final_response.try(&.messages).should eq(history)
   end
 end
 
@@ -3267,8 +3259,8 @@ describe Crig::StreamingPromptRequest(FakeCompletionClientModel) do
     response = agent.stream_prompt("hello").send
 
     response.chunks.should eq(["chunk:gpt-4o"])
-    response.response.try(&.response).should eq("chunk:gpt-4o")
-    response.response.try(&.history).should be_nil
+    response.response.try(&.output).should eq("chunk:gpt-4o")
+    response.response.try(&.messages).should be_nil
   end
 
   it "builds stream items for the one-shot streaming path" do
@@ -3281,10 +3273,10 @@ describe Crig::StreamingPromptRequest(FakeCompletionClientModel) do
     result.items[0].assistant_item.try(&.text).try(&.text).should eq("chunk:gpt-4o")
     result.items[1].kind.stream_assistant_item?.should be_true
     result.items[1].assistant_item.try(&.kind.final?).should be_true
-    result.items[1].assistant_item.try(&.final).try(&.response).should eq("chunk:gpt-4o")
+    result.items[1].assistant_item.try(&.final).try(&.output).should eq("chunk:gpt-4o")
     result.items[1].assistant_item.try(&.final).try(&.usage).try(&.total_tokens).should eq(3)
     result.items[2].kind.final_response?.should be_true
-    result.items[2].final_response.try(&.response).should eq("chunk:gpt-4o")
+    result.items[2].final_response.try(&.output).should eq("chunk:gpt-4o")
     result.items[2].final_response.try(&.usage).try(&.total_tokens).should eq(3)
   end
 
@@ -3294,7 +3286,7 @@ describe Crig::StreamingPromptRequest(FakeCompletionClientModel) do
 
     response = agent.stream_chat("hello", history).send
 
-    response.response.try(&.history).try(&.size).should eq(3)
+    response.response.try(&.messages).try(&.size).should eq(3)
   end
 end
 
@@ -3324,7 +3316,7 @@ describe Crig::StreamingPromptRequest(FakeMultiTurnStreamingModel) do
       .tool_server_handle(handle)
       .build
 
-    result = agent.stream_prompt("do tool work").multi_turn(3).send_items
+    result = agent.stream_prompt("do tool work").max_turns(3).send_items
 
     saw_tool_call = false
     saw_tool_result = false
@@ -3363,8 +3355,8 @@ describe Crig::StreamingPromptRequest(FakeMultiTurnStreamingModel) do
       .tool_server_handle(handle)
       .build
 
-    expect_raises(Crig::StreamingError, "PromptError: MaxTurnsExceeded: 0") do
-      agent.stream_prompt("do tool work").send_items
+    expect_raises(Crig::StreamingError, "PromptError: MaxTurnsExceeded: 1") do
+      agent.stream_prompt("do tool work").max_turns(1).send_items
     end
   end
 end
@@ -3386,7 +3378,7 @@ describe Crig::StreamingPromptRequest(FakeConcurrentToolTurnStreamingModel) do
       .tool_server_handle(handle)
       .build
 
-    result = agent.stream_prompt("do tool work").multi_turn(2).send_items
+    result = agent.stream_prompt("do tool work").max_turns(2).send_items
 
     tool_result_texts = result.items.compact_map do |item|
       next unless user_item = item.user_item
@@ -3416,7 +3408,7 @@ describe Crig::StreamingPromptRequest(FakeConcurrentToolTurnStreamingModel) do
         .tool_server_handle(handle)
         .build
 
-      result = agent.stream_prompt("do tool work").multi_turn(2).send_items
+      result = agent.stream_prompt("do tool work").max_turns(2).send_items
 
       tool_result_texts = result.items.compact_map do |item|
         next unless user_item = item.user_item
@@ -3425,7 +3417,7 @@ describe Crig::StreamingPromptRequest(FakeConcurrentToolTurnStreamingModel) do
       end
 
       tool_result_texts.should eq(["tool_one-result", "tool_two-result"])
-      result.items.any? { |item| item.final_response.try(&.response) == "done" }.should be_true
+      result.items.any? { |item| item.final_response.try(&.output) == "done" }.should be_true
     end
   end
 end
@@ -3436,7 +3428,7 @@ describe Crig::StreamingPromptRequest(FakeDeltaStreamingModel) do
       FakeDeltaStreamingModel.new(FakeDeltaStreamingModel::Mode::ReasoningDeltaAndToolCall)
     ).tool_server_handle(
       Crig::ToolServerHandle.with_resolver("shared-tools", ->(_name : String, _args : String) { "tool-result" })
-    ).default_max_turns(1).build
+    ).default_max_turns(2).build
 
     result = agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).send_items
 
@@ -3450,9 +3442,9 @@ describe Crig::StreamingPromptRequest(FakeDeltaStreamingModel) do
     result.items[4].assistant_item.try(&.kind.text?).should be_true
     result.items[4].assistant_item.try(&.text).try(&.text).should eq("done")
     result.items[5].assistant_item.try(&.kind.final?).should be_true
-    result.items[5].assistant_item.try(&.final).try(&.response).should eq("done")
+    result.items[5].assistant_item.try(&.final).try(&.output).should eq("done")
     result.items[5].assistant_item.try(&.final).try(&.usage).try(&.total_tokens).should eq(4)
-    final_history = result.items.last.final_response.try(&.history)
+    final_history = result.items.last.final_response.try(&.messages)
     final_history.should_not be_nil
     assistant_message = final_history.try(&.find do |message|
       message.role.assistant? && message.content.any? do |content|
@@ -3540,14 +3532,14 @@ describe "Crig streaming helpers" do
   end
 
   it "streams assistant chunks to an io and returns the final response" do
-    items = Crig::MultiTurnStreamingResult(Crig::FinalResponse).new([
-      Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-        Crig::StreamedAssistantContent(Crig::FinalResponse).text("hello ")
+    items = Crig::MultiTurnStreamingResult(Crig::PromptResponse).new([
+      Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+        Crig::StreamedAssistantContent(Crig::PromptResponse).text("hello ")
       ),
-      Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-        Crig::StreamedAssistantContent(Crig::FinalResponse).text("world")
+      Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+        Crig::StreamedAssistantContent(Crig::PromptResponse).text("world")
       ),
-      Crig::MultiTurnStreamItem(Crig::FinalResponse).final_response_with_history(
+      Crig::MultiTurnStreamItem(Crig::PromptResponse).final_response_with_history(
         "hello world",
         Crig::Completion::Usage.new(total_tokens: 2),
         [Crig::Completion::Message.user("hello")],
@@ -3558,7 +3550,7 @@ describe "Crig streaming helpers" do
     final_response = Crig.stream_to_stdout(items, io)
 
     io.to_s.should eq("Response: hello world")
-    final_response.response.should eq("hello world")
+    final_response.output.should eq("hello world")
     final_response.usage.total_tokens.should eq(2)
   end
 end
@@ -5411,20 +5403,16 @@ describe Crig::Telemetry do
     response.get_usage.not_nil!.output_tokens.should eq(2)
   end
 
-  it "records usage, response metadata, and serialized messages through the span combinator protocol" do
+  it "records usage and response metadata through the span combinator protocol" do
     span = FakeSpanCombinator.new
     response = FakeTelemetryResponse.new
 
     span.record_token_usage(response)
     span.record_response_metadata(response)
-    span.record_model_input(response.get_output_messages)
-    span.record_model_output(response.get_output_messages)
 
     span.events.should eq([
       "usage:1:2",
       "response:resp_123:fake-model",
-      %(input:["assistant:hi"]),
-      %(output:["assistant:hi"]),
     ])
   end
 end
@@ -11440,98 +11428,6 @@ describe Crig::Providers::Anthropic::CompletionModel do
   end
 end
 
-describe Crig::Providers::Anthropic::Decoders::LineDecoder do
-  it "ports the rust line decoder tests" do
-    decode_chunks = ->(chunks : Array(String), flush : Bool) do
-      Crig::Providers::Anthropic::Decoders::LineDecoder.decode_chunks(chunks, flush)
-    end
-
-    decode_chunks.call(["foo", " bar\nbaz"], false).should eq(["foo bar"])
-    decode_chunks.call(["foo", " bar\r\nbaz"], false).should eq(["foo bar"])
-    decode_chunks.call(["foo", " bar\r\nbaz"], true).should eq(["foo bar", "baz"])
-    decode_chunks.call(["foo", " bar", "baz\n", "thing\n"], false).should eq(["foo barbaz", "thing"])
-    decode_chunks.call(["foo", " bar", "baz\r\n", "thing\r\n"], false).should eq(["foo barbaz", "thing"])
-    decode_chunks.call(["foo", " bar\\nbaz\n"], false).should eq(["foo bar\\nbaz"])
-    decode_chunks.call(["foo", " bar\\r\\nbaz\n"], false).should eq(["foo bar\\r\\nbaz"])
-    decode_chunks.call(["foo\r", "\n", "bar"], true).should eq(["foo", "bar"])
-    decode_chunks.call(["foo\r", "bar"], true).should eq(["foo", "bar"])
-    decode_chunks.call(["foo\r", "bar\r"], true).should eq(["foo", "bar"])
-    decode_chunks.call(["foo\r", "\r", "bar"], true).should eq(["foo", "", "bar"])
-    decode_chunks.call(["foo\r", "\r", "bar"], false).should eq(["foo"])
-    decode_chunks.call(["foo\r", "\r", "\r", "\n", "bar", "\n"], false).should eq(["foo", "", "", "bar"])
-    decode_chunks.call(["foo\n", "\n", "\n", "bar", "\n"], false).should eq(["foo", "", "", "bar"])
-    decode_chunks.call(["foo\n\nbar"], true).should eq(["foo", "", "bar"])
-    decode_chunks.call(["foo", "\n", "\nbar"], true).should eq(["foo", "", "bar"])
-    decode_chunks.call(["foo\n", "\n", "bar"], true).should eq(["foo", "", "bar"])
-    decode_chunks.call(["foo", "\n", "\n", "bar"], true).should eq(["foo", "", "bar"])
-    decode_chunks.call(["foo\n", "\nbar"], true).should eq(["foo", "", "bar"])
-    decode_chunks.call([] of String, true).should eq([] of String)
-  end
-
-  it "ports multi-byte splitting and double-newline detection" do
-    decoder = Crig::Providers::Anthropic::Decoders::LineDecoder.new
-    decoder.decode(Bytes[0xd0_u8]).should eq([] of String)
-    decoder.decode(Bytes[0xb8_u8, 0xd0_u8, 0xb7_u8, 0xd0_u8]).should eq([] of String)
-    decoder.decode(Bytes[0xb2_u8, 0xd0_u8, 0xb5_u8, 0xd1_u8, 0x81_u8, 0xd1_u8, 0x82_u8, 0xd0_u8, 0xbd_u8, 0xd0_u8, 0xb8_u8]).should eq([] of String)
-    decoder.decode(Bytes[0x0a_u8]).should eq(["известни"])
-
-    find = ->(buffer : String) { Crig::Providers::Anthropic::Decoders::LineDecoder.find_double_newline_index(buffer.to_slice) }
-    find.call("foo\n\nbar").should eq(5)
-    find.call("\n\nbar").should eq(2)
-    find.call("foo\n\n").should eq(5)
-    find.call("\n\n").should eq(2)
-    find.call("foo\r\rbar").should eq(5)
-    find.call("\r\rbar").should eq(2)
-    find.call("foo\r\r").should eq(5)
-    find.call("\r\r").should eq(2)
-    find.call("foo\r\n\r\nbar").should eq(7)
-    find.call("\r\n\r\nbar").should eq(4)
-    find.call("foo\r\n\r\n").should eq(7)
-    find.call("\r\n\r\n").should eq(4)
-    find.call("foo\nbar").should eq(-1)
-    find.call("foo\rbar").should eq(-1)
-    find.call("foo\r\nbar").should eq(-1)
-    find.call("").should eq(-1)
-    find.call("foo\r\n\r").should eq(-1)
-    find.call("foo\r\n").should eq(-1)
-  end
-end
-
-describe Crig::Providers::Anthropic::Decoders::SSEDecoder do
-  it "decodes event lines and flushes complete server-sent events" do
-    decoder = Crig::Providers::Anthropic::Decoders::SSEDecoder.new
-
-    decoder.decode("event: message").should be_nil
-    decoder.decode("data: first").should be_nil
-    decoder.decode("data: second").should be_nil
-    event = decoder.decode("")
-
-    event.not_nil!.event.should eq("message")
-    event.not_nil!.data.should eq("first\nsecond")
-    event.not_nil!.raw.should eq(["event: message", "data: first", "data: second"])
-  end
-
-  it "ports sse chunk extraction and message iteration" do
-    extract = Crig::Providers::Anthropic::Decoders::SSEDecoder.extract_sse_chunk("data: one\n\ndata: two\n\nrest".to_slice)
-    extract.should_not be_nil
-    extract.not_nil![0].should eq("data: one\n\n".to_slice)
-    extract.not_nil![1].should eq("data: two\n\nrest".to_slice)
-
-    events = Crig::Providers::Anthropic::Decoders::SSEDecoder.iter_sse_messages([
-      "event: message\ndata: hello\n\n".to_slice,
-      ":comment\ndata: world\n\n".to_slice,
-      "data: [DONE]\n\n".to_slice,
-    ])
-
-    events.size.should eq(3)
-    events[0].event.should eq("message")
-    events[0].data.should eq("hello")
-    events[1].event.should be_nil
-    events[1].data.should eq("world")
-    events[2].data.should eq("[DONE]")
-  end
-end
-
 describe Crig::Providers::Anthropic::StreamingEvent do
   it "ports anthropic streaming delta deserialization tests" do
     thinking_delta = Crig::Providers::Anthropic::ContentDelta.from_json_value(
@@ -15234,8 +15130,8 @@ describe Crig::Examples::AgentStreamChat, tags: %w[examples agent_stream_chat] d
     )
     final_response = response.response.not_nil!
 
-    final_response.response.should eq("chunk:gpt-4")
-    final_response.history.not_nil!.first.rag_text.should eq("Tell me a joke!")
+    final_response.output.should eq("chunk:gpt-4")
+    final_response.messages.not_nil!.first.rag_text.should eq("Tell me a joke!")
   end
 end
 
@@ -15256,7 +15152,7 @@ describe Crig::Examples::OpenAIStreaming, tags: %w[examples openai_streaming] do
     )
     final_response = Crig::Examples::OpenAIStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:gpt-4o-mini")
+    final_response.output.should eq("chunk:gpt-4o-mini")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OpenAIStreaming::PROMPT)
   end
 end
@@ -15281,7 +15177,7 @@ describe Crig::Examples::OpenAIStreamingWithTools, tags: %w[examples openai_stre
     )
     final_response = Crig::Examples::OpenAIStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:gpt-4o")
+    final_response.output.should eq("chunk:gpt-4o")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OpenAIStreamingWithTools::PROMPT)
   end
 end
@@ -15307,7 +15203,7 @@ describe Crig::Examples::OpenAIStreamingWithToolsOtel, tags: %w[examples openai_
     response = Crig::Examples::OpenAIStreamingWithToolsOtel.run_stream(agent)
     final_response = Crig::Examples::OpenAIStreamingWithToolsOtel.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:gpt-4o")
+    final_response.output.should eq("chunk:gpt-4o")
   end
 end
 
@@ -15329,7 +15225,7 @@ describe Crig::Examples::OllamaStreaming, tags: %w[examples ollama_streaming] do
     )
     final_response = Crig::Examples::OllamaStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:llama3.2")
+    final_response.output.should eq("chunk:llama3.2")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OllamaStreaming::PROMPT)
   end
 end
@@ -15355,7 +15251,7 @@ describe Crig::Examples::OllamaStreamingWithTools, tags: %w[examples ollama_stre
     )
     final_response = Crig::Examples::OllamaStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:llama3.2")
+    final_response.output.should eq("chunk:llama3.2")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OllamaStreamingWithTools::PROMPT)
   end
 end
@@ -15493,7 +15389,7 @@ describe Crig::Examples::AnthropicStreaming, tags: %w[examples anthropic_streami
     )
     final_response = Crig::Examples::AnthropicStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:claude-stream")
+    final_response.output.should eq("chunk:claude-stream")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::AnthropicStreaming::PROMPT)
   end
 end
@@ -15518,7 +15414,7 @@ describe Crig::Examples::AnthropicStreamingWithTools, tags: %w[examples anthropi
     )
     final_response = Crig::Examples::AnthropicStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:claude-4-sonnet")
+    final_response.output.should eq("chunk:claude-4-sonnet")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::AnthropicStreamingWithTools::PROMPT)
   end
 end
@@ -15540,7 +15436,7 @@ describe Crig::Examples::CohereStreaming, tags: %w[examples cohere_streaming] do
     )
     final_response = Crig::Examples::CohereStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:command")
+    final_response.output.should eq("chunk:command")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::CohereStreaming::PROMPT)
   end
 end
@@ -15565,7 +15461,7 @@ describe Crig::Examples::CohereStreamingWithTools, tags: %w[examples cohere_stre
     )
     final_response = Crig::Examples::CohereStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:command-r")
+    final_response.output.should eq("chunk:command-r")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::CohereStreamingWithTools::PROMPT)
   end
 end
@@ -15595,7 +15491,7 @@ describe Crig::Examples::DeepSeekStreaming, tags: %w[examples deepseek_streaming
     )
     final_response = Crig::Examples::DeepSeekStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:deepseek-chat")
+    final_response.output.should eq("chunk:deepseek-chat")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::DeepSeekStreaming::PROMPT)
   end
 
@@ -15608,7 +15504,7 @@ describe Crig::Examples::DeepSeekStreaming, tags: %w[examples deepseek_streaming
     )
     final_response = Crig::Examples::DeepSeekStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:deepseek-chat")
+    final_response.output.should eq("chunk:deepseek-chat")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::DeepSeekStreaming::CALCULATOR_PROMPT)
   end
 end
@@ -15633,7 +15529,7 @@ describe Crig::Examples::GeminiStreaming, tags: %w[examples gemini_streaming] do
     )
     final_response = Crig::Examples::GeminiStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:gemini-2.0-flash")
+    final_response.output.should eq("chunk:gemini-2.0-flash")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::GeminiStreaming::PROMPT)
   end
 end
@@ -15659,7 +15555,7 @@ describe Crig::Examples::GeminiStreamingWithTools, tags: %w[examples gemini_stre
     )
     final_response = Crig::Examples::GeminiStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:gemini-2.5-flash")
+    final_response.output.should eq("chunk:gemini-2.5-flash")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::GeminiStreamingWithTools::PROMPT)
   end
 end
@@ -15681,7 +15577,7 @@ describe Crig::Examples::MultiTurnStreamingGemini, tags: %w[examples multi_turn_
     )
     final_response = Crig::Examples::MultiTurnStreamingGemini.stream_to_stdout(result, IO::Memory.new)
 
-    final_response.response.should eq("chunk:gemini-2.5-flash")
+    final_response.output.should eq("chunk:gemini-2.5-flash")
   end
 end
 
@@ -15740,7 +15636,7 @@ describe Crig::Examples::GroqStreamingReasoning, tags: %w[examples groq_streamin
     )
     final_response = Crig::Examples::GroqStreamingReasoning.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:deepseek-r1-distill")
+    final_response.output.should eq("chunk:deepseek-r1-distill")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::GroqStreamingReasoning::PROMPT)
   end
 end
@@ -15765,7 +15661,7 @@ describe Crig::Examples::OpenRouterStreamingWithTools, tags: %w[examples openrou
     )
     final_response = Crig::Examples::OpenRouterStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:google/gemini-2.0-flash-001")
+    final_response.output.should eq("chunk:google/gemini-2.0-flash-001")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::OpenRouterStreamingWithTools::PROMPT)
   end
 end
@@ -15934,7 +15830,7 @@ describe Crig::Examples::TogetherStreaming, tags: %w[examples together_streaming
     )
     final_response = Crig::Examples::TogetherStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:meta-llama/Llama-3-8b-chat-hf")
+    final_response.output.should eq("chunk:meta-llama/Llama-3-8b-chat-hf")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::TogetherStreaming::PROMPT)
   end
 end
@@ -15959,7 +15855,7 @@ describe Crig::Examples::TogetherStreamingWithTools, tags: %w[examples together_
     )
     final_response = Crig::Examples::TogetherStreamingWithTools.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:togethercomputer/llama-2-70b-chat")
+    final_response.output.should eq("chunk:togethercomputer/llama-2-70b-chat")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::TogetherStreamingWithTools::PROMPT)
   end
 end
@@ -15981,7 +15877,7 @@ describe Crig::Examples::XAIStreaming, tags: %w[examples xai_streaming] do
     )
     final_response = Crig::Examples::XAIStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:grok-3-mini")
+    final_response.output.should eq("chunk:grok-3-mini")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::XAIStreaming::PROMPT)
   end
 end
@@ -16047,7 +15943,7 @@ describe Crig::Examples::HuggingFaceStreaming, tags: %w[examples huggingface_str
     )
     final_response = Crig::Examples::HuggingFaceStreaming.stream_to_stdout(response, IO::Memory.new)
 
-    final_response.response.should eq("chunk:llama-3.1")
+    final_response.output.should eq("chunk:llama-3.1")
     model.last_request.not_nil!.chat_history.last.rag_text.should eq(Crig::Examples::HuggingFaceStreaming::PROMPT)
   end
 end
@@ -16925,7 +16821,7 @@ describe Crig::Examples::MultiTurnStreaming, tags: %w[examples multi_turn_stream
     )
     final_response = Crig::Examples::MultiTurnStreaming.stream_to_stdout(result, IO::Memory.new)
 
-    final_response.response.should eq("chunk:claude-3-5-sonnet")
+    final_response.output.should eq("chunk:claude-3-5-sonnet")
   end
 end
 

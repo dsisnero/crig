@@ -682,29 +682,26 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("huggingface", @model, request.preamble, nil)
-
           request_model = request.model || @model
           model_identifier = @client.subprovider.model_identifier(request_model)
           payload = HuggingfaceCompletionRequest.from_request(model_identifier, request)
           path = @client.subprovider.completion_endpoint(request_model)
-          response = @client.post_json(path, payload.to_json)
-          body = response.body
-          raise Crig::Completion::CompletionError.new("#{response.status_code}: #{body}") if response.status_code >= 400
 
-          parsed = JSON.parse(body)
-          envelope = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
-          if error = envelope.error
-            raise Crig::Completion::CompletionError.new(error.to_json)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            path,
+            payload.to_json,
+            "huggingface",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            envelope = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
+            if error = envelope.error
+              raise Crig::Completion::CompletionError.new(error.to_json)
+            end
+            completion_response = envelope.ok || raise Crig::Completion::CompletionError.new("HuggingFace response did not include a success payload")
+            completion_response.to_completion_response
           end
-          completion_response = envelope.ok || raise Crig::Completion::CompletionError.new("HuggingFace response did not include a success payload")
-          result = completion_response.to_completion_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

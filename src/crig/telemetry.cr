@@ -132,16 +132,6 @@ module Crig
           record_field(GEN_AI_RESPONSE_MODEL, rmodel)
         end
       end
-
-      def record_model_input(messages) : Nil
-        return if disabled?
-        record_field(GEN_AI_INPUT_MESSAGES, messages.to_json)
-      end
-
-      def record_model_output(messages) : Nil
-        return if disabled?
-        record_field(GEN_AI_OUTPUT_MESSAGES, messages.to_json)
-      end
     end
 
     class Span
@@ -172,9 +162,6 @@ module Crig
         span.record_field(GEN_AI_REQUEST_MODEL, model)
         if preamble
           span.record_field(GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
-        end
-        if messages = request_messages_json
-          span.record_field(GEN_AI_INPUT_MESSAGES, messages)
         end
         span
       end

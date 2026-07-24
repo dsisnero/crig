@@ -304,36 +304,39 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("perplexity", @model, request.preamble, nil)
-
           payload = PerplexityCompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_json("/v1/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          parsed = JSON.parse(text)
-          body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json_value(value) }
-          if error = body.error
-            raise Crig::Completion::CompletionError.new(error.message)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/v1/chat/completions",
+            payload.to_json,
+            "perplexity",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            if err_msg = parsed["message"]?.try(&.as_s?)
+              raise Crig::Completion::CompletionError.new(err_msg)
+            end
+            body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json_value(value) }
+            response_body = body.ok || raise Crig::Completion::CompletionError.new("Perplexity response did not include a success payload")
+            response_body.to_crig_response
           end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("Perplexity response did not include a success payload")
-          result = response_body.to_crig_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
           payload = PerplexityCompletionRequest.from_request(@model, request, true).to_json_value
-          response = @client.post_json("/chat/completions", payload.to_json, {"Accept" => "text/event-stream"})
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          raw_choices = parse_streaming_choices(text)
-          Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
+          Crig::Providers::Internal::GenericCompletionModel.send_streaming_request(
+            @client,
+            "/chat/completions",
+            payload.to_json,
+            "perplexity",
+            @model,
+            request.preamble,
+          ) do |text|
+            raw_choices = parse_streaming_choices(text)
+            Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
+          end
         end
 
         private def parse_streaming_choices(text : String) : Array(Crig::RawStreamingChoice(Crig::Client::FinalCompletionResponse))

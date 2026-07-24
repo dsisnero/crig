@@ -156,17 +156,10 @@ module Crig
       end
 
       # ameba:disable Metrics/CyclomaticComplexity
-      def self.send_compatible_streaming_request(
-        client : Client,
-        request : OpenrouterCompletionRequest,
+      def self.send_compatible_streaming_response(
+        raw_text : String,
       ) : Crig::StreamingCompletionResponse(Crig::Providers::OpenRouter::StreamingCompletionResponse)
-        response = client.post_json(
-          "/chat/completions",
-          request.to_json_value.to_json,
-          {"Accept" => "text/event-stream"}
-        )
-        text = response.body
-        raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+        text = raw_text
 
         raw_choices = [] of Crig::RawStreamingChoice(Crig::Providers::OpenRouter::StreamingCompletionResponse)
         tool_calls = {} of Int32 => {String, String, JSON::Any, String?, JSON::Any?}

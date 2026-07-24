@@ -711,26 +711,23 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("deepseek", @model, request.preamble, nil)
-
           payload = DeepseekCompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_json("/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
-          parsed = JSON.parse(text)
-          body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json_value(value) }
-          if error = body.error
-            raise Crig::Completion::CompletionError.new(error.message)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/chat/completions",
+            payload.to_json,
+            "deepseek",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json_value(value) }
+            if error = body.error
+              raise Crig::Completion::CompletionError.new(error.message)
+            end
+            response_body = body.ok || raise Crig::Completion::CompletionError.new("DeepSeek response did not include a success payload")
+            response_body.to_crig_response
           end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("DeepSeek response did not include a success payload")
-          result = response_body.to_crig_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

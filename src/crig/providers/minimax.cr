@@ -241,28 +241,25 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("minimax", @model, request.preamble, nil)
-
           payload = MiniMaxCompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_json("/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
-          parsed = JSON.parse(text)
-          body = ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) do |value|
-            Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(value)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/chat/completions",
+            payload.to_json,
+            "minimax",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            body = ApiResponse(Crig::Providers::OpenAI::Chat::CompletionResponse).from_json_value(parsed) do |value|
+              Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(value)
+            end
+            if error = body.error
+              raise Crig::Completion::CompletionError.new(error.message)
+            end
+            response_body = body.ok || raise Crig::Completion::CompletionError.new("MiniMax response did not include a success payload")
+            response_body.to_completion_response(parsed)
           end
-          if error = body.error
-            raise Crig::Completion::CompletionError.new(error.message)
-          end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("MiniMax response did not include a success payload")
-          result = response_body.to_completion_response(parsed)
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

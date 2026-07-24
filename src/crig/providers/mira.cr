@@ -400,21 +400,18 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("mira", @model, request.preamble, nil)
-
           payload = MiraCompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_json("/v1/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
-          parsed = CompletionResponse.from_json_value(JSON.parse(text))
-          result = parsed.to_crig_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/v1/chat/completions",
+            payload.to_json,
+            "mira",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            CompletionResponse.from_json_value(parsed).to_crig_response
           end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

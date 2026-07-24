@@ -1381,26 +1381,23 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("openrouter", @model, request.preamble, nil)
-
           payload = self.class.build_request(@model, request, @strict_tools)
-          response = @client.post_json("/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          parsed = JSON.parse(text)
-          body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
-          if error = body.error
-            raise Crig::Completion::CompletionError.new(error.message)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/chat/completions",
+            payload.to_json,
+            "openrouter",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            if err_msg = parsed["message"]?.try(&.as_s?)
+              raise Crig::Completion::CompletionError.new(err_msg)
+            end
+            body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
+            response_body = body.ok || raise Crig::Completion::CompletionError.new("OpenRouter response did not include a success payload")
+            response_body.to_completion_response
           end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("OpenRouter response did not include a success payload")
-          result = response_body.to_completion_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
@@ -1411,7 +1408,17 @@ module Crig
                      JSON.parse(%({"stream":true}))
                    end
           request_payload = OpenrouterCompletionRequest.new(payload.model, payload.messages, payload.temperature, payload.tools, payload.tool_choice, params)
-          Crig::Providers::OpenRouter.send_compatible_streaming_request(@client, request_payload)
+
+          Crig::Providers::Internal::GenericCompletionModel.send_streaming_request(
+            @client,
+            "/chat/completions",
+            request_payload.to_json_value.to_json,
+            "openrouter",
+            @model,
+            request.preamble,
+          ) do |text|
+            Crig::Providers::OpenRouter.send_compatible_streaming_response(text)
+          end
         end
 
         def into_agent_builder : Crig::AgentBuilder(self)

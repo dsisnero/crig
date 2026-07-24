@@ -348,26 +348,23 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("hyperbolic", @model, request.preamble, nil)
-
           payload = HyperbolicCompletionRequest.from_request(@model, request)
-          response = @client.post_json("/v1/chat/completions", payload.to_json)
-          body = response.body
-          raise Crig::Completion::CompletionError.from_http_response(response.status_code, body) if response.status_code >= 400
 
-          parsed = JSON.parse(body)
-          envelope = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
-          if error = envelope.error
-            raise Crig::Completion::CompletionError.new(error.message)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/v1/chat/completions",
+            payload.to_json,
+            "hyperbolic",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            if err_msg = parsed["message"]?.try(&.as_s?)
+              raise Crig::Completion::CompletionError.new(err_msg)
+            end
+            envelope = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
+            completion_response = envelope.ok || raise Crig::Completion::CompletionError.new("Hyperbolic response did not include a success payload")
+            completion_response.to_completion_response
           end
-          completion_response = envelope.ok || raise Crig::Completion::CompletionError.new("Hyperbolic response did not include a success payload")
-          result = completion_response.to_completion_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
