@@ -2,26 +2,36 @@
 
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
 - **Crates**: `crates/rig-core`
-- **Pinned upstream**: `06bc651f4c64d1673ba6af698f6c66602c5d313f` (rig-core v0.39.0)
+- **Pinned upstream**: `a551c4c5c5df5d26b07111c722cc26ffb2777561` (rig-core v0.40.0)
 - **Crystal tag**: `v0.40.0`
 
-## v0.39.0 Features
+## v0.40.0 Features
+
+**Detailed plan**: [plans/v40.md](./v40.md)
+
+### Completed
+- [x] Hook system v2 — composable middleware (`AgentRunner`, `HookStack`, `Flow`)
+- [x] Structured tool-execution results (`ToolResult`, `ToolCallExtensions`)
+- [x] Agent builder API paper cuts, prelude expansion, `OutputMode`
+- [x] Pipeline module removal
+- [x] ThinkTool moved to `tool::builtin`
+- [x] `PromptResponse`/`FinalResponse` unification
+- [x] Provider error-response inspection
+- [x] `id` module (nanoid → fastrand)
+
+### Remaining (see plans/v40.md)
+- [ ] Exact max turns budget enforcement
+- [ ] Provider collapses onto `GenericCompletionModel<Ext>` (deepseek, groq, hyperbolic, mira, moonshot, perplexity, azure, llamafile, openrouter, together, huggingface)
+- [ ] Galadriel provider removal (verify)
+- [ ] Dead-code cleanups (evals, anthropic decoders, telemetry, generation wrapper traits)
+- [ ] Flatten Tool metadata API (ToolDef deprecation)
+- [ ] Various fixes (chatgpt errors, telemetry spans, prelude re-exports)
+
+## v0.39.0 Features (previously completed)
 
 **Detailed plan**: [plans/v39.md](./v39.md) — all 24 chunks completed (14 C + 10 R)
 
 ### Completed (24 chunks, 56 commits on `port/rig-v0.39.0`)
-- [x] **C1-C14**: Core porting chunks (data types, agent state machine, runner, streaming, examples)
-- [x] **R1**: Migrate PromptRequest.send() to AgentRunner
-- [x] **R2**: Sync DeepSeek provider (thinking/tool_choice suppression)
-- [x] **R3**: Sync OpenAI (Usage fields, from_http_response, composes_native_output)
-- [x] **R4**: Sync Anthropic (coerce_tool_input, null citations, composes_native_output)
-- [x] **R5**: Sync all remaining providers (Ollama, Cohere, Moonshot, Groq, etc. — from_http_response migration)
-- [x] **R6**: Sync http_client module (remove Constant/Never, add non_success_status/body)
-- [x] **R7**: ProviderResponseError helpers on all 7 capability errors
-- [x] **R8**: AgentRun streaming support (StreamedTurnAssembler, streamed_turn, record_streamed_completion_call)
-- [x] **R9**: Cleanup old hook types (PromptHook, HookAction, ToolCallHookAction — removed)
-- [x] **R10**: Full JSON::Serializable on AgentRun (completion_calls, from_json)
-- [ ] **R11**: ⬅️ you are here (this file) — inventory TSVs regeneration pending
 
 ## v0.38.x Features (completed)
 
