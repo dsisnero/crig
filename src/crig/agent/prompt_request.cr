@@ -83,21 +83,31 @@ module Crig
     getter usage : Crig::Completion::Usage
     getter messages : Array(Crig::Completion::Message)?
     getter completion_calls : Array(CompletionCall)
+    getter content : Crig::OneOrMany(Crig::Completion::AssistantContent)
 
     def initialize(
       @output : String,
       @usage : Crig::Completion::Usage,
       @messages : Array(Crig::Completion::Message)? = nil,
       @completion_calls : Array(CompletionCall) = [] of CompletionCall,
+      @content : Crig::OneOrMany(Crig::Completion::AssistantContent) = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text("")),
     )
     end
 
     def with_messages(messages : Array(Crig::Completion::Message)) : self
-      self.class.new(@output, @usage, messages, @completion_calls)
+      self.class.new(@output, @usage, messages, @completion_calls, @content)
     end
 
     def with_completion_calls(calls : Array(CompletionCall)) : self
-      self.class.new(@output, @usage, @messages, calls)
+      self.class.new(@output, @usage, @messages, calls, @content)
+    end
+
+    def with_content(content : Crig::OneOrMany(Crig::Completion::AssistantContent)) : self
+      self.class.new(@output, @usage, @messages, @completion_calls, content)
+    end
+
+    def self.empty : self
+      new("", Crig::Completion::Usage.new)
     end
 
     def to_s(io : IO) : Nil
@@ -159,7 +169,7 @@ module Crig
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
       runner = agent.runner(prompt_message)
-        .max_turns(agent.default_max_turns || 0)
+        .max_turns(agent.default_max_turns || 1)
       new(agent, prompt_message, runner, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 

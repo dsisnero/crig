@@ -24,21 +24,21 @@ module Crig::Examples::MultiTurnStreaming
     agent : Crig::Agent(M),
     prompt : String = PROMPT,
     max_turns : Int32 = 10,
-  ) : Crig::MultiTurnStreamingResult(Crig::FinalResponse) forall M
-    agent.stream_prompt(prompt).multi_turn(max_turns).send_items
+  ) : Crig::MultiTurnStreamingResult(Crig::PromptResponse) forall M
+    agent.stream_prompt(prompt).max_turns(max_turns).send_items
   end
 
-  def self.stream_to_stdout(result : Crig::MultiTurnStreamingResult(Crig::FinalResponse), io : IO = STDOUT) : Crig::FinalResponse
-    final_response = result.items.last.final_response || Crig::FinalResponse.empty
+  def self.stream_to_stdout(result : Crig::MultiTurnStreamingResult(Crig::PromptResponse), io : IO = STDOUT) : Crig::PromptResponse
+    final_response = result.items.last.final_response || Crig::PromptResponse.empty
     raw_choices = result.items.compact_map do |item|
       if text = item.assistant_item.try(&.text).try(&.text)
-        Crig::RawStreamingChoice(Crig::FinalResponse).message(text)
+        Crig::RawStreamingChoice(Crig::PromptResponse).message(text)
       elsif response = item.final_response
-        Crig::RawStreamingChoice(Crig::FinalResponse).final_response(response)
+        Crig::RawStreamingChoice(Crig::PromptResponse).final_response(response)
       end
     end
 
-    assistant_stream = Crig::StreamingCompletionResponse(Crig::FinalResponse).stream(raw_choices)
+    assistant_stream = Crig::StreamingCompletionResponse(Crig::PromptResponse).stream(raw_choices)
     Crig.stream_to_stdout(assistant_stream, io)
     final_response
   end

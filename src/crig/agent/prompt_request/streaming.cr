@@ -54,27 +54,6 @@ module Crig
     end
   end
 
-  struct FinalResponse
-    getter response : String
-    getter aggregated_usage : Crig::Completion::Usage
-    getter history : Array(Crig::Completion::Message)?
-
-    def initialize(
-      @response : String,
-      @aggregated_usage : Crig::Completion::Usage,
-      @history : Array(Crig::Completion::Message)? = nil,
-    )
-    end
-
-    def self.empty : self
-      new("", Crig::Completion::Usage.new)
-    end
-
-    def usage : Crig::Completion::Usage
-      @aggregated_usage
-    end
-  end
-
   struct MultiTurnStreamItem(R)
     enum Kind
       StreamAssistantItem
@@ -85,13 +64,13 @@ module Crig
     getter kind : Kind
     getter assistant_item : Crig::StreamedAssistantContent(R)?
     getter user_item : Crig::StreamedUserContent?
-    getter final_response : Crig::FinalResponse?
+    getter final_response : Crig::PromptResponse?
 
     def initialize(
       @kind : Kind,
       @assistant_item : Crig::StreamedAssistantContent(R)? = nil,
       @user_item : Crig::StreamedUserContent? = nil,
-      @final_response : Crig::FinalResponse? = nil,
+      @final_response : Crig::PromptResponse? = nil,
     )
     end
 
@@ -104,7 +83,8 @@ module Crig
     end
 
     def self.final_response(response : String, aggregated_usage : Crig::Completion::Usage) : self
-      new(Kind::FinalResponse, final_response: Crig::FinalResponse.new(response, aggregated_usage))
+      content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(response))
+      new(Kind::FinalResponse, final_response: Crig::PromptResponse.new(response, aggregated_usage, content: content))
     end
 
     def self.final_response_with_history(
@@ -112,7 +92,8 @@ module Crig
       aggregated_usage : Crig::Completion::Usage,
       history : Array(Crig::Completion::Message)?,
     ) : self
-      new(Kind::FinalResponse, final_response: Crig::FinalResponse.new(response, aggregated_usage, history))
+      content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(response))
+      new(Kind::FinalResponse, final_response: Crig::PromptResponse.new(response, aggregated_usage, history, content: content))
     end
   end
 
@@ -129,7 +110,7 @@ module Crig
       @agent : Crig::Agent(M),
       @prompt : Crig::Completion::Message,
       @chat_history : Array(Crig::Completion::Message)? = nil,
-      @max_turns : Int32 = 0,
+      @max_turns : Int32 = 1,
       @memory : Crig::Memory::ConversationMemory? = nil,
       @conversation_id : String? = nil,
     )
@@ -137,10 +118,10 @@ module Crig
 
     def self.from_agent(agent : Crig::Agent(M), prompt : Crig::Completion::Message | String) : self
       prompt_message = prompt.is_a?(String) ? Crig::Completion::Message.user(prompt) : prompt
-      new(agent, prompt_message, nil, agent.default_max_turns || 0, memory: agent.memory, conversation_id: agent.default_conversation_id)
+      new(agent, prompt_message, nil, agent.default_max_turns || 1, memory: agent.memory, conversation_id: agent.default_conversation_id)
     end
 
-    def multi_turn(turns : Int) : self
+    def max_turns(turns : Int) : self
       self.class.new(@agent, @prompt, @chat_history, turns.to_i32, @memory, @conversation_id)
     end
 
@@ -163,16 +144,16 @@ module Crig
       self.class.new(@agent, @prompt, @chat_history, @max_turns, nil, nil)
     end
 
-    def send_items : Crig::MultiTurnStreamingResult(Crig::FinalResponse)
+    def send_items : Crig::MultiTurnStreamingResult(Crig::PromptResponse)
       history = (@chat_history || [] of Crig::Completion::Message).dup
       has_history = !@chat_history.nil?
-      items = [] of Crig::MultiTurnStreamItem(Crig::FinalResponse)
+      items = [] of Crig::MultiTurnStreamItem(Crig::PromptResponse)
       aggregated_usage = Crig::Completion::Usage.new
       current_prompt = @prompt
       current_turn = 0
 
       loop do
-        if current_turn > @max_turns + 1
+        if current_turn >= @max_turns
           error = Crig::Completion::PromptError.max_turns_exceeded(@max_turns, history, current_prompt)
           raise Crig::StreamingError.prompt(error)
         end
@@ -194,31 +175,33 @@ module Crig
 
         final_history = history.dup
         final_history << Crig::Completion::Message.assistant(turn_result.response_text) unless turn_result.response_text.empty?
-        final_response = Crig::FinalResponse.new(
+        content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(turn_result.response_text))
+        final_response = Crig::PromptResponse.new(
           turn_result.response_text,
           aggregated_usage,
           has_history ? final_history : nil,
+          content: content,
         )
 
-        items << Crig::MultiTurnStreamItem(Crig::FinalResponse).final_response_with_history(
-          final_response.response,
+        items << Crig::MultiTurnStreamItem(Crig::PromptResponse).final_response_with_history(
+          final_response.output,
           final_response.usage,
-          final_response.history,
+          final_response.messages,
         )
-        return Crig::MultiTurnStreamingResult(Crig::FinalResponse).new(items)
+        return Crig::MultiTurnStreamingResult(Crig::PromptResponse).new(items)
       end
     end
 
-    def send : Crig::StreamingCompletionResponse(Crig::FinalResponse)
+    def send : Crig::StreamingCompletionResponse(Crig::PromptResponse)
       items = send_items
-      final_response = items.items.last.final_response || Crig::FinalResponse.empty
+      final_response = items.items.last.final_response || Crig::PromptResponse.empty
       chunks = items.items.compact_map do |item|
         item.assistant_item.try(&.text).try(&.text)
       end
-      Crig::StreamingCompletionResponse(Crig::FinalResponse).new(chunks, final_response)
+      Crig::StreamingCompletionResponse(Crig::PromptResponse).new(chunks, final_response)
     end
 
-    def send_async : Channel(Crig::Concurrency::Result(Crig::StreamingCompletionResponse(Crig::FinalResponse)))
+    def send_async : Channel(Crig::Concurrency::Result(Crig::StreamingCompletionResponse(Crig::PromptResponse)))
       Crig::Concurrency.run do
         send
       end
@@ -252,7 +235,7 @@ module Crig
       stream,
       prompt : Crig::Completion::Message,
       history : Array(Crig::Completion::Message),
-      items : Array(Crig::MultiTurnStreamItem(Crig::FinalResponse)),
+      items : Array(Crig::MultiTurnStreamItem(Crig::PromptResponse)),
     ) : StreamTurnResult
       response_text = ""
       saw_text = false
@@ -272,23 +255,23 @@ module Crig
             saw_text = true
             response_text += text.text
 
-            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-              Crig::StreamedAssistantContent(Crig::FinalResponse).text(text.text)
+            items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+              Crig::StreamedAssistantContent(Crig::PromptResponse).text(text.text)
             )
           end
         in .reasoning?
           if reasoning_item = item.reasoning
             Crig.merge_reasoning_blocks(reasoning, reasoning_item)
-            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-              Crig::StreamedAssistantContent(Crig::FinalResponse).reasoning(reasoning_item)
+            items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+              Crig::StreamedAssistantContent(Crig::PromptResponse).reasoning(reasoning_item)
             )
           end
         in .reasoning_delta?
           if delta = item.reasoning_delta
             pending_reasoning_delta_text += delta
             pending_reasoning_delta_id ||= item.id
-            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-              Crig::StreamedAssistantContent(Crig::FinalResponse).reasoning_delta(item.id, delta)
+            items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+              Crig::StreamedAssistantContent(Crig::PromptResponse).reasoning_delta(item.id, delta)
             )
           end
         in .tool_call_delta?
@@ -297,8 +280,8 @@ module Crig
             internal_call_id = item.internal_call_id || tool_call.call_id || tool_call.id
             saw_tool_call = true
 
-            items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-              Crig::StreamedAssistantContent(Crig::FinalResponse).tool_call(tool_call, internal_call_id)
+            items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+              Crig::StreamedAssistantContent(Crig::PromptResponse).tool_call(tool_call, internal_call_id)
             )
 
             tool_calls << Crig::Completion::AssistantContent.new(
@@ -312,9 +295,9 @@ module Crig
           if final = item.final
             turn_usage += final.token_usage || Crig::Completion::Usage.new
             if saw_text
-              items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_item(
-                Crig::StreamedAssistantContent(Crig::FinalResponse).final_response(
-                  Crig::FinalResponse.new(response_text, turn_usage)
+              items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
+                Crig::StreamedAssistantContent(Crig::PromptResponse).final_response(
+                  Crig::PromptResponse.new(response_text, turn_usage)
                 )
               )
             end
@@ -335,7 +318,7 @@ module Crig
 
         executed_tool_results.each do |tool_call, internal_call_id, tool_result|
           tool_results << {tool_call.id, tool_call.call_id, tool_result}
-          items << Crig::MultiTurnStreamItem(Crig::FinalResponse).stream_user_item(
+          items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_user_item(
             Crig::StreamedUserContent.tool_result(
               Crig::Completion::ToolResult.new(
                 tool_call.id,
@@ -458,8 +441,8 @@ module Crig
     Crig::Completion::Message.from(user_content)
   end
 
-  def self.stream_to_stdout(stream : Crig::MultiTurnStreamingResult(R), io : IO = STDOUT) : Crig::FinalResponse forall R
-    final_res = Crig::FinalResponse.empty
+  def self.stream_to_stdout(stream : Crig::MultiTurnStreamingResult(R), io : IO = STDOUT) : Crig::PromptResponse forall R
+    final_res = Crig::PromptResponse.empty
     io.print("Response: ")
     stream.items.each do |content|
       case content.kind

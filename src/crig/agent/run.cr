@@ -114,7 +114,7 @@ module Crig
       PreparingRequest; AwaitingModel; ResolvingToolCalls; AwaitingAdvance; ExecutingTools; Done; Failed
     end
 
-    property max_turns : Int32 = 0
+    property max_turns : Int32 = 1
     property max_invalid_tool_call_retries : Int32 = 0
     property tool_choice : Completion::ToolChoice?
     property output_tool_name : String?
@@ -438,7 +438,7 @@ module Crig
     private def prep_request
       raise Completion::PromptError.prompt_cancelled(full_history, "no pending prompt") if @new_messages.empty?
       @rb_pending = false; @st_rec = false
-      if @current_turn > @max_turns + 1
+      if @current_turn >= @max_turns
         raise Completion::PromptError.max_turns_exceeded(@max_turns, full_history, @new_messages.last)
       end
       @current_turn += 1
@@ -562,7 +562,7 @@ module Crig
     end
 
     private def can_reprompt?
-      @output_retries < @max_output_retries && @current_turn <= @max_turns + 1
+      @output_retries < @max_output_retries && @current_turn < @max_turns
     end
 
     private def reprompt

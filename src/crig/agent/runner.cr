@@ -3,7 +3,7 @@ require "wait_group"
 module Crig
   class AgentRunner(M)
     @model : M
-    @max_turns : Int32 = 0
+    @max_turns : Int32 = 1
     @max_invalid_tool_call_retries : Int32 = 0
     @agent_name : String? = nil
     @preamble : String? = nil

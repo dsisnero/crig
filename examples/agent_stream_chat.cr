@@ -19,11 +19,11 @@ module Crig::Examples::AgentStreamChat
     ]
   end
 
-  def self.run_stream(agent : Crig::Agent(M), prompt : String = "Entertain me!", history : Array(Crig::Completion::Message) = default_history) : Crig::StreamingCompletionResponse(Crig::FinalResponse) forall M
+  def self.run_stream(agent : Crig::Agent(M), prompt : String = "Entertain me!", history : Array(Crig::Completion::Message) = default_history) : Crig::StreamingCompletionResponse(Crig::PromptResponse) forall M
     agent.stream_chat(prompt, history).send
   end
 
-  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(Crig::FinalResponse), io : IO = STDOUT) : Crig::FinalResponse
+  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(Crig::PromptResponse), io : IO = STDOUT) : Crig::PromptResponse
     Crig.stream_to_stdout(stream, io)
   end
 end

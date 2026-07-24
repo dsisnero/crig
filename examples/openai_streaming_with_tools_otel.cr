@@ -27,7 +27,7 @@ module Crig::Examples::OpenAIStreamingWithToolsOtel
     agent.stream_prompt(prompt).send
   end
 
-  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(Crig::FinalResponse), io : IO = STDOUT) : Crig::FinalResponse
+  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(Crig::PromptResponse), io : IO = STDOUT) : Crig::PromptResponse
     Crig.stream_to_stdout(stream, io)
   end
 end

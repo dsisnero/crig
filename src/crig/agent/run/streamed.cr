@@ -134,7 +134,7 @@ module Crig
       @text
     end
 
-    def ingest(item : StreamedAssistantContent(FinalResponse)) : Array(StreamedTurnEvent)
+    def ingest(item : StreamedAssistantContent(PromptResponse)) : Array(StreamedTurnEvent)
       case item.kind
       in .text?
         if !@saw_text

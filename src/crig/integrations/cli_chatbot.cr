@@ -47,7 +47,7 @@ module Crig
       end
 
       def request(prompt : String, history : Array(Crig::Completion::Message), output : IO) : String
-        result = @agent.stream_prompt(prompt).with_history(history).multi_turn(@max_turns).send_items
+        result = @agent.stream_prompt(prompt).with_history(history).max_turns(@max_turns).send_items
         response = String.build do |io|
           result.items.each do |item|
             next unless item.kind.stream_assistant_item?

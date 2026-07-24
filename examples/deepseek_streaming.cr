@@ -29,15 +29,15 @@ module Crig::Examples::DeepSeekStreaming
       .build
   end
 
-  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(Crig::FinalResponse), io : IO = STDOUT) : Crig::FinalResponse
+  def self.stream_to_stdout(stream : Crig::StreamingCompletionResponse(Crig::PromptResponse), io : IO = STDOUT) : Crig::PromptResponse
     Crig.stream_to_stdout(stream, io)
   end
 
-  def self.run_prompt(agent : Crig::Agent(M), prompt : String = PROMPT) : Crig::StreamingCompletionResponse(Crig::FinalResponse) forall M
+  def self.run_prompt(agent : Crig::Agent(M), prompt : String = PROMPT) : Crig::StreamingCompletionResponse(Crig::PromptResponse) forall M
     agent.stream_prompt(prompt).send
   end
 
-  def self.run_chat(agent : Crig::Agent(M), prompt : String = CALCULATOR_PROMPT, messages : Array(Crig::Completion::Message) = [] of Crig::Completion::Message) : Crig::StreamingCompletionResponse(Crig::FinalResponse) forall M
+  def self.run_chat(agent : Crig::Agent(M), prompt : String = CALCULATOR_PROMPT, messages : Array(Crig::Completion::Message) = [] of Crig::Completion::Message) : Crig::StreamingCompletionResponse(Crig::PromptResponse) forall M
     agent.stream_chat(prompt, messages).send
   end
 

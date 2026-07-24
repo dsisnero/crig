@@ -20,7 +20,7 @@ module Crig
     # Stream a chat with history to the model
     #
     # The updated history (including the new prompt and response) is returned
-    # in `FinalResponse#history`.
+    # in `PromptResponse#messages`.
     abstract def stream_chat(
       prompt : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message),
