@@ -7,7 +7,7 @@ module Crig
       json = run.to_json
       restored = AgentRun.from_json(json)
 
-      restored.max_turns.should eq(0)
+      restored.max_turns.should eq(1)
       restored.turn.should eq(0)
     end
 

@@ -22,20 +22,19 @@ module Crig::Examples::DeepSeekAgentWithTools
       "add"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "add",
-        "Add x and y together",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "x":{"type":"number","description":"The first number to add"},
-            "y":{"type":"number","description":"The second number to add"}
-          },
-          "required":["x","y"]
-        }))
-      )
+    def description : String
+      "Add x and y together"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "x":{"type":"number","description":"The first number to add"},
+          "y":{"type":"number","description":"The second number to add"}
+        },
+        "required":["x","y"]
+      }))
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -51,20 +50,19 @@ module Crig::Examples::DeepSeekAgentWithTools
       "subtract"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "subtract",
-        "Subtract y from x (i.e.: x - y)",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "x":{"type":"number","description":"The number to subtract from"},
-            "y":{"type":"number","description":"The number to subtract"}
-          },
-          "required":["x","y"]
-        }))
-      )
+    def description : String
+      "Subtract y from x (i.e.: x - y)"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "x":{"type":"number","description":"The number to subtract from"},
+          "y":{"type":"number","description":"The number to subtract"}
+        },
+        "required":["x","y"]
+      }))
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -80,20 +78,19 @@ module Crig::Examples::DeepSeekAgentWithTools
       "multiply"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "multiply",
-        "Multiply x and y together",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "x":{"type":"number","description":"The first number to multiply"},
-            "y":{"type":"number","description":"The second number to multiply"}
-          },
-          "required":["x","y"]
-        }))
-      )
+    def description : String
+      "Multiply x and y together"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "x":{"type":"number","description":"The first number to multiply"},
+          "y":{"type":"number","description":"The second number to multiply"}
+        },
+        "required":["x","y"]
+      }))
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -109,20 +106,19 @@ module Crig::Examples::DeepSeekAgentWithTools
       "divide"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "divide",
-        "Divide x by y (i.e.: x / y). Returns a float.",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "x":{"type":"number","description":"The numerator"},
-            "y":{"type":"number","description":"The denominator (cannot be zero)"}
-          },
-          "required":["x","y"]
-        }))
-      )
+    def description : String
+      "Divide x by y (i.e.: x / y). Returns a float."
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "x":{"type":"number","description":"The numerator"},
+          "y":{"type":"number","description":"The denominator (cannot be zero)"}
+        },
+        "required":["x","y"]
+      }))
     end
 
     def call_typed(args : OperationArgs) : Float64
@@ -198,7 +194,7 @@ if PROGRAM_NAME == __FILE__
     # Show available tools
     puts "3. Available tools:"
     Crig::Examples::DeepSeekAgentWithTools.tools.each do |tool|
-      puts "   - #{tool.name}: #{tool.definition("").description}"
+      puts "   - #{tool.name}: #{tool.description}"
     end
 
     # Run example prompts

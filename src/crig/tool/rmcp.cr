@@ -58,8 +58,12 @@ module Crig
       @mcp_definition.name
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      self.class.to_tool_definition(@mcp_definition)
+    def description : String
+      @mcp_definition.description || ""
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(@mcp_definition.input_schema.to_json)
     end
 
     def call(args : String) : String

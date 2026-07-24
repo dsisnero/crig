@@ -77,7 +77,7 @@ module Crig
     end
 
     it "max turns exhaustion returns max turns error" do
-      run = AgentRun.new(Completion::Message.user("add things"))
+      run = AgentRun.new(Completion::Message.user("add things")).max_turns(2)
       expect_call_model(run)
       outcome = run.model_response(ModelTurn.new(
         choice: OneOrMany(Completion::AssistantContent).one(tool_call_content("call_1", "add")),
@@ -89,7 +89,7 @@ module Crig
       run.tool_results([Completion::UserContent.tool_result("call_1",
         OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text("0")))])
 
-      # Second roundtrip exhausts max_turns (default 0)
+      # Second roundtrip
       expect_call_model(run)
       outcome = run.model_response(ModelTurn.new(
         choice: OneOrMany(Completion::AssistantContent).one(tool_call_content("call_2", "add")),
@@ -101,7 +101,8 @@ module Crig
       run.tool_results([Completion::UserContent.tool_result("call_2",
         OneOrMany(Completion::ToolResultContent).one(Completion::ToolResultContent.text("0")))])
 
-      expect_raises(Crig::Completion::PromptError, "MaxTurnsExceeded: 0") do
+      # Third roundtrip exhausts max_turns
+      expect_raises(Crig::Completion::PromptError, "MaxTurnsExceeded: 2") do
         run.next_step
       end
     end

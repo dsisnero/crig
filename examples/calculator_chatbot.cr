@@ -42,13 +42,12 @@ module Crig::Examples::CalculatorChatbot
       "add"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "add",
-        "Add x and y together",
-        ArithmeticTool.parameters("The first number to add", "The second number to add"),
-      )
+    def description : String
+      "Add x and y together"
+    end
+
+    def parameters : JSON::Any
+      ArithmeticTool.parameters("The first number to add", "The second number to add")
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -77,13 +76,12 @@ module Crig::Examples::CalculatorChatbot
       "subtract"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "subtract",
-        "Subtract y from x (i.e.: x - y)",
-        ArithmeticTool.parameters("The number to subtract from", "The number to subtract"),
-      )
+    def description : String
+      "Subtract y from x (i.e.: x - y)"
+    end
+
+    def parameters : JSON::Any
+      ArithmeticTool.parameters("The number to subtract from", "The number to subtract")
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -112,13 +110,12 @@ module Crig::Examples::CalculatorChatbot
       "multiply"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "multiply",
-        "Compute the product of x and y (i.e.: x * y)",
-        ArithmeticTool.parameters("The first factor in the product", "The second factor in the product"),
-      )
+    def description : String
+      "Compute the product of x and y (i.e.: x * y)"
+    end
+
+    def parameters : JSON::Any
+      ArithmeticTool.parameters("The first factor in the product", "The second factor in the product")
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -147,15 +144,14 @@ module Crig::Examples::CalculatorChatbot
       "divide"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "divide",
-        "Compute the Quotient of x and y (i.e.: x / y). Useful for ratios.",
-        ArithmeticTool.parameters(
-          "The Dividend of the division. The number being divided",
-          "The Divisor of the division. The number by which the dividend is being divided",
-        ),
+    def description : String
+      "Compute the Quotient of x and y (i.e.: x / y). Useful for ratios."
+    end
+
+    def parameters : JSON::Any
+      ArithmeticTool.parameters(
+        "The Dividend of the division. The number being divided",
+        "The Divisor of the division. The number by which the dividend is being divided",
       )
     end
 
@@ -203,7 +199,7 @@ module Crig::Examples::CalculatorChatbot
   end
 
   def self.build_chatbot(
-    agent : Crig::Agent(M),
+    agent : Crig::Agent(M)
   ) : Crig::Integrations::ChatBot(Crig::Integrations::AgentImpl(M)) forall M
     Crig::Integrations::ChatBotBuilder(Crig::Integrations::NoImplProvided).new
       .agent(agent)

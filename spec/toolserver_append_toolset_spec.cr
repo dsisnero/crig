@@ -15,8 +15,12 @@ struct EchoToolTS
     "echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new("echo", "echoes", JSON.parse(%({"type":"object"})))
+  def description : String
+    "echoes"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : CrigToolTSArgs) : String

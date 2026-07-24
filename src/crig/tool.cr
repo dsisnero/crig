@@ -194,14 +194,13 @@ module Crig
         {{ function.body }}
       end
 
-      def definition(prompt : String) : Crig::Completion::ToolDefinition
-        _ = prompt
+      def description : String
+        {{ description_value }}
+      end
+
+      def parameters : JSON::Any
         schema = {{ params_struct_name }}.json_schema
-        Crig::Completion::ToolDefinition.new(
-          {{ fn_name }},
-          {{ description_value }},
-          JSON.parse(schema.to_json)
-        )
+        JSON.parse(schema.to_json)
       end
 
       def call_typed(args : {{ params_struct_name }}) : {{ call_output_type }}
@@ -286,7 +285,8 @@ module Crig
 
   module ToolDyn
     abstract def name : String
-    abstract def definition(prompt : String) : Crig::Completion::ToolDefinition
+    abstract def description : String
+    abstract def parameters : JSON::Any
     abstract def call(args : String) : String
   end
 
@@ -303,8 +303,12 @@ module Crig
       @tool.name
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      @tool.definition(prompt)
+    def description : String
+      @tool.description
+    end
+
+    def parameters : JSON::Any
+      @tool.parameters
     end
 
     def call(args : String) : String
@@ -370,7 +374,7 @@ module Crig
 
     # ameba:disable Naming/AccessorMethodName
     def get_tool_definitions : Array(Crig::Completion::ToolDefinition)
-      @tools.values.map(&.definition(""))
+      @tools.map { |name, tool| Crig.tool_definition(tool, name) }
     end
 
     # ameba:enable Naming/AccessorMethodName
@@ -389,10 +393,11 @@ module Crig
     end
 
     def documents : Array(Crig::Completion::Request::Document)
-      @tools.values.map do |tool|
+      @tools.map do |name, tool|
+        definition = Crig.tool_definition(tool, name)
         Crig::Completion::Request::Document.new(
-          tool.name,
-          "Tool: #{tool.name}\nDefinition:\n#{tool.definition("").to_json}",
+          name,
+          "Tool: #{name}\nDefinition:\n#{definition.to_json}",
           {} of String => String
         )
       end
@@ -417,8 +422,12 @@ module Crig
       @tool.name
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      @tool.definition(prompt)
+    def description : String
+      @tool.description
+    end
+
+    def parameters : JSON::Any
+      @tool.parameters
     end
 
     def call(args : String) : String
@@ -452,6 +461,14 @@ module Crig
     end
   end
 
+  def self.tool_definition(tool : Crig::ToolDyn, name : String? = nil) : Crig::Completion::ToolDefinition
+    Crig::Completion::ToolDefinition.new(
+      name || tool.name,
+      tool.description,
+      tool.parameters,
+    )
+  end
+
   module Tool(Args, Output)
     include ToolDyn
 
@@ -463,7 +480,8 @@ module Crig
       {% end %}
     end
 
-    abstract def definition(prompt : String) : Crig::Completion::ToolDefinition
+    abstract def description : String
+    abstract def parameters : JSON::Any
     abstract def call_typed(args : Args) : Output
 
     def call(args : String) : String

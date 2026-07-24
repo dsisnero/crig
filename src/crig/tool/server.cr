@@ -292,14 +292,14 @@ module Crig
         dynamic_tool_ids.each do |id|
           # Re-check under lock since tool definitions may have changed during search.
           if tool = @lock.synchronize { @toolset.get(id) }
-            tools << tool.definition(query)
+            tools << Crig.tool_definition(tool, id)
           end
         end
       end
 
-      static_defs.each do |_, tool|
+      static_defs.each do |name, tool|
         if tool
-          tools << tool.definition("")
+          tools << Crig.tool_definition(tool, name)
         end
       end
 

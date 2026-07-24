@@ -42,7 +42,7 @@ describe "prompt request async APIs" do
     result = agent.stream_prompt("hello").send_async.receive
 
     stream = result.unwrap
-    stream.response.not_nil!.response.should eq("streamed")
+    stream.response.not_nil!.output.should eq("streamed")
     stream.chunks.should eq(["streamed"])
   end
 end

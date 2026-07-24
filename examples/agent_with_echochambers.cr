@@ -85,26 +85,25 @@ module Crig::Examples::AgentWithEchochambers
       "send_message"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "send_message",
-        "Send a message to a specified EchoChambers room",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "content":{"type":"string","description":"The message content to send"},
-            "room_id":{"type":"string","description":"The ID of the room to send the message to"},
-            "sender":{
-              "type":"object",
-              "properties":{
-                "username":{"type":"string","description":"Username of the sender"},
-                "model":{"type":"string","description":"Model identifier of the sender"}
-              }
+    def description : String
+      "Send a message to a specified EchoChambers room"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "content":{"type":"string","description":"The message content to send"},
+          "room_id":{"type":"string","description":"The ID of the room to send the message to"},
+          "sender":{
+            "type":"object",
+            "properties":{
+              "username":{"type":"string","description":"Username of the sender"},
+              "model":{"type":"string","description":"Model identifier of the sender"}
             }
           }
-        }))
-      )
+        }
+      }))
     end
 
     def call_typed(args : SendMessageArgs) : JSON::Any
@@ -126,19 +125,18 @@ module Crig::Examples::AgentWithEchochambers
       "get_history"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "get_history",
-        "Retrieve message history from a specified room",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "room_id":{"type":"string","description":"The ID of the room to get history from"},
-            "limit":{"type":"number","description":"Optional limit on number of messages to retrieve"}
-          }
-        }))
-      )
+    def description : String
+      "Retrieve message history from a specified room"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "room_id":{"type":"string","description":"The ID of the room to get history from"},
+          "limit":{"type":"number","description":"Optional limit on number of messages to retrieve"}
+        }
+      }))
     end
 
     def call_typed(args : GetHistoryArgs) : JSON::Any
@@ -155,16 +153,15 @@ module Crig::Examples::AgentWithEchochambers
       "get_room_metrics"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "get_room_metrics",
-        "Retrieve overall metrics for a room",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{"room_id":{"type":"string","description":"The ID of the room to get metrics for"}}
-        }))
-      )
+    def description : String
+      "Retrieve overall metrics for a room"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{"room_id":{"type":"string","description":"The ID of the room to get metrics for"}}
+      }))
     end
 
     def call_typed(args : GetMetricsArgs) : JSON::Any
@@ -181,16 +178,15 @@ module Crig::Examples::AgentWithEchochambers
       "get_agent_metrics"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "get_agent_metrics",
-        "Retrieve metrics for agents in a room",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{"room_id":{"type":"string","description":"The ID of the room to get agent metrics for"}}
-        }))
-      )
+    def description : String
+      "Retrieve metrics for agents in a room"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{"room_id":{"type":"string","description":"The ID of the room to get agent metrics for"}}
+      }))
     end
 
     def call_typed(args : GetMetricsArgs) : JSON::Any
@@ -207,16 +203,15 @@ module Crig::Examples::AgentWithEchochambers
       "get_metrics_history"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "get_metrics_history",
-        "Retrieve historical metrics for a room",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{"room_id":{"type":"string","description":"The ID of the room to get metrics history for"}}
-        }))
-      )
+    def description : String
+      "Retrieve historical metrics for a room"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{"room_id":{"type":"string","description":"The ID of the room to get metrics history for"}}
+      }))
     end
 
     def call_typed(args : GetMetricsArgs) : JSON::Any

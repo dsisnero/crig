@@ -22,17 +22,16 @@ module Crig::Examples::MultiAgent
       "translator"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "translator",
-        "Translate any text to English. If already in English, fix grammar and syntax issues.",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{"prompt":{"type":"string","description":"The text to translate to English"}},
-          "required":["prompt"]
-        }))
-      )
+    def description : String
+      "Translate any text to English. If already in English, fix grammar and syntax issues."
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{"prompt":{"type":"string","description":"The text to translate to English"}},
+        "required":["prompt"]
+      }))
     end
 
     def call_typed(args : TranslatorArgs) : String

@@ -239,12 +239,12 @@ module Crig
       @name || AGENT_TOOL_NAME
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name,
-        "Prompt a sub-agent to do a task for you.\n\nAgent name: #{resolved_name}\nAgent description: #{@description || ""}\nAgent system prompt: #{@preamble || ""}",
-        JSON.parse(%({"type":"object","properties":{"prompt":{"type":"string","description":"The prompt for the agent to call."}},"required":["prompt"]})),
-      )
+    def tool_description : String
+      "Prompt a sub-agent to do a task for you.\n\nAgent name: #{resolved_name}\nAgent description: #{@description || ""}\nAgent system prompt: #{@preamble || ""}"
+    end
+
+    def tool_parameters : JSON::Any
+      JSON.parse(%({"type":"object","properties":{"prompt":{"type":"string","description":"The prompt for the agent to call."}},"required":["prompt"]}))
     end
 
     def call(args : Crig::AgentToolArgs) : String
@@ -332,7 +332,7 @@ module Crig
       if tsh = @tool_server_handle
         runner = runner.tool_server_handle(tsh)
       end
-      runner = runner.max_turns(@default_max_turns || 0)
+      runner = runner.max_turns(@default_max_turns || 1)
       runner = runner.static_tools(@static_tools)
       if ap = @additional_params
         runner = runner.additional_params(ap)
@@ -410,23 +410,28 @@ module Crig
     include Crig::ToolDyn
 
     getter name : String
-    @defn : Crig::Completion::ToolDefinition
+    @desc : String
+    @params : JSON::Any
     @callable : String -> String
 
-    def initialize(name : String, defn : Crig::Completion::ToolDefinition, &@callable : String -> String)
+    def initialize(name : String, @desc : String, @params : JSON::Any, &@callable : String -> String)
       @name = name
-      @defn = defn
     end
 
     def self.new(agent : Agent(M)) : self forall M
       new(
         agent.name,
-        agent.definition(""),
+        agent.tool_description,
+        agent.tool_parameters,
       ) { |args| agent.call(args) }
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      @defn
+    def description : String
+      @desc
+    end
+
+    def parameters : JSON::Any
+      @params
     end
 
     def call(args : String) : String
@@ -535,7 +540,7 @@ module Crig
         @preamble_value,
         @static_context_value,
         @dynamic_context_value,
-        @static_tools_value + [tool.definition("")],
+        @static_tools_value + [Crig.tool_definition(tool)],
         @dynamic_tools_value,
         handle,
         @additional_params_value,
@@ -559,7 +564,7 @@ module Crig
         @preamble_value,
         @static_context_value,
         @dynamic_context_value,
-        @static_tools_value + [adapter.definition("")],
+        @static_tools_value + [Crig.tool_definition(adapter)],
         @dynamic_tools_value,
         handle,
         @additional_params_value,
@@ -585,7 +590,7 @@ module Crig
         @preamble_value,
         @static_context_value,
         @dynamic_context_value,
-        @static_tools_value + tools.map(&.definition("")),
+        @static_tools_value + tools.map { |tool| Crig.tool_definition(tool) },
         @dynamic_tools_value,
         handle,
         @additional_params_value,
@@ -608,7 +613,7 @@ module Crig
         @preamble_value,
         @static_context_value,
         @dynamic_context_value,
-        @static_tools_value + adapters.map(&.definition("")),
+        @static_tools_value + adapters.map { |a| Crig.tool_definition(a) },
         @dynamic_tools_value,
         handle,
         @additional_params_value,

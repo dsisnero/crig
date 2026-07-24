@@ -61,7 +61,7 @@ if PROGRAM_NAME == __FILE__
     .max_tokens(1024)
     .default_max_turns(3)
     .tool_server_handle(handle)
-    .tool(calculator.definition(""))
+    .tool(calculator)
     .build
 
   puts "Calculate 2 - 5"

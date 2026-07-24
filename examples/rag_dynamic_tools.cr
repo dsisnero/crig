@@ -19,13 +19,12 @@ module Crig::Examples::RagDynamicTools
       "add"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "add",
-        "Add x and y together",
-        JSON.parse(%({"type":"object","properties":{"x":{"type":"number","description":"The first number to add"},"y":{"type":"number","description":"The second number to add"}}}))
-      )
+    def description : String
+      "Add x and y together"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({"type":"object","properties":{"x":{"type":"number","description":"The first number to add"},"y":{"type":"number","description":"The second number to add"}}}))
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -40,13 +39,12 @@ module Crig::Examples::RagDynamicTools
       "subtract"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "subtract",
-        "Subtract y from x (i.e.: x - y)",
-        JSON.parse(%({"type":"object","properties":{"x":{"type":"number","description":"The number to subtract from"},"y":{"type":"number","description":"The number to subtract"}}}))
-      )
+    def description : String
+      "Subtract y from x (i.e.: x - y)"
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({"type":"object","properties":{"x":{"type":"number","description":"The number to subtract from"},"y":{"type":"number","description":"The number to subtract"}}}))
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -59,7 +57,7 @@ module Crig::Examples::RagDynamicTools
   end
 
   def self.tool_definitions : Array(Crig::Completion::ToolDefinition)
-    tools.map(&.definition(""))
+    tools.map { |t| Crig::Completion::ToolDefinition.new(t.name, t.description, t.parameters) }
   end
 
   def self.tool_schemas : Array(Crig::Embeddings::ToolSchema)

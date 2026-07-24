@@ -75,13 +75,12 @@ module Crig
         "search_vector_store"
       end
 
-      def definition(prompt : String = "") : Crig::Completion::ToolDefinition
-        _ = prompt
-        Crig::Completion::ToolDefinition.new(
-          name,
-          "Retrieves the most relevant documents from a vector store based on a query.",
-          JSON.parse(%({"type":"object","properties":{"query":{"type":"string","description":"The query string to search for relevant documents in the vector store."},"samples":{"type":"integer","description":"The maxinum number of samples / documents to retrieve.","default":5,"minimum":1},"threshold":{"type":"number","description":"Similarity search threshold. If present, any result with a distance less than this may be omitted from the final result."}},"required":["query","samples"]})),
-        )
+      def description : String
+        "Retrieves the most relevant documents from a vector store based on a query."
+      end
+
+      def parameters : JSON::Any
+        JSON.parse(%({"type":"object","properties":{"query":{"type":"string","description":"The query string to search for relevant documents in the vector store."},"samples":{"type":"integer","description":"The maxinum number of samples / documents to retrieve.","default":5,"minimum":1},"threshold":{"type":"number","description":"Similarity search threshold. If present, any result with a distance less than this may be omitted from the final result."}},"required":["query","samples"]}))
       end
 
       def call(request : Crig::VectorSearchRequest) : Array(VectorStoreOutput)

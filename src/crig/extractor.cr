@@ -30,9 +30,12 @@ module Crig
       "submit"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      parameters = JSON.parse(
+    def description : String
+      "Submit the structured data you extracted from the provided text."
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(
         JSON.build do |json|
           json.object do
             {% begin %}
@@ -40,12 +43,6 @@ module Crig
             {% end %}
           end
         end
-      )
-
-      Crig::Completion::ToolDefinition.new(
-        name,
-        "Submit the structured data you extracted from the provided text.",
-        parameters,
       )
     end
 

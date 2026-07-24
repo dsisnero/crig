@@ -30,12 +30,12 @@ struct EchoTool2
     "echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : ToolArgs) : String

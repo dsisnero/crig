@@ -19,12 +19,16 @@ struct SearchWeb
     "search_web"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new("search_web", "Search the web (read-only).", JSON.parse(%({
+  def description : String
+    "Search the web (read-only)."
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({
       "type": "object",
       "properties": { "query": { "type": "string", "description": "Search query" } },
       "required": ["query"]
-    })))
+    }))
   end
 
   def call(args : String) : String
@@ -41,15 +45,19 @@ struct TransferFunds
     "transfer_funds"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new("transfer_funds", "Transfer funds to an account.", JSON.parse(%({
+  def description : String
+    "Transfer funds to an account."
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({
       "type": "object",
       "properties": {
         "to": { "type": "string", "description": "Destination account id" },
         "amount": { "type": "integer", "description": "Amount in whole dollars" }
       },
       "required": ["to", "amount"]
-    })))
+    }))
   end
 
   def call(args : String) : String

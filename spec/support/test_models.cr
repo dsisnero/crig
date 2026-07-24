@@ -206,12 +206,12 @@ struct EchoTool
     "echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : EchoArgs) : String
@@ -225,12 +225,12 @@ struct DefaultNamedTool
 
   NAME = "default-named"
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "default-named",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : EchoArgs) : String
@@ -283,12 +283,12 @@ struct FailingEchoTool
     "echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : EchoArgs) : String

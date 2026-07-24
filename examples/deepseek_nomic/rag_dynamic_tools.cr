@@ -35,25 +35,21 @@ module Crig::Examples::RagDynamicTools
       "Add x and y together"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name: "add",
-        description: "Add x and y together",
-        parameters: {
-          "type" => "object",
-          "properties" => {
-            "x" => {
-              "type" => "number",
-              "description" => "The first number to add"
-            },
-            "y" => {
-              "type" => "number",
-              "description" => "The second number to add"
-            }
+    def parameters : JSON::Any
+      {
+        "type" => "object",
+        "properties" => {
+          "x" => {
+            "type" => "number",
+            "description" => "The first number to add"
           },
-          "required" => ["x", "y"]
-        }
-      )
+          "y" => {
+            "type" => "number",
+            "description" => "The second number to add"
+          }
+        },
+        "required" => ["x", "y"]
+      }
     end
 
     def call(args : OperationArgs) : Int32
@@ -72,25 +68,21 @@ module Crig::Examples::RagDynamicTools
       "Subtract y from x (i.e.: x - y)"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name: "subtract",
-        description: "Subtract y from x (i.e.: x - y)",
-        parameters: {
-          "type" => "object",
-          "properties" => {
-            "x" => {
-              "type" => "number",
-              "description" => "The number to subtract from"
-            },
-            "y" => {
-              "type" => "number",
-              "description" => "The number to subtract"
-            }
+    def parameters : JSON::Any
+      {
+        "type" => "object",
+        "properties" => {
+          "x" => {
+            "type" => "number",
+            "description" => "The number to subtract from"
           },
-          "required" => ["x", "y"]
-        }
-      )
+          "y" => {
+            "type" => "number",
+            "description" => "The number to subtract"
+          }
+        },
+        "required" => ["x", "y"]
+      }
     end
 
     def call(args : OperationArgs) : Int32
@@ -112,8 +104,8 @@ if PROGRAM_NAME == __FILE__
 
   # Create tool schemas for embedding
   tool_schemas = [
-    add_tool.definition(""),
-    subtract_tool.definition("")
+    Crig::Completion::ToolDefinition.new(add_tool.name, add_tool.description, add_tool.parameters),
+    Crig::Completion::ToolDefinition.new(subtract_tool.name, subtract_tool.description, subtract_tool.parameters),
   ]
 
   # Create embeddings for tool schemas using Ollama (free)

@@ -30,7 +30,7 @@ end
 describe "Simplified rig_tool API" do
   it "generates tool definition using json-schema without params/required" do
     tool = Add.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
     definition.name.should eq("add")
     definition.description.should eq("Add two numbers")
 
@@ -47,14 +47,14 @@ describe "Simplified rig_tool API" do
 
   it "allows optional tool description" do
     tool = Greet.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
     definition.name.should eq("greet")
     definition.description.should eq("Function to greet")
   end
 
   it "marks nilable fields as optional in required array" do
     tool = Greet.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
     required = definition.parameters["required"].as_a.map(&.as_s)
     required.includes?("name").should be_true
     required.includes?("greeting").should be_false
@@ -74,7 +74,7 @@ describe "Simplified rig_tool API" do
 
   it "generates correct json-schema for all nilable types" do
     tool = OptionalTypes.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
     props = definition.parameters["properties"].as_h
     required = definition.parameters["required"].as_a.map(&.as_s)
 

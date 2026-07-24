@@ -22,8 +22,12 @@ struct SendEmail
     "send_email"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new("send_email", "Send an email to a recipient.", JSON.parse(%({
+  def description : String
+    "Send an email to a recipient."
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({
       "type": "object",
       "properties": {
         "to": { "type": "string", "description": "Recipient email address" },
@@ -31,7 +35,7 @@ struct SendEmail
         "body": { "type": "string", "description": "Email body" }
       },
       "required": ["to", "subject", "body"]
-    })))
+    }))
   end
 
   def call(args : String) : String
@@ -51,14 +55,18 @@ struct DeleteFile
     "delete_file"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new("delete_file", "Permanently delete a file at the given path.", JSON.parse(%({
+  def description : String
+    "Permanently delete a file at the given path."
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({
       "type": "object",
       "properties": {
         "path": { "type": "string", "description": "Absolute path of the file to delete" }
       },
       "required": ["path"]
-    })))
+    }))
   end
 
   def call(args : String) : String

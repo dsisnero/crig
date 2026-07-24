@@ -39,9 +39,12 @@ module Crig::Examples::AgentWithDefaultMaxTurns
       "add"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new("add", "Add x and y together", parameters("The first number to add", "The second number to add"))
+    def description : String
+      "Add x and y together"
+    end
+
+    def parameters : JSON::Any
+      parameters("The first number to add", "The second number to add")
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -57,9 +60,12 @@ module Crig::Examples::AgentWithDefaultMaxTurns
       "subtract"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new("subtract", "Subtract y from x (i.e.: x - y)", parameters("The number to subtract from", "The number to subtract"))
+    def description : String
+      "Subtract y from x (i.e.: x - y)"
+    end
+
+    def parameters : JSON::Any
+      parameters("The number to subtract from", "The number to subtract")
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -75,9 +81,12 @@ module Crig::Examples::AgentWithDefaultMaxTurns
       "multiply"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new("multiply", "Compute the product of x and y (i.e.: x * y)", parameters("The first factor in the product", "The second factor in the product"))
+    def description : String
+      "Compute the product of x and y (i.e.: x * y)"
+    end
+
+    def parameters : JSON::Any
+      parameters("The first factor in the product", "The second factor in the product")
     end
 
     def call_typed(args : OperationArgs) : Int32
@@ -93,9 +102,12 @@ module Crig::Examples::AgentWithDefaultMaxTurns
       "divide"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new("divide", "Compute the Quotient of x and y (i.e.: x / y). Useful for ratios.", parameters("The Dividend of the division. The number being divided", "The Divisor of the division. The number by which the dividend is being divided"))
+    def description : String
+      "Compute the Quotient of x and y (i.e.: x / y). Useful for ratios."
+    end
+
+    def parameters : JSON::Any
+      parameters("The Dividend of the division. The number being divided", "The Divisor of the division. The number by which the dividend is being divided")
     end
 
     def call_typed(args : OperationArgs) : Int32

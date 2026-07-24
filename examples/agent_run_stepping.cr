@@ -20,19 +20,19 @@ struct AddTool
     "add"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "add",
-      "Add x and y together",
-      JSON.parse(%({
-        "type": "object",
-        "properties": {
-          "x": { "type": "number", "description": "The first number to add" },
-          "y": { "type": "number", "description": "The second number to add" }
-        },
-        "required": ["x", "y"]
-      })),
-    )
+  def description : String
+    "Add x and y together"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "description": "The first number to add" },
+        "y": { "type": "number", "description": "The second number to add" }
+      },
+      "required": ["x", "y"]
+    }))
   end
 
   def call(args : String) : String
@@ -70,7 +70,7 @@ agent = client.agent(model_name)
   .tool(AddTool.new)
   .build
 
-tool_def = AddTool.new.definition("")
+tool_def = AddTool.new
 ts_handle = agent.tool_server_handle.not_nil!
 completion_model = client.completion_model(model_name)
 

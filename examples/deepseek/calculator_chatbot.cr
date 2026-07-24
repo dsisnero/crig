@@ -35,25 +35,21 @@ module Crig::Examples::CalculatorChatbot
       "Add x and y together"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name: "add",
-        description: "Add x and y together",
-        parameters: {
-          "type" => "object",
-          "properties" => {
-            "x" => {
-              "type" => "number",
-              "description" => "The first number to add"
-            },
-            "y" => {
-              "type" => "number",
-              "description" => "The second number to add"
-            }
+    def parameters : JSON::Any
+      {
+        "type" => "object",
+        "properties" => {
+          "x" => {
+            "type" => "number",
+            "description" => "The first number to add"
           },
-          "required" => ["x", "y"]
-        }
-      )
+          "y" => {
+            "type" => "number",
+            "description" => "The second number to add"
+          }
+        },
+        "required" => ["x", "y"]
+      }
     end
 
     def call(args : OperationArgs) : Int32
@@ -72,25 +68,21 @@ module Crig::Examples::CalculatorChatbot
       "Subtract y from x (i.e.: x - y)"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name: "subtract",
-        description: "Subtract y from x (i.e.: x - y)",
-        parameters: {
-          "type" => "object",
-          "properties" => {
-            "x" => {
-              "type" => "number",
-              "description" => "The number to subtract from"
-            },
-            "y" => {
-              "type" => "number",
-              "description" => "The number to subtract"
-            }
+    def parameters : JSON::Any
+      {
+        "type" => "object",
+        "properties" => {
+          "x" => {
+            "type" => "number",
+            "description" => "The number to subtract from"
           },
-          "required" => ["x", "y"]
-        }
-      )
+          "y" => {
+            "type" => "number",
+            "description" => "The number to subtract"
+          }
+        },
+        "required" => ["x", "y"]
+      }
     end
 
     def call(args : OperationArgs) : Int32
@@ -109,25 +101,21 @@ module Crig::Examples::CalculatorChatbot
       "Compute the product of x and y (i.e.: x * y)"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name: "multiply",
-        description: "Compute the product of x and y (i.e.: x * y)",
-        parameters: {
-          "type" => "object",
-          "properties" => {
-            "x" => {
-              "type" => "number",
-              "description" => "The first factor in the product"
-            },
-            "y" => {
-              "type" => "number",
-              "description" => "The second factor in the product"
-            }
+    def parameters : JSON::Any
+      {
+        "type" => "object",
+        "properties" => {
+          "x" => {
+            "type" => "number",
+            "description" => "The first factor in the product"
           },
-          "required" => ["x", "y"]
-        }
-      )
+          "y" => {
+            "type" => "number",
+            "description" => "The second factor in the product"
+          }
+        },
+        "required" => ["x", "y"]
+      }
     end
 
     def call(args : OperationArgs) : Int32
@@ -146,25 +134,21 @@ module Crig::Examples::CalculatorChatbot
       "Compute the Quotient of x and y (i.e.: x / y). Useful for ratios."
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      Crig::Completion::ToolDefinition.new(
-        name: "divide",
-        description: "Compute the Quotient of x and y (i.e.: x / y). Useful for ratios.",
-        parameters: {
-          "type" => "object",
-          "properties" => {
-            "x" => {
-              "type" => "number",
-              "description" => "The Dividend of the division. The number being divided"
-            },
-            "y" => {
-              "type" => "number",
-              "description" => "The Divisor of the division. The number by which the dividend is being divided"
-            }
+    def parameters : JSON::Any
+      {
+        "type" => "object",
+        "properties" => {
+          "x" => {
+            "type" => "number",
+            "description" => "The Dividend of the division. The number being divided"
           },
-          "required" => ["x", "y"]
-        }
-      )
+          "y" => {
+            "type" => "number",
+            "description" => "The Divisor of the division. The number by which the dividend is being divided"
+          }
+        },
+        "required" => ["x", "y"]
+      }
     end
 
     def call(args : OperationArgs) : Int32

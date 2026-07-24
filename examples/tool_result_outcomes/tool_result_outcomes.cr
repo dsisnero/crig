@@ -18,18 +18,18 @@ struct HttpFetch
     "http_fetch"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "http_fetch",
-      "Fetch a URL and return its body. URLs containing 'slow' time out; URLs containing 'missing' return HTTP 404.",
-      JSON.parse(%({
-        "type": "object",
-        "properties": {
-          "url": { "type": "string", "description": "The URL to fetch" }
-        },
-        "required": ["url"]
-      })),
-    )
+  def description : String
+    "Fetch a URL and return its body. URLs containing 'slow' time out; URLs containing 'missing' return HTTP 404."
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "The URL to fetch" }
+      },
+      "required": ["url"]
+    }))
   end
 
   def call(args : String) : String

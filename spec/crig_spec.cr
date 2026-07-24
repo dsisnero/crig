@@ -578,12 +578,12 @@ struct RecursiveFailingTool
     "echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : EchoArgs) : String
@@ -607,12 +607,12 @@ struct EmbeddedEchoTool
     "embedded-echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "embedded-echo",
-      "Echo the given value",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : EchoArgs) : String
@@ -645,13 +645,12 @@ struct StatefulEmbeddedEchoTool
     "stateful-embedded-echo"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    _ = prompt
-    Crig::Completion::ToolDefinition.new(
-      "stateful-embedded-echo",
-      "Echo the given value with runtime state",
-      JSON.parse(%({"type":"object"}))
-    )
+  def description : String
+    "Echo the given value with runtime state"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object"}))
   end
 
   def call_typed(args : EchoArgs) : String
@@ -679,12 +678,12 @@ struct SleeperTool
   def initialize(@sleep_duration_ms : Int32)
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "sleeper",
-      "Sleeps for the configured duration",
-      JSON.parse(%({"type":"object","properties":{}}))
-    )
+  def description : String
+    "Sleeps for the configured duration"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object","properties":{}}))
   end
 
   def call_typed(args : EmptyToolArgs) : Int32
@@ -3067,7 +3066,8 @@ describe Crig::Agent(FakeCompletionClientModel), tags: %w[agent] do
       .preamble("Stay concise.")
       .build
 
-    definition = agent.definition("")
+    adapter = Crig::AgentToolAdapter.new(agent)
+    definition = Crig.tool_definition(adapter)
 
     definition.name.should eq("sub-agent")
     definition.description.should contain("Prompt a sub-agent to do a task for you")
@@ -3080,8 +3080,9 @@ describe Crig::Agent(FakeCompletionClientModel), tags: %w[agent] do
   it "falls back to the upstream default agent tool name" do
     model = FakeCompletionClientModel.new("gpt-4o")
     agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model).build
+    adapter = Crig::AgentToolAdapter.new(agent)
 
-    agent.definition("").name.should eq("agent_tool")
+    Crig.tool_definition(adapter).name.should eq("agent_tool")
   end
 
   it "can be called as a sub-agent tool" do
@@ -5925,7 +5926,7 @@ describe Crig::InMemoryVectorStore(StoredDoc) do
       {"doc-1", StoredDoc.new("doc-1", "first"), vector_embedding("first", [1.0, 0.0, 0.0])},
     ])
 
-    definition = store.index(FakeEmbeddingModel.new).definition
+    definition = Crig.tool_definition(store.index(FakeEmbeddingModel.new))
 
     definition.name.should eq("search_vector_store")
     definition.parameters["required"].as_a.map(&.as_s).should eq(["query", "samples"])
@@ -7518,7 +7519,7 @@ describe Crig::ToolDyn do
       puts(JSON.build do |json|
         json.object do
           json.field "name", agent.name
-          json.field "definition_name", agent.definition("").name
+          json.field "definition_name", Crig.tool_definition(Crig::AgentToolAdapter.new(agent)).name
           json.field "response", response
           json.field "prompt", request.chat_history.last.rag_text
         end
@@ -7535,7 +7536,7 @@ end
 describe "Crig.rig_tool" do
   it "ports the calculator rig_tool test" do
     tool = Calculator.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
 
     tool.name.should eq("calculator")
     definition.name.should eq("calculator")
@@ -7567,7 +7568,7 @@ describe "Crig.rig_tool" do
 
   it "uses the default description when one is not provided" do
     tool = CountRs.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
 
     definition.description.should eq("Function to count_rs")
     tool.call(CountRsParameters.new("Rig rocks").to_json).should eq("2")
@@ -7581,7 +7582,7 @@ describe Crig::ThinkTool do
 
   it "builds the upstream think definition" do
     tool = Crig::ThinkTool.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
 
     definition.name.should eq("think")
     definition.description.should contain("Use the tool to think about something")
@@ -7716,7 +7717,8 @@ describe Crig::ToolSetBuilder do
         include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
         def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
         def name : String; "add"; end
-        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("add", "Add x and y together", ArithmeticTool.parameters("add")); end
+        def description : String; "Add x and y together"; end
+        def parameters : JSON::Any; ArithmeticTool.parameters("add"); end
         def call_typed(args : OperationArgs) : Int32; args.x + args.y; end
         def embedding_docs : Array(String); ["Add x and y together"]; end
         def typed_context : Nil; nil; end
@@ -7726,7 +7728,8 @@ describe Crig::ToolSetBuilder do
         include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
         def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
         def name : String; "subtract"; end
-        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("subtract", "Subtract y from x", ArithmeticTool.parameters("subtract")); end
+        def description : String; "Subtract y from x"; end
+        def parameters : JSON::Any; ArithmeticTool.parameters("subtract"); end
         def call_typed(args : OperationArgs) : Int32; args.x - args.y; end
         def embedding_docs : Array(String); ["Subtract y from x"]; end
         def typed_context : Nil; nil; end
@@ -7736,7 +7739,8 @@ describe Crig::ToolSetBuilder do
         include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
         def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
         def name : String; "multiply"; end
-        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("multiply", "Multiply x and y", ArithmeticTool.parameters("multiply")); end
+        def description : String; "Multiply x and y"; end
+        def parameters : JSON::Any; ArithmeticTool.parameters("multiply"); end
         def call_typed(args : OperationArgs) : Int32; args.x * args.y; end
         def embedding_docs : Array(String); ["Multiply x and y"]; end
         def typed_context : Nil; nil; end
@@ -7746,7 +7750,8 @@ describe Crig::ToolSetBuilder do
         include Crig::ToolEmbedding(OperationArgs, Int32, Nil)
         def self.init(state, context : Nil) : self; _ = state; _ = context; new; end
         def name : String; "divide"; end
-        def definition(prompt : String) : Crig::Completion::ToolDefinition; _ = prompt; Crig::Completion::ToolDefinition.new("divide", "Divide x by y", ArithmeticTool.parameters("divide")); end
+        def description : String; "Divide x by y"; end
+        def parameters : JSON::Any; ArithmeticTool.parameters("divide"); end
         def call_typed(args : OperationArgs) : Int32; args.x // args.y; end
         def embedding_docs : Array(String); ["Divide x by y"]; end
         def typed_context : Nil; nil; end
@@ -7989,7 +7994,7 @@ describe Crig::McpTool do
 
     tool = Crig::McpTool.from_mcp_server(definition, client)
 
-    tool.definition("unused").name.should eq("sum")
+    tool.name.should eq("sum")
     tool.call(%({"x":2,"y":5})).should eq("7")
   end
 
@@ -16688,7 +16693,7 @@ describe Crig::Examples::AgentWithEchochambers, tags: %w[examples agent_with_ech
 
   it "keeps the upstream tool definitions and sender shape" do
     send_message = Crig::Examples::AgentWithEchochambers::SendMessage.new("echo-key")
-    definition = send_message.definition("")
+    definition = Crig.tool_definition(send_message)
     payload = send_message.call_typed(
       Crig::Examples::AgentWithEchochambers::SendMessageArgs.new(
         "Hello, world!",

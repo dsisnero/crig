@@ -12,12 +12,12 @@ struct NoArgTool
     "no_arg_tool"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "no_arg_tool",
-      "Tool with no required arguments",
-      JSON.parse(%({"type":"object","properties":{}}))
-    )
+  def description : String
+    "Tool with no required arguments"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object","properties":{}}))
   end
 
   def call_typed(args : NullArgsNormalized) : String
@@ -32,12 +32,12 @@ struct AnyArgsTool
     "any_args_tool"
   end
 
-  def definition(prompt : String) : Crig::Completion::ToolDefinition
-    Crig::Completion::ToolDefinition.new(
-      "any_args_tool",
-      "Tool with raw JSON args",
-      JSON.parse(%({"type":"object","properties":{}}))
-    )
+  def description : String
+    "Tool with raw JSON args"
+  end
+
+  def parameters : JSON::Any
+    JSON.parse(%({"type":"object","properties":{}}))
   end
 
   def call_typed(args : JSON::Any) : String

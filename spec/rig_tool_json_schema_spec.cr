@@ -36,7 +36,7 @@ end
 describe "rig_tool json-schema integration" do
   it "generates schema matching json-schema output format" do
     tool = Calc.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
 
     # Core schema structure
     definition.parameters["type"].as_s.should eq("object")
@@ -55,7 +55,7 @@ describe "rig_tool json-schema integration" do
 
   it "synthesizes descriptions from params map" do
     tool = Calc.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
 
     definition.parameters["properties"]["a"]["description"].as_s.should eq("First number in the calculation")
     definition.parameters["properties"]["op"]["description"].as_s.should eq("The operation to perform (add, subtract, multiply, divide)")
@@ -63,7 +63,7 @@ describe "rig_tool json-schema integration" do
 
   it "synthesizes descriptions from params map" do
     tool = Calc.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
 
     definition.parameters["properties"]["a"]["description"].as_s.should eq("First number in the calculation")
     definition.parameters["properties"]["op"]["description"].as_s.should eq("The operation to perform (add, subtract, multiply, divide)")
@@ -71,7 +71,7 @@ describe "rig_tool json-schema integration" do
 
   it "outputs nilable fields as non-required" do
     tool = OptionalTool.new
-    definition = tool.definition("")
+    definition = Crig.tool_definition(tool)
     required = definition.parameters["required"].as_a.map(&.as_s)
     required.includes?("x").should be_true
     required.includes?("label").should be_false

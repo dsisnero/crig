@@ -43,22 +43,21 @@ module Crig::Examples::AnthropicThinkToolWithOtherTools
       "calculator"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "calculator",
-        "Evaluate mathematical expressions with basic operators (+, -, *, /) and parentheses. Examples of valid expressions: '2 + 2', '5 * (10 - 3)', '25 + (2 * 40)'. Does not support advanced functions like sin, cos, or logarithms.",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "expression":{
-              "type":"string",
-              "description":"The mathematical expression to evaluate (e.g., '2 + 2', '5 * (10 - 3)', etc.)"
-            }
-          },
-          "required":["expression"]
-        }))
-      )
+    def description : String
+      "Evaluate mathematical expressions with basic operators (+, -, *, /) and parentheses. Examples of valid expressions: '2 + 2', '5 * (10 - 3)', '25 + (2 * 40)'. Does not support advanced functions like sin, cos, or logarithms."
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "expression":{
+            "type":"string",
+            "description":"The mathematical expression to evaluate (e.g., '2 + 2', '5 * (10 - 3)', etc.)"
+          }
+        },
+        "required":["expression"]
+      }))
     end
 
     def call_typed(args : CalculatorArgs) : Float64
@@ -202,22 +201,21 @@ module Crig::Examples::AnthropicThinkToolWithOtherTools
       "database_lookup"
     end
 
-    def definition(prompt : String) : Crig::Completion::ToolDefinition
-      _ = prompt
-      Crig::Completion::ToolDefinition.new(
-        "database_lookup",
-        "Look up information in a database. Only can use `customer_policy`, `shipping_rates` and `product_inventory` as valid queries.",
-        JSON.parse(%({
-          "type":"object",
-          "properties":{
-            "query":{
-              "type":"string",
-              "description":"The query to look up in the database"
-            }
-          },
-          "required":["query"]
-        }))
-      )
+    def description : String
+      "Look up information in a database. Only can use `customer_policy`, `shipping_rates` and `product_inventory` as valid queries."
+    end
+
+    def parameters : JSON::Any
+      JSON.parse(%({
+        "type":"object",
+        "properties":{
+          "query":{
+            "type":"string",
+            "description":"The query to look up in the database"
+          }
+        },
+        "required":["query"]
+      }))
     end
 
     def call_typed(args : DatabaseLookupArgs) : String
