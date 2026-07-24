@@ -336,9 +336,13 @@ module Crig
       # ameba:enable Metrics/CyclomaticComplexity
 
       def self.parse_sse_events(text : String) : Array(StreamingEvent)
-        Decoders::SSEDecoder.iter_sse_messages([text.to_slice]).compact_map do |event|
-          next if event.data == "[DONE]"
-          StreamingEvent.from_json_value(JSON.parse(event.data))
+        text.split("\n\n").compact_map do |chunk|
+          next if chunk.empty?
+          data = chunk.lines.find(&.starts_with?("data: "))
+          next unless data
+          payload = data.lchop("data: ")
+          next if payload == "[DONE]"
+          StreamingEvent.from_json_value(JSON.parse(payload))
         end
       end
 

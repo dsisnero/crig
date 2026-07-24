@@ -4,7 +4,7 @@ module Crig
     VERSION = {{ version_line.split(":").last.strip }}
   {% end %}
   UPSTREAM_URL         = "https://github.com/0xPlaygrounds/rig.git"
-  UPSTREAM_COMMIT      = "06bc651f4c64d1673ba6af698f6c66602c5d313f"
+  UPSTREAM_COMMIT      = "a551c4c5c5df5d26b07111c722cc26ffb2777561"
   UPSTREAM_SOURCE_PATH = "vendor/rig/crates/rig-core"
 end
 
@@ -20,7 +20,7 @@ require "./crig/tool/extensions"
 require "./crig/tool/result"
 require "./crig/tool/rmcp"
 require "./crig/tool/server"
-require "./crig/tools/think"
+require "./crig/tool/builtin/think"
 require "./crig/evals"
 require "./crig/extractor"
 require "./crig/streaming_traits"
