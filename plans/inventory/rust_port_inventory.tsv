@@ -1,3 +1,4 @@
+# baseline=v0.40.0 (a551c4c5c5df5d26b07111c722cc26ffb2777561)
 # source_id	kind	status	crystal_refs	notes
 examples/enum_dispatch.rs::func::agent	func	ported	examples/enum_dispatch.cr,spec/crig_spec.cr	Provider-dispatched agent lookup is ported through `ProviderRegistry#agent`, returning an `Agents` wrapper that forwards prompt calls to the concrete built agent.
 examples/enum_dispatch.rs::func::new	func	ported	examples/enum_dispatch.cr,spec/crig_spec.cr	The example registry and agent wrapper construction are ported under `Crig::Examples::EnumDispatch`.
