@@ -1515,24 +1515,20 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("gemini", @model, request.preamble, nil)
-
           request_model = Gemini.resolve_request_model(@model, request)
           payload = Gemini.create_request_body(request)
-          response = @client.post_json(Gemini.completion_endpoint(request_model), payload.to_json)
-          body = response.body
+          path = Gemini.completion_endpoint(request_model)
 
-          if response.status_code >= 400
-            raise Crig::Completion::CompletionError.new(body)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            path,
+            payload.to_json,
+            "gemini",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            GenerateContentResponse.from_json(parsed.to_json).to_completion_response
           end
-
-          result = GenerateContentResponse.from_json(body).to_completion_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
       end
 
