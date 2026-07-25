@@ -15,7 +15,7 @@ module Crig
 
           response = client.post_json(path, body)
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           parsed = JSON.parse(text)
           result = yield parsed
@@ -42,7 +42,7 @@ module Crig
 
           response = client.post_json(path, body, all_headers)
           text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) if response.status_code >= 400
 
           yield text
         end

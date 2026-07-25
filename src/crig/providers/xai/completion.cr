@@ -159,26 +159,23 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("xai", @model, request.preamble, nil)
-
           payload = XAICompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_json("/v1/responses", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          body = JSON.parse(text)
-          parsed = ApiResponse(CompletionResponse).from_json_value(body) { |value| CompletionResponse.from_json(value.to_json) }
-          if error = parsed.error
-            raise Crig::Completion::CompletionError.new(error.message)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/v1/responses",
+            payload.to_json,
+            "xai",
+            @model,
+            request.preamble,
+          ) do |body|
+            parsed = ApiResponse(CompletionResponse).from_json_value(body) { |value| CompletionResponse.from_json(value.to_json) }
+            if error = parsed.error
+              raise Crig::Completion::CompletionError.new(error.message)
+            end
+            response_body = parsed.ok || raise Crig::Completion::CompletionError.new("xAI response did not include a success payload")
+            response_body.to_crig_response
           end
-          response_body = parsed.ok || raise Crig::Completion::CompletionError.new("xAI response did not include a success payload")
-          result = response_body.to_crig_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

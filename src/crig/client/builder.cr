@@ -25,7 +25,6 @@ module Crig
       XAI
       Azure
       DeepSeek
-      Galadriel
       Groq
       Hyperbolic
       Moonshot
@@ -62,7 +61,6 @@ module Crig
           "xai",
           "azure",
           "deepseek",
-          "galadriel",
           "groq",
           "hyperbolic",
           "moonshot",
@@ -95,8 +93,6 @@ module Crig
                     -> { AnyClient.new(Crig::Providers::Azure::Client.from_env) }
                   in .deep_seek?
                     -> { AnyClient.new(Crig::Providers::DeepSeek::Client.from_env) }
-                  in .galadriel?
-                    -> { AnyClient.new(Crig::Providers::Galadriel::Client.from_env) }
                   in .groq?
                     -> { AnyClient.new(Crig::Providers::Groq::Client.from_env) }
                   in .hyperbolic?

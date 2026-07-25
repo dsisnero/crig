@@ -189,7 +189,7 @@ module Crig
           )
           response = @client.post_json("/chat/completions", payload.to_json_value.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.provider_error("Copilot (#{response.status_code}): #{text}") unless response.success?
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) unless response.success?
 
           parsed = JSON.parse(text)
           chat_response = Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(parsed)
@@ -204,7 +204,7 @@ module Crig
           )
           response = @client.post_json("/responses", payload.to_json_value.to_json)
           text = response.body
-          raise Crig::Completion::CompletionError.provider_error("Copilot (#{response.status_code}): #{text}") unless response.success?
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) unless response.success?
 
           parsed = JSON.parse(text)
           Crig::Providers::OpenAI::CompletionResponsePayload.from_json(text)
@@ -232,7 +232,7 @@ module Crig
             {"Accept" => "text/event-stream"},
           )
           text = response.body
-          raise Crig::Completion::CompletionError.provider_error("Copilot (#{response.status_code}): #{text}") unless response.success?
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) unless response.success?
 
           raw_choices = parse_chat_stream(text)
           Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)
@@ -251,7 +251,7 @@ module Crig
             {"Accept" => "text/event-stream"},
           )
           text = response.body
-          raise Crig::Completion::CompletionError.provider_error("Copilot (#{response.status_code}): #{text}") unless response.success?
+          raise Crig::Completion::CompletionError.from_http_response(response.status_code, text) unless response.success?
 
           raw_choices = parse_responses_stream(text)
           Crig::StreamingCompletionResponse(Crig::Client::FinalCompletionResponse).stream_raw_choices(raw_choices)

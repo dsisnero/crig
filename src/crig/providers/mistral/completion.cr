@@ -516,26 +516,23 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("mistral", @model, request.preamble, nil)
-
           payload = MistralCompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_json("/v1/chat/completions", payload.to_json)
-          text = response.body
-          raise Crig::Completion::CompletionError.new(text) if response.status_code >= 400
 
-          parsed = JSON.parse(text)
-          body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
-          if error = body.error
-            raise Crig::Completion::CompletionError.new(error.message)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            "/v1/chat/completions",
+            payload.to_json,
+            "mistral",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            body = ApiResponse(CompletionResponse).from_json_value(parsed) { |value| CompletionResponse.from_json(value.to_json) }
+            if error = body.error
+              raise Crig::Completion::CompletionError.new(error.message)
+            end
+            response_body = body.ok || raise Crig::Completion::CompletionError.new("Mistral response did not include a success payload")
+            response_body.to_completion_response
           end
-          response_body = body.ok || raise Crig::Completion::CompletionError.new("Mistral response did not include a success payload")
-          result = response_body.to_completion_response
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)

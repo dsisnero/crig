@@ -4,7 +4,6 @@ require "../examples/agent_stream_chat"
 require "../examples/agent_with_agent_tool/agent_with_agent_tool"
 require "../examples/agent_prompt_chaining"
 require "../examples/agent_with_cohere"
-require "../examples/agent_with_galadriel"
 require "../examples/agent_with_grok"
 require "../examples/agent_with_groq"
 require "../examples/agent_with_huggingface"
@@ -3568,7 +3567,7 @@ describe Crig::DefaultProviders do
   it "formats provider keys like the upstream enum" do
     Crig::DefaultProviders::OpenAI.to_s.should eq("openai")
     Crig::DefaultProviders::HuggingFace.to_s.should eq("huggingface")
-    Crig::DefaultProviders.all.size.should be >= 18
+    Crig::DefaultProviders.all.size.should be >= 16
   end
 
   it "builds environment factories for default providers" do
@@ -6931,17 +6930,6 @@ describe Crig::Providers::Groq do
     client.api_key.token.should eq("dummy-key")
     client_from_builder.api_key.token.should eq("dummy-key")
     client.base_url.should eq(Crig::Providers::Groq::GROQ_API_BASE_URL)
-  end
-end
-
-describe Crig::Providers::Galadriel do
-  it "supports client initialization" do
-    client = Crig::Providers::Galadriel::Client.new("dummy-key")
-    client_from_builder = Crig::Providers::Galadriel::Client.builder.api_key("dummy-key").build
-
-    client.api_key.token.should eq("dummy-key")
-    client_from_builder.api_key.token.should eq("dummy-key")
-    client.base_url.should eq(Crig::Providers::Galadriel::GALADRIEL_API_BASE_URL)
   end
 end
 
@@ -15054,21 +15042,6 @@ describe Crig::Examples::AgentWithOpenRouter, tags: %w[examples agent_with_openr
   end
 end
 
-describe Crig::Examples::AgentWithGaladriel, tags: %w[examples agent_with_galadriel] do
-  it "builds the upstream galadriel comedian agent helper" do
-    client = Crig::Providers::Galadriel::Client.new("test-key")
-    agent = Crig::Examples::AgentWithGaladriel.build_agent(client)
-
-    agent.model.model.should eq(Crig::Providers::Galadriel::GPT_4O)
-    agent.preamble.should eq(Crig::Examples::AgentWithGaladriel::PREAMBLE)
-  end
-
-  it "runs the galadriel example prompt through a provided agent" do
-    Crig::Examples::AgentWithGaladriel.run_prompt(
-      Crig::AgentBuilder(FakeCompletionClientModel).new(FakeCompletionClientModel.new("galadriel-model")).build
-    ).should eq("completion:galadriel-model")
-  end
-end
 
 describe Crig::Examples::AgentWithMoonshot, tags: %w[examples agent_with_moonshot] do
   it "builds the upstream basic moonshot agent helper" do
