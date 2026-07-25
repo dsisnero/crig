@@ -195,8 +195,12 @@ module Crig
           post_json(deployment_path(deployment_id, "embeddings"), body)
         end
 
+        def chat_completion_path(deployment_id : String) : String
+          deployment_path(deployment_id, "chat/completions")
+        end
+
         def post_chat_completion(deployment_id : String, body : String, headers : Hash(String, String) = {} of String => String) : HTTP::Client::Response
-          post_json(deployment_path(deployment_id, "chat/completions"), body, headers)
+          post_json(chat_completion_path(deployment_id), body, headers)
         end
 
         def post_transcription(deployment_id : String, body : String, content_type : String) : HTTP::Client::Response
@@ -413,30 +417,23 @@ module Crig
         end
 
         def completion(request : Crig::Completion::Request::CompletionRequest)
-          span = Crig::Span.chat_span("azure", @model, request.preamble, nil)
-
           payload = AzureOpenAICompletionRequest.from_request(@model, request).to_json_value
-          response = @client.post_chat_completion(@model, payload.to_json)
-          text = response.body
 
-          if response.status_code >= 400
-            raise Crig::Completion::CompletionError.new(text)
+          Crig::Providers::Internal::GenericCompletionModel.send_completion_request(
+            @client,
+            @client.chat_completion_path(@model),
+            payload.to_json,
+            "azure",
+            @model,
+            request.preamble,
+          ) do |parsed|
+            if error = parsed["message"]?
+              raise Crig::Completion::CompletionError.new(error.as_s)
+            elsif error = parsed["error"]?
+              raise Crig::Completion::CompletionError.new(error["message"].as_s)
+            end
+            Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(parsed).to_completion_response(parsed)
           end
-
-          parsed = JSON.parse(text)
-          if error = parsed["message"]?
-            raise Crig::Completion::CompletionError.new(error.as_s)
-          elsif error = parsed["error"]?
-            raise Crig::Completion::CompletionError.new(error["message"].as_s)
-          end
-
-          result = Crig::Providers::OpenAI::Chat::CompletionResponse.from_json_value(parsed).to_completion_response(parsed)
-          if response = result.raw_response
-            span.record_response_metadata(response) if response.responds_to?(:get_response_id)
-            span.record_token_usage(result.usage) if result.usage.responds_to?(:token_usage)
-          end
-          span.end_span
-          result
         end
 
         def stream(request : Crig::Completion::Request::CompletionRequest)
