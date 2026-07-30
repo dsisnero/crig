@@ -299,16 +299,14 @@ module Crig
     private def dispatch_completion_call_hook(ctx, event, error_history : Array(Completion::Message)) : RequestPatch?
       merged : RequestPatch? = nil
       @hooks.each do |hook|
-        flow = hook.on_event(ctx, event)
-        case flow.kind
-        in .continue? then next
+        action = hook.on_completion_call(ctx, event)
+        case action.kind
+        in .cont? then next
         in .patch_request?
-          if p = flow.patch
+          if p = action.patch
             merged = merged ? merged.merge(p) : p
           end
-        in .terminate? then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason || "terminated")
-        in .skip?, .rewrite_args?, .rewrite_result?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported for CompletionCall: #{flow.kind}")
+        in .stop? then raise Completion::PromptError.prompt_cancelled(error_history, action.reason || "terminated")
         end
       end
       merged
@@ -316,12 +314,9 @@ module Crig
 
     private def dispatch_hook(ctx, event, error_history : Array(Completion::Message)) : Nil
       @hooks.each do |hook|
-        flow = hook.on_event(ctx, event)
-        case flow.kind
-        in .continue?  then next
-        in .terminate? then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason || "terminated")
-        in .skip?, .rewrite_args?, .rewrite_result?, .patch_request?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported: #{flow.kind}")
+        action = hook.on_observation(ctx, event)
+        if action.kind.stop?
+          raise Completion::PromptError.prompt_cancelled(error_history, action.reason || "terminated")
         end
       end
     end
@@ -400,17 +395,14 @@ module Crig
     private def dispatch_tool_call_hook(ctx, event, error_history : Array(Completion::Message)) : {String, String?}
       effective = event.args || ""
       @hooks.each do |hook|
-        flow = hook.on_event(ctx, event)
-        case flow.kind
-        in .continue? then next
-        in .rewrite_args?
-          if a = flow.args
+        action = hook.on_tool_call(ctx, event)
+        case action.kind
+        in .cont? then next
+        in .rewrite?
+          if a = action.args
             effective = a.to_json
           end
-        in .terminate? then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason || "terminated")
-        in .skip?      then return {effective, flow.reason}
-        in .rewrite_result?, .patch_request?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported for ToolCall: #{flow.kind}")
+        in .stop? then return {effective, action.reason}
         end
       end
       {effective, nil}
@@ -419,16 +411,16 @@ module Crig
     private def dispatch_tool_result_hook(ctx, event, error_history : Array(Completion::Message)) : String
       effective = event.result || ""
       @hooks.each do |hook|
-        flow = hook.on_event(ctx, event)
-        case flow.kind
-        in .continue? then next
-        in .rewrite_result?
-          if r = flow.result
-            effective = r
+        action = hook.on_tool_result(ctx, event)
+        case action.kind
+        in .cont? then next
+        in .rewrite?
+          if output = action.output
+            if text = output.as_text
+              effective = text
+            end
           end
-        in .terminate? then raise Completion::PromptError.prompt_cancelled(error_history, flow.reason || "terminated")
-        in .skip?, .rewrite_args?, .patch_request?, .fail?, .retry?, .repair?
-          raise Completion::PromptError.prompt_cancelled(error_history, "unsupported for ToolResult: #{flow.kind}")
+        in .stop? then raise Completion::PromptError.prompt_cancelled(error_history, action.reason || "terminated")
         end
       end
       effective
@@ -450,42 +442,36 @@ module Crig
         ctx2 = outcome.context || raise "Bug: needs_resolution without context"
         invalid_event = StepEvent.tool_call(
           ctx2.tool_name, nil, "", ctx2.args || "")
-        flow = dispatch_invalid_tool_call_hook(ctx, invalid_event, ctx2)
-        case flow.kind
+        action = dispatch_invalid_tool_call_hook(ctx, invalid_event, ctx2)
+        case action.kind
         in .fail?
           raise Completion::PromptError.unknown_tool_call(
             ctx2.tool_name, ctx2.available_tools, ctx2.allowed_tools, ctx2.chat_history)
         in .retry?
           run.resolve_invalid_tool_call(
-            InvalidToolCallHookAction.retry(flow.feedback || "try again"))
+            InvalidToolCallHookAction.retry(action.feedback || "try again"))
         in .repair?
           run.resolve_invalid_tool_call(
-            InvalidToolCallHookAction.repair(flow.tool_name || ctx2.tool_name))
+            InvalidToolCallHookAction.repair(action.tool_name || ctx2.tool_name))
         in .skip?
           run.resolve_invalid_tool_call(
-            InvalidToolCallHookAction.skip(flow.reason || "skipped"))
-        in .continue?, .terminate?, .rewrite_args?, .rewrite_result?, .patch_request?
-          raise Completion::PromptError.unknown_tool_call(
-            ctx2.tool_name, ctx2.available_tools, ctx2.allowed_tools, ctx2.chat_history)
+            InvalidToolCallHookAction.skip(action.reason || "skipped"))
         end
       in .turn_retried?, .continue?
       end
     end
 
-    private def dispatch_invalid_tool_call_hook(ctx, event, ctx2) : Flow
+    private def dispatch_invalid_tool_call_hook(ctx, event, ctx2) : InvalidToolCallAction
       @hooks.each do |hook|
-        flow = hook.on_event(ctx, event)
-        case flow.kind
-        in .continue? then next
-        in .skip?     then return flow
-        in .fail?     then return flow
-        in .retry?    then return flow
-        in .repair?   then return flow
-        in .terminate?, .rewrite_args?, .rewrite_result?, .patch_request?
-          next
+        action = hook.on_invalid_tool_call(ctx, event)
+        case action.kind
+        in .fail?   then return action
+        in .retry?  then return action
+        in .repair? then return action
+        in .skip?   then return action
         end
       end
-      Flow.fail
+      InvalidToolCallAction.fail
     end
   end
 end
