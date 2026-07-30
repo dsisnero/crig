@@ -210,6 +210,160 @@ module Crig
     end
   end
 
+  # -- Event-specific action types (upstream v0.41.0) --
+
+  struct CompletionCallAction
+    enum Kind
+      Cont; PatchRequest; Stop
+    end
+
+    getter kind : Kind
+    getter patch : RequestPatch?
+    getter reason : String?
+
+    def initialize(@kind : Kind, @patch : RequestPatch? = nil, @reason : String? = nil)
+    end
+
+    def self.cont : self
+      new(Kind::Cont)
+    end
+
+    def self.patch_request(patch : RequestPatch) : self
+      new(Kind::PatchRequest, patch: patch)
+    end
+
+    def self.stop(reason : String) : self
+      new(Kind::Stop, reason: reason)
+    end
+  end
+
+  struct ToolCallAction
+    enum Kind
+      Cont; Rewrite; Stop
+    end
+
+    getter kind : Kind
+    getter args : JSON::Any?
+    getter reason : String?
+
+    def initialize(@kind : Kind, @args : JSON::Any? = nil, @reason : String? = nil)
+    end
+
+    def self.cont : self
+      new(Kind::Cont)
+    end
+
+    def self.rewrite(args : JSON::Any) : self
+      new(Kind::Rewrite, args: args)
+    end
+
+    def self.stop(reason : String) : self
+      new(Kind::Stop, reason: reason)
+    end
+  end
+
+  struct ToolResultAction
+    enum Kind
+      Cont; Rewrite; Stop
+    end
+
+    getter kind : Kind
+    getter output : Tool::ToolOutput?
+    getter reason : String?
+
+    def initialize(@kind : Kind, @output : Tool::ToolOutput? = nil, @reason : String? = nil)
+    end
+
+    def self.cont : self
+      new(Kind::Cont)
+    end
+
+    def self.rewrite(output : Tool::ToolOutput) : self
+      new(Kind::Rewrite, output: output)
+    end
+
+    def self.stop(reason : String) : self
+      new(Kind::Stop, reason: reason)
+    end
+  end
+
+  struct InvalidToolCallAction
+    enum Kind
+      Fail; Retry; Repair; Skip
+    end
+
+    getter kind : Kind
+    getter feedback : String?
+    getter tool_name : String?
+    getter reason : String?
+
+    def initialize(@kind : Kind, @feedback : String? = nil, @tool_name : String? = nil, @reason : String? = nil)
+    end
+
+    def self.fail : self
+      new(Kind::Fail)
+    end
+
+    def self.retry(feedback : String) : self
+      new(Kind::Retry, feedback: feedback)
+    end
+
+    def self.repair(tool_name : String) : self
+      new(Kind::Repair, tool_name: tool_name)
+    end
+
+    def self.skip(reason : String) : self
+      new(Kind::Skip, reason: reason)
+    end
+  end
+
+  struct ObservationAction
+    enum Kind
+      Cont; Stop
+    end
+
+    getter kind : Kind
+    getter reason : String?
+
+    def initialize(@kind : Kind, @reason : String? = nil)
+    end
+
+    def self.cont : self
+      new(Kind::Cont)
+    end
+
+    def self.stop(reason : String) : self
+      new(Kind::Stop, reason: reason)
+    end
+  end
+
+  struct ModelTurnAction
+    enum Kind
+      Cont; Retry; Stop
+    end
+
+    getter kind : Kind
+    getter feedback : String?
+    getter reason : String?
+
+    def initialize(@kind : Kind, @feedback : String? = nil, @reason : String? = nil)
+    end
+
+    def self.cont : self
+      new(Kind::Cont)
+    end
+
+    def self.retry(feedback : String) : self
+      new(Kind::Retry, feedback: feedback)
+    end
+
+    def self.stop(reason : String) : self
+      new(Kind::Stop, reason: reason)
+    end
+  end
+
+  # -- Legacy Flow struct (deprecated) --
+
   struct Flow
     enum Kind
       Continue
@@ -291,7 +445,75 @@ module Crig
   end
 
   module AgentHook
+    # Legacy: single event dispatch (deprecated — override event-specific methods instead).
     abstract def on_event(ctx : HookContext, event : StepEvent) : Flow
+
+    # Event-specific hooks (upstream v0.41.0+).
+    # Default implementations delegate to on_event for backward compatibility.
+    def on_completion_call(ctx : HookContext, event : StepEvent) : CompletionCallAction
+      flow = on_event(ctx, event)
+      if flow.kind.continue?
+        CompletionCallAction.cont
+      elsif flow.kind.patch_request?
+        CompletionCallAction.patch_request(flow.patch || RequestPatch.new)
+      elsif flow.kind.terminate?
+        CompletionCallAction.stop(flow.reason || "terminated")
+      else
+        CompletionCallAction.cont
+      end
+    end
+
+    def on_tool_call(ctx : HookContext, event : StepEvent) : ToolCallAction
+      flow = on_event(ctx, event)
+      if flow.kind.continue?
+        ToolCallAction.cont
+      elsif flow.kind.rewrite_args?
+        ToolCallAction.rewrite(flow.args || JSON.parse(%({})))
+      elsif flow.kind.skip? || flow.kind.terminate?
+        ToolCallAction.stop(flow.reason || "skipped")
+      else
+        ToolCallAction.cont
+      end
+    end
+
+    def on_tool_result(ctx : HookContext, event : StepEvent) : ToolResultAction
+      flow = on_event(ctx, event)
+      if flow.kind.continue?
+        ToolResultAction.cont
+      elsif flow.kind.rewrite_result?
+        ToolResultAction.rewrite(Tool::ToolOutput.text(flow.result || ""))
+      elsif flow.kind.skip? || flow.kind.terminate?
+        ToolResultAction.stop(flow.reason || "skipped")
+      else
+        ToolResultAction.cont
+      end
+    end
+
+    def on_invalid_tool_call(ctx : HookContext, event : StepEvent) : InvalidToolCallAction
+      flow = on_event(ctx, event)
+      if flow.kind.fail? || flow.kind.continue?
+        InvalidToolCallAction.fail
+      elsif flow.kind.retry?
+        InvalidToolCallAction.retry(flow.feedback || "try again")
+      elsif flow.kind.repair?
+        InvalidToolCallAction.repair(flow.tool_name || event.tool_name || "")
+      elsif flow.kind.skip?
+        InvalidToolCallAction.skip(flow.reason || "skipped")
+      else
+        InvalidToolCallAction.fail
+      end
+    end
+
+    def on_observation(ctx : HookContext, event : StepEvent) : ObservationAction
+      flow = on_event(ctx, event)
+      if flow.kind.continue?
+        ObservationAction.cont
+      elsif flow.kind.terminate?
+        ObservationAction.stop(flow.reason || "terminated")
+      else
+        ObservationAction.cont
+      end
+    end
   end
 
   struct StepEvent
