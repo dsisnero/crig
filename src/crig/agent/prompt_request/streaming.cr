@@ -323,9 +323,9 @@ module Crig
           {tool_call, internal_call_id, execute_tool_call(tool_call, internal_call_id, history)}
         end
 
-        executed_tool_results.each do |tool_call, internal_call_id, tool_result|
+        committed_results = executed_tool_results.map do |tool_call, internal_call_id, tool_result|
           tool_results << {tool_call.id, tool_call.call_id, tool_result}
-          items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_user_item(
+          item = Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_user_item(
             Crig::StreamedUserContent.tool_result(
               Crig::Completion::ToolResult.new(
                 tool_call.id,
@@ -337,7 +337,18 @@ module Crig
               internal_call_id,
             )
           )
+          items << item
+          item
         end
+
+        items << Crig::MultiTurnStreamItem(Crig::PromptResponse).tool_execution_committed(
+          committed_results.compact_map do |item|
+            user_item = item.user_item
+            if user_item && user_item.kind.tool_result?
+              user_item.tool_result
+            end
+          end
+        )
       end
 
       StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning, turn_usage)
