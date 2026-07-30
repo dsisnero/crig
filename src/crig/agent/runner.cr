@@ -253,44 +253,32 @@ module Crig
       run.tool_results(results)
     end
 
-    # ameba:disable Metrics/CyclomaticComplexity
     private def build_completion_request(sprompt, shistory, patch : RequestPatch?) : Completion::Request::CompletionRequestBuilder
-      builder = @model.completion_request(sprompt)
-      builder = builder.messages(shistory) unless shistory.empty?
-      builder = builder.documents(@static_context) unless @static_context.empty?
-
-      # Add tool definitions from static tools
-      if tds = @static_tools
-        builder = builder.tools(tds) unless tds.empty?
+      tool_defs = (@static_tools || [] of Completion::ToolDefinition) + begin
+        if tsh = @tool_server_handle
+          tsh.get_tool_defs(nil)
+        else
+          [] of Completion::ToolDefinition
+        end
       end
 
-      # Add tool definitions from tool server (matching upstream: tool_server_handle.get_tool_defs)
-      if tsh = @tool_server_handle
-        tool_defs = tsh.get_tool_defs(nil)
-        builder = builder.tools(tool_defs) unless tool_defs.empty?
-      end
-
-      # Apply patch (matching upstream: patch → baseline)
-      p = patch
-      effective_preamble = (p.try(&.preamble) || @preamble)
-      effective_temp = (p.try(&.temperature) || @temperature)
-      effective_tokens = (p.try(&.max_tokens) || @max_tokens)
-      effective_choice = (p.try(&.tool_choice) || @tool_choice)
-
-      builder = builder.preamble(effective_preamble) if effective_preamble
-      builder = builder.temperature(effective_temp) if effective_temp
-      builder = builder.max_tokens(effective_tokens.to_i64) if effective_tokens
-      builder = builder.tool_choice(effective_choice) if effective_choice
-      builder = builder.additional_params_opt(@additional_params) if @additional_params
-      builder = builder.output_schema_opt(@output_schema)
-
-      # Apply active_tools filter from patch (intersects with baseline tool set)
-      if (p = patch) && (active = p.active_tools)
-        current_tools = builder.tools.select { |tool| active.includes?(tool.name) }
-        builder = builder.tools(current_tools)
-      end
-
-      builder
+      prepared = PreparedCompletionRequest(typeof(@model)).build(
+        model: @model,
+        prompt: sprompt,
+        chat_history: shistory,
+        preamble: @preamble,
+        static_context: @static_context,
+        temperature: @temperature,
+        max_tokens: @max_tokens.try(&.to_i64),
+        additional_params: @additional_params,
+        tool_choice: @tool_choice,
+        tool_defs: tool_defs,
+        output_schema: @output_schema,
+        output_mode: @output_mode,
+        committed_output_tool: nil,
+        patch: patch,
+      )
+      prepared.builder
     end
 
     private def choice_text(choice : OneOrMany(Completion::AssistantContent)) : String

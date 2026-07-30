@@ -131,4 +131,89 @@ module Crig
 
     allowed
   end
+
+  struct PreparedCompletionRequest(M)
+    getter builder : Completion::Request::CompletionRequestBuilder
+    getter executable_tool_names : Set(String)
+    getter allowed_tool_names : Set(String)
+    getter output_tool_name : String?
+
+    def initialize(
+      @builder : Completion::Request::CompletionRequestBuilder,
+      @executable_tool_names : Set(String),
+      @allowed_tool_names : Set(String),
+      @output_tool_name : String? = nil,
+    )
+    end
+
+    # Build a PreparedCompletionRequest from agent and patch parameters.
+    # Mirrors upstream build_prepared_completion_request.
+    # ameba:disable Metrics/CyclomaticComplexity
+    def self.build(
+      model,
+      prompt : Completion::Message,
+      chat_history : Array(Completion::Message),
+      preamble : String?,
+      static_context : Array(Completion::Request::Document),
+      temperature : Float64?,
+      max_tokens : Int64?,
+      additional_params : JSON::Any?,
+      tool_choice : Completion::ToolChoice?,
+      tool_defs : Array(Completion::ToolDefinition),
+      output_schema : JSON::Any?,
+      output_mode : OutputMode,
+      committed_output_tool : String?,
+      patch : RequestPatch?,
+    ) : self
+      # Apply patch overrides
+      effective_preamble = patch.try(&.preamble) || preamble
+      effective_temp = patch.try(&.temperature) || temperature
+      effective_tokens = patch.try(&.max_tokens) || max_tokens
+      effective_choice = patch.try(&.tool_choice) || tool_choice
+      effective_additional = if patch_additional = patch.try(&.additional_params)
+                               if additional_params
+                                 Crig::JSONUtils.merge(additional_params, patch_additional)
+                               else
+                                 patch_additional
+                               end
+                             else
+                               additional_params
+                             end
+
+      # Build the request builder
+      builder = model.completion_request(prompt)
+        .messages(chat_history)
+        .tools(tool_defs)
+      builder = builder.preamble(effective_preamble) if effective_preamble
+      builder = builder.temperature(effective_temp) if effective_temp
+      builder = builder.max_tokens(effective_tokens.to_i64) if effective_tokens
+      builder = builder.tool_choice(effective_choice) if effective_choice
+      builder = builder.additional_params_opt(effective_additional) if effective_additional
+      builder = builder.output_schema_opt(output_schema)
+      builder = builder.documents(static_context) unless static_context.empty?
+
+      # Determine executable tool names
+      executable_names = tool_defs.map(&.name).to_set
+
+      # Pick output tool name
+      output_tool_name = committed_output_tool || begin
+        if output_mode.tool?
+          Crig.pick_output_tool_name(executable_names)
+        end
+      end
+
+      # Determine allowed tool names
+      active_tools = patch.try(&.active_tools)
+      pre_filter = active_tools.try(&.to_set)
+      allowed = Crig.allowed_tool_names_for_choice(
+        executable_names, effective_choice, output_tool_name, pre_filter)
+
+      # Apply active_tools filter
+      if active = active_tools
+        allowed &= active.to_set
+      end
+
+      new(builder, executable_names, allowed, output_tool_name)
+    end
+  end
 end
