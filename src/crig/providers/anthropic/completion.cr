@@ -440,6 +440,7 @@ module Crig
           RedactedThinking
           ServerToolUse
           WebSearchToolResult
+          CodeExecutionToolResult
         end
 
         getter kind : Kind
@@ -517,6 +518,10 @@ module Crig
           new(Kind::WebSearchToolResult, tool_use_id: tool_use_id)
         end
 
+        def self.code_execution_tool_result(tool_use_id : String, content : Array(ToolResultContent)) : self
+          new(Kind::CodeExecutionToolResult, tool_use_id: tool_use_id, tool_result_content: Crig::OneOrMany(ToolResultContent).many(content))
+        end
+
         def self.from_json_value(value : JSON::Any) : self # ameba:disable Metrics/CyclomaticComplexity
           if string = value.as_s?
             return text(string)
@@ -562,11 +567,16 @@ module Crig
             server_tool_use(hash["id"].as_s, hash["name"].as_s, hash["input"]? || JSON.parse(%({})))
           when "web_search_tool_result"
             web_search_tool_result(hash["tool_use_id"].as_s)
+          when "code_execution_tool_result"
+            raw_content = hash["content"]
+            content = raw_content.as_a.compact_map { |entry| ToolResultContent.from_json_value(entry) rescue nil }
+            code_execution_tool_result(hash["tool_use_id"].as_s, content)
           else
             raise Crig::Completion::MessageError.new("Unsupported Anthropic content type: #{hash["type"].as_s}")
           end
         end
 
+        # ameba:disable Metrics/CyclomaticComplexity
         def to_json(json : JSON::Builder) : Nil
           json.object do
             case @kind
@@ -615,10 +625,18 @@ module Crig
             in .web_search_tool_result?
               json.field "type", "web_search_tool_result"
               json.field "tool_use_id", @tool_use_id
+            in .code_execution_tool_result?
+              json.field "type", "code_execution_tool_result"
+              json.field "tool_use_id", @tool_use_id
+              json.field "content" do
+                content = @tool_result_content || raise "Missing tool result content"
+                json.array { content.each(&.to_json(json)) }
+              end
             end
           end
         end
 
+        # ameba:disable Metrics/CyclomaticComplexity
         def to_core_assistant_content : Crig::Completion::AssistantContent
           if @kind.text?
             Crig::Completion::AssistantContent.text(@text || "")
@@ -634,6 +652,10 @@ module Crig
               Crig::Completion::AssistantContent::Kind::Reasoning,
               reasoning: Crig::Completion::Reasoning.redacted(@data || ""),
             )
+          elsif @kind.code_execution_tool_result?
+            parts = @tool_result_content.try(&.to_a) || [] of ToolResultContent
+            text = parts.compact_map(&.text).join("\n")
+            Crig::Completion::AssistantContent.text(text)
           else
             raise Crig::Completion::MessageError.new("Content did not contain a message, tool call, or reasoning")
           end
