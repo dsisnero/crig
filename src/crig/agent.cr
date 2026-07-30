@@ -585,10 +585,13 @@ module Crig
       )
     end
 
+    # Deprecated: use repeated .tool(...) calls instead.
+    # tools(Vec) was removed in upstream v0.41.0 — prefer .tool(...) for clarity.
     def tools(tools : Array(Crig::Completion::ToolDefinition)) : self
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value + tools, @dynamic_tools_value, nil, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Deprecated: use repeated .tool(...) calls instead.
     def tools(tools : Array(Crig::ToolDyn)) : self
       handle = tool_server_handle_for_builder
       tools.each { |tool| handle.add_tool(tool) }
@@ -611,6 +614,7 @@ module Crig
       )
     end
 
+    # Deprecated: use repeated .tool(...) calls instead.
     def tools(tools : Array(Crig::Agent(T))) : self forall T
       handle = tool_server_handle_for_builder
       adapters = tools.map { |tool| Crig::AgentToolAdapter.new(tool) }
