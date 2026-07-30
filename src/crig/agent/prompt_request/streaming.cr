@@ -104,6 +104,7 @@ module Crig
     end
   end
 
+  # Deprecated: use `agent.runner(prompt).stream()` instead.
   struct StreamingPromptRequest(M)
     getter agent : Crig::Agent(M)
     getter prompt : Crig::Completion::Message

@@ -311,6 +311,7 @@ module Crig
         .tools(dynamic_tool_definitions(rag_text))
     end
 
+    # Deprecated: use `runner(prompt).history(history).stream` instead.
     def stream_completion(
       prompt : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message) = [] of Crig::Completion::Message,
@@ -372,14 +373,17 @@ module Crig
       Crig::TypedPromptRequest(T, Crig::Standard, M).from_agent(self, prompt)
     end
 
+    # Deprecated: use `runner(prompt).stream` instead.
     def stream_prompt(prompt : Crig::Completion::Message | String) : Crig::StreamingPromptRequest(M)
       Crig::StreamingPromptRequest(M).from_agent(self, prompt)
     end
 
+    # Deprecated: use `runner(prompt).stream` instead.
     def stream_prompt(prompt : Crig::Completion::Image | Crig::Completion::Audio | Crig::Completion::Document | Crig::Completion::UserContent) : Crig::StreamingPromptRequest(M)
       stream_prompt(Crig::Completion::Message.from(prompt))
     end
 
+    # Deprecated: use `runner(prompt).history(history).stream` instead.
     def stream_chat(
       prompt : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message),
