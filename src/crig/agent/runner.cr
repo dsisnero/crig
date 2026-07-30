@@ -209,6 +209,7 @@ module Crig
             end
           end
           run.tool_results(results)
+          ch.send(StreamToolExecutionCommitted.new(results))
         in .done?
           response = step.response
           ch.send(StreamDone.new(response)) if response

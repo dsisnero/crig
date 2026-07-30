@@ -23,6 +23,13 @@ module Crig
     end
   end
 
+  struct StreamToolExecutionCommitted
+    getter tool_results : Array(Completion::UserContent)
+
+    def initialize(@tool_results : Array(Completion::UserContent))
+    end
+  end
+
   struct StreamError
     getter error : Exception
 
@@ -30,6 +37,6 @@ module Crig
     end
   end
 
-  alias DriveItem = StreamTextDelta | StreamToolResult | StreamDone
+  alias DriveItem = StreamTextDelta | StreamToolResult | StreamToolExecutionCommitted | StreamDone
   alias StreamItem = DriveItem | StreamError
 end
