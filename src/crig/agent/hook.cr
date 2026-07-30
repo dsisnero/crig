@@ -21,7 +21,7 @@ module Crig
   end
 
   class Scratchpad
-    @inner : Tool::ToolCallExtensions = Tool::ToolCallExtensions.new
+    @inner : Tool::ToolContext = Tool::ToolContext.new
     @mutex : Mutex = Mutex.new(:reentrant)
 
     def initialize(@shared : Scratchpad? = nil)

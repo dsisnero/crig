@@ -101,13 +101,17 @@ module Crig
       text : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message),
     ) : {T, Crig::Completion::Usage}
+      prompt_message = text.is_a?(String) ? Crig::Completion::Message.user(text) : text
       response = begin
-        @agent.completion(text, chat_history).send(@agent.model)
-      rescue ex : Crig::Completion::CompletionError
+        prompt_runner = @agent.runner(prompt_message)
+          .chat_history(chat_history)
+          .max_turns(1)
+        prompt_runner.run(prompt_message)
+      rescue ex : Crig::Completion::PromptError
         raise ExtractionError.completion_error(ex)
       end
 
-      arguments = response.choice.to_a.compact_map do |content|
+      arguments = response.content.to_a.compact_map do |content|
         next unless content.kind.tool_call?
         tool_call = content.tool_call
         next unless tool_call

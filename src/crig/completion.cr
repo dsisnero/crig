@@ -77,6 +77,7 @@ module Crig
     class PromptError < Exception
       enum Kind
         CompletionError
+        MemoryError
         ToolError
         ToolServerError
         MaxTurnsError
@@ -91,6 +92,7 @@ module Crig
       getter max_turns : Int32?
       getter reason : String?
       getter completion_error : CompletionError?
+      getter memory_error : Crig::Memory::MemoryError?
       getter tool_error : Crig::ToolSetError?
       getter tool_server_error : Crig::ToolServerError?
       getter tool_name : String?
@@ -105,6 +107,7 @@ module Crig
         @max_turns : Int32? = nil,
         @reason : String? = nil,
         @completion_error : CompletionError? = nil,
+        @memory_error : Crig::Memory::MemoryError? = nil,
         @tool_error : Crig::ToolSetError? = nil,
         @tool_server_error : Crig::ToolServerError? = nil,
         @tool_name : String? = nil,
@@ -116,6 +119,10 @@ module Crig
 
       def self.completion_error(error : CompletionError) : self
         new("CompletionError: #{error.message}", Kind::CompletionError, completion_error: error)
+      end
+
+      def self.memory_error(error : Crig::Memory::MemoryError) : self
+        new("MemoryError: #{error.message}", Kind::MemoryError, memory_error: error)
       end
 
       def self.tool_error(error : Crig::ToolSetError) : self

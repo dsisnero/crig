@@ -341,6 +341,8 @@ module Crig
                           tool_result.content.first.text.try(&.text) || ""
                         in .image?
                           "[Image]"
+                        in .json?
+                          tool_result.content.first.json_value.try(&.to_json) || "{}"
                         end
               tool_results << Message.tool_result(tool_result.id, content)
             in .text?

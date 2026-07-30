@@ -709,6 +709,10 @@ module Crig
           temperature_value = req.temperature
           options_hash = {"temperature" => temperature_value.nil? ? JSON.parse("null") : JSON::Any.new(temperature_value)}
 
+          if max_tokens = req.max_tokens
+            options_hash["num_predict"] = JSON::Any.new(max_tokens.to_i64)
+          end
+
           if extra = req.additional_params
             object = extra.as_h?.try(&.dup) || raise Crig::Completion::CompletionError.new("Ollama additional_params must be an object")
             if think_value = object.delete("think")
@@ -737,7 +741,7 @@ module Crig
           new(
             model,
             full_history,
-            req.temperature,
+            temperature_value,
             req.tools.map { |tool| ToolDefinition.from_core(tool) },
             false,
             think,
@@ -756,7 +760,6 @@ module Crig
                 @messages.each(&.to_json(json))
               end
             end
-            json.field "temperature", @temperature unless @temperature.nil?
             unless @tools.empty?
               json.field "tools" do
                 json.array do
@@ -766,10 +769,19 @@ module Crig
             end
             json.field "stream", @stream
             json.field "think", @think unless @think.nil?
-            json.field "max_tokens", @max_tokens unless @max_tokens.nil?
             json.field "keep_alive", @keep_alive unless @keep_alive.nil?
             json.field "format", @format unless @format.nil?
-            json.field "options", @options
+            json.field "options" do
+              json.object do
+                base = @options
+                base.as_h.each do |k, v|
+                  json.field k, v
+                end
+                if mt = @max_tokens
+                  json.field "num_predict", mt
+                end
+              end
+            end
           end
         end
       end

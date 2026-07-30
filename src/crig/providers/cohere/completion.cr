@@ -640,6 +640,8 @@ module Crig
                 ToolResultContent.text(text)
               in .image?
                 raise Crig::Completion::MessageError.new("Only text tool result content is supported by Cohere")
+              in .json?
+                ToolResultContent.text(tool_content.json_value.try(&.to_json) || "{}")
               end
             end
             Message.tool(Crig::OneOrMany(ToolResultContent).many(converted), tool_result.id)

@@ -20,6 +20,7 @@ Current upstream parity source:
   - [Structured extraction](#structured-extraction)
   - [Streaming](#streaming)
 - [Providers](#providers)
+- [Tools (full reference)](docs/tools.md)
 - [Examples](#examples)
 - [Architecture](#architecture)
 - [Development](#development)
@@ -125,6 +126,10 @@ agent = client
   .tool(Calculator.new)
   .build
 ```
+
+Full reference: [`docs/tools.md`](docs/tools.md) covers the `DynamicTool`
+closure-based API, typed `Crig::Tool(Args, Output)` structs, `ToolContext`,
+`ToolResult`/`ToolExecutionError`, and `ToolSet` registration.
 
 ### Structured extraction
 

@@ -845,17 +845,37 @@ module Crig
       enum Kind
         Text
         Image
+        Json
       end
 
       getter kind : Kind
       getter text : Text?
       getter image : Image?
+      getter json_value : JSON::Any?
 
-      def initialize(@kind : Kind, @text : Text? = nil, @image : Image? = nil)
+      def initialize(@kind : Kind, @text : Text? = nil, @image : Image? = nil, @json_value : JSON::Any? = nil)
       end
 
       def self.text(text : String) : self
         new(Kind::Text, text: Text.new(text))
+      end
+
+      def self.json(value : JSON::Any) : self
+        new(Kind::Json, json_value: value)
+      end
+
+      def as_text? : String?
+        case @kind
+        in Kind::Text              then @text.try(&.text)
+        in Kind::Image, Kind::Json then nil
+        end
+      end
+
+      def as_json? : JSON::Any?
+        case @kind
+        in Kind::Json              then @json_value
+        in Kind::Text, Kind::Image then nil
+        end
       end
 
       def self.image_base64(data : String, media_type : ImageMediaType? = nil, detail : ImageDetail? = nil) : self

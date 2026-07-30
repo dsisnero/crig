@@ -1,31 +1,61 @@
 ## Upstream Baseline
 
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
-- **Crates**: `crates/rig-core`
-- **Pinned upstream**: `a551c4c5c5df5d26b07111c722cc26ffb2777561` (rig-core v0.40.0)
-- **Crystal tag**: `v0.40.0`
+- **Crates**: `crates/rig-core` + `crates/rig-agent`
+- **Pinned upstream**: `68b4eabb8c9cf749ca73c917b9306e97fb0eda24` (rig-core v0.41.0)
+- **Crystal tag**: `v0.41.0` (in progress)
 
-## v0.40.0 Features
+## v0.41.0 Features (in progress)
+
+**Detailed plan**: [plans/v41.md](./v41.md)
+
+Major refactor: rig-core split into rig-core (provider-agnostic contracts) + rig-agent (agent runtime).
+Key findings from [release discussion #2225](https://github.com/0xPlaygrounds/rig/discussions/2225) and `MIGRATING.md`.
+
+### Phase 0 — Silent behavior changes
+- [ ] Ollama max_tokens, multipart tool results, extractor accounting, structured-output collisions
+
+### Phase 1 — Foundation
+- [x] Vendor updated to v0.41.0
+- [ ] UPSTREAM_COMMIT bumped in src/crig.cr
+- [ ] Parity inventory regenerated
+
+### Phase 2 — Core contract changes
+- [ ] lib.rs re-exports & module reshuffle
+- [ ] Non-exhaustive error types
+- [ ] Completion model/message/request updates
+- [ ] PortableTool, ToolOutput, simplified tool dispatch (single `call`, `ToolContext`, `DynamicTool`, `ToolSet::execute`)
+- [ ] HTTP client / SSE dedup
+- [ ] Streaming, Memory, WASM, Embeddings, OneOrMany
+
+### Phase 3 — Agent runtime alignment
+- [ ] Agent builder (retry hooks, dynamic_context hook-backed, provider-independent hooks)
+- [ ] AgentRunner as only execution path
+- [ ] Event-specific hooks (`CompletionCallAction`, `ToolCallAction`, etc.)
+- [ ] Tool extensions / RMCP / server
+- [ ] Extractor (full hook lifecycle, usage accounting fix)
+- [ ] Integrations, Client trait changes (AgentClientExt)
+
+### Phase 4 — Provider updates
+- [ ] Doubleword provider (new)
+- [ ] Embeddings shared transport (OpenAIEmbeddingsCompatible)
+- [ ] Anthropic, OpenAI, Gemini, Ollama fixes
+- [ ] Removed with_api_base methods
+
+### Phase 5 — Telemetry
+- [ ] Completion-parent contract, sensitive span opt-in, centralized lifecycle
+
+### Phase 6 — Derive macros
+- [ ] required-ness follows types, compile errors for mismatches, re-exports resolution
+
+### Phase 7 — Test & parity
+- [ ] Test utilities, model conformance
+- [ ] make format + lint + test
+- [ ] Parity verification
+
+## v0.40.0 Features (completed)
 
 **Detailed plan**: [plans/v40.md](./v40.md)
-
-### Completed
-- [x] Hook system v2 — composable middleware (`AgentRunner`, `HookStack`, `Flow`)
-- [x] Structured tool-execution results (`ToolResult`, `ToolCallExtensions`)
-- [x] Agent builder API paper cuts, prelude expansion, `OutputMode`
-- [x] Pipeline module removal
-- [x] ThinkTool moved to `tool::builtin`
-- [x] `PromptResponse`/`FinalResponse` unification
-- [x] Provider error-response inspection
-- [x] `id` module (nanoid → fastrand)
-
-### Remaining (see plans/v40.md)
-- [ ] Exact max turns budget enforcement
-- [ ] Provider collapses onto `GenericCompletionModel<Ext>` (deepseek, groq, hyperbolic, mira, moonshot, perplexity, azure, llamafile, openrouter, together, huggingface)
-- [ ] Galadriel provider removal (verify)
-- [ ] Dead-code cleanups (evals, anthropic decoders, telemetry, generation wrapper traits)
-- [ ] Flatten Tool metadata API (ToolDef deprecation)
-- [ ] Various fixes (chatgpt errors, telemetry spans, prelude re-exports)
 
 ## v0.39.0 Features (previously completed)
 

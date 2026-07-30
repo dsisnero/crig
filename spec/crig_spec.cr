@@ -6785,12 +6785,10 @@ describe Crig::Providers::Ollama do
         {"role":"system","content":"You are a helpful assistant."},
         {"role":"user","content":"What is 2 + 2?"}
       ],
-      "temperature":0.7,
       "stream":false,
       "think":true,
-      "max_tokens":1024,
       "keep_alive":"-1m",
-      "options":{"temperature":0.7,"num_ctx":4096}
+      "options":{"temperature":0.7,"num_ctx":4096,"num_predict":1024}
     })))
   end
 
@@ -6810,7 +6808,6 @@ describe Crig::Providers::Ollama do
         {"role":"system","content":"You are a helpful assistant."},
         {"role":"user","content":"Hello!"}
       ],
-      "temperature":0.5,
       "stream":false,
       "options":{"temperature":0.5}
     })))
@@ -15041,7 +15038,6 @@ describe Crig::Examples::AgentWithOpenRouter, tags: %w[examples agent_with_openr
     ).should eq("completion:openrouter-model")
   end
 end
-
 
 describe Crig::Examples::AgentWithMoonshot, tags: %w[examples agent_with_moonshot] do
   it "builds the upstream basic moonshot agent helper" do

@@ -21,11 +21,11 @@ dependencies:
     commit: c16d54814405e2b9748d9bddc3d8ce0d41d2190f
   crig-postgres:
     github: dsisnero/crig-postgres
-  cml:
-    github: dsisnero/cml
   tracing:
     github: dsisnero/tracing.cr
 development_dependencies:
+  cml:
+    github: dsisnero/cml
   ameba:
     github: crystal-ameba/ameba
     version: "~> 1.0"

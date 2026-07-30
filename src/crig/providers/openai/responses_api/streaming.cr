@@ -456,10 +456,12 @@ module Crig
           end
 
           if encrypted_content
-            choices << Crig::RawStreamingChoice(Crig::Providers::OpenAI::ResponsesStreamingCompletionResponse).reasoning(
-              id,
-              Crig::Completion::ReasoningContent.encrypted(encrypted_content),
-            )
+            unless encrypted_content.empty?
+              choices << Crig::RawStreamingChoice(Crig::Providers::OpenAI::ResponsesStreamingCompletionResponse).reasoning(
+                id,
+                Crig::Completion::ReasoningContent.encrypted(encrypted_content),
+              )
+            end
           end
 
           choices

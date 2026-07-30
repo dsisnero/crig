@@ -678,6 +678,10 @@ module Crig
           JSON.parse(json_unmapped.to_json)
         end
 
+        def reasoning_metadata : JSON::Any?
+          json_unmapped["reasoning"]?
+        end
+
         def to_json_value : JSON::Any
           JSON.parse(to_json)
         end
@@ -702,19 +706,30 @@ module Crig
 
         getter name : String
         getter parameters : JSON::Any
-        getter? strict : Bool
+        @[JSON::Field(key: "strict")]
+        getter strict_raw : JSON::Any?
         @[JSON::Field(key: "type")]
         getter kind : String
         getter description : String
         include JSON::Serializable::Unmapped
 
+        def strict? : Bool
+          raw = @strict_raw
+          return false unless raw
+          raw.as_bool
+        rescue
+          false
+        end
+
         def initialize(
           @name : String,
           @parameters : JSON::Any,
           @description : String,
-          @strict : Bool = true,
+          strict : Bool = true,
           @kind : String = "function",
+          @strict_raw : JSON::Any? = nil,
         )
+          @strict_raw ||= JSON::Any.new(strict)
         end
 
         def self.from_tool_definition(tool : Crig::Completion::ToolDefinition) : self
@@ -828,7 +843,9 @@ module Crig
         def to_completion_content : Crig::Completion::AssistantContent
           content = @summary.map { |entry| Crig::Completion::ReasoningContent.summary(entry.text) }
           if encrypted_content = @encrypted_content
-            content << Crig::Completion::ReasoningContent.encrypted(encrypted_content)
+            unless encrypted_content.empty?
+              content << Crig::Completion::ReasoningContent.encrypted(encrypted_content)
+            end
           end
           Crig::Completion::AssistantContent.new(
             Crig::Completion::AssistantContent::Kind::Reasoning,
@@ -842,23 +859,26 @@ module Crig
           Message
           FunctionCall
           Reasoning
+          Unknown
         end
 
         getter kind : Kind
         getter message : OutputMessage?
         getter function_call : OutputFunctionCall?
         getter reasoning : OutputReasoning?
+        getter raw_value : JSON::Any?
 
         def initialize(
           @kind : Kind,
           @message : OutputMessage? = nil,
           @function_call : OutputFunctionCall? = nil,
           @reasoning : OutputReasoning? = nil,
+          @raw_value : JSON::Any? = nil,
         )
         end
 
         def self.from_json_value(value : JSON::Any) : self
-          case value["type"].as_s
+          case value["type"]?
           when "message"
             new(Kind::Message, message: OutputMessage.from_json(value.to_json))
           when "function_call"
@@ -866,7 +886,7 @@ module Crig
           when "reasoning"
             new(Kind::Reasoning, reasoning: OutputReasoning.from_json(value.to_json))
           else
-            raise Crig::Completion::CompletionError.new("Unsupported OpenAI output type: #{value["type"].as_s}")
+            new(Kind::Unknown, raw_value: value)
           end
         end
 
@@ -909,6 +929,9 @@ module Crig
                 json.field "status", reasoning.status.try(&.to_wire)
               end
             end
+          in .unknown?
+            raw_value = @raw_value || raise Crig::Completion::CompletionError.new("Missing raw value for unknown output")
+            raw_value
           end
         end
 
@@ -928,6 +951,8 @@ module Crig
           in .reasoning?
             reasoning = @reasoning || raise Crig::Completion::CompletionError.new("Missing OpenAI output reasoning")
             [reasoning.to_completion_content]
+          in .unknown?
+            [] of Crig::Completion::AssistantContent
           end
         end
 
@@ -1034,25 +1059,43 @@ module Crig
       end
 
       struct ToolResult
-        include JSON::Serializable
-
         @[JSON::Field(key: "type")]
         getter type : String = "function_call_output"
         @[JSON::Field(key: "call_id")]
         getter call_id : String
-        getter output : String
-        @[JSON::Field(converter: Crig::Providers::OpenAI::ToolStatusConverter)]
         getter status : ToolStatus
+        getter output_content : Array(JSON::Any)?
+
+        @[JSON::Field(ignore: true)]
+        getter output : String?
 
         def initialize(
           @call_id : String,
-          @output : String,
+          output : String? = nil,
           @status : ToolStatus = ToolStatus::Completed,
+          @output_content : Array(JSON::Any)? = nil,
         )
+          @output = output
         end
 
         def to_json_value : JSON::Any
-          JSON.parse(to_json)
+          OpenAI.build_json_any do |json|
+            json.object do
+              json.field "type", "function_call_output"
+              json.field "call_id", @call_id
+              if content = @output_content
+                json.field "output" do
+                  json.array do
+                    # ameba:disable Style/VerboseBlock
+                    content.each { |entry| entry.to_json(json) }
+                  end
+                end
+              elsif text = @output
+                json.field "output", text
+              end
+              json.field "status", @status.to_wire
+            end
+          end
         end
       end
 
@@ -1209,9 +1252,9 @@ module Crig
             OpenAI.build_json_any do |json|
               json.object do
                 json.field "type", "input_file"
-                json.field "file_url", @file_url
-                json.field "file_data", @file_data
-                json.field "filename", @filename
+                json.field "file_url", @file_url unless @file_url.nil?
+                json.field "file_data", @file_data unless @file_data.nil?
+                json.field "filename", @filename unless @filename.nil?
               end
             end
           in .audio?
@@ -1750,9 +1793,30 @@ module Crig
             tool_results.flat_map do |content|
               tool_result = content.tool_result || raise Crig::Completion::CompletionError.new("Missing tool result content")
               call_id = OpenAI.require_call_id(tool_result.call_id, "Tool result")
-              tool_result.content.to_a.map do |entry|
-                output = entry.text.try(&.text) || raise Crig::Completion::CompletionError.new("This API only currently supports text tool results")
-                new(InputContent.function_call_output(ToolResult.new(call_id, output)))
+              blocks = tool_result.content.to_a
+              if blocks.size == 1 && (single = blocks.first.text)
+                new(InputContent.function_call_output(ToolResult.new(call_id, output: single.text)))
+              else
+                output_content = blocks.map do |entry|
+                  if text_block = entry.text
+                    Crig::Providers::OpenAI.build_json_any do |json|
+                      json.object do
+                        json.field "type", "input_text"
+                        json.field "text", text_block.text
+                      end
+                    end
+                  elsif entry.json_value
+                    Crig::Providers::OpenAI.build_json_any do |json|
+                      json.object do
+                        json.field "type", "input_text"
+                        json.field "text", entry.json_value.to_json
+                      end
+                    end
+                  else
+                    raise Crig::Completion::CompletionError.new("Unsupported tool result content type in Responses API")
+                  end
+                end
+                new(InputContent.function_call_output(ToolResult.new(call_id, output_content: output_content)))
               end
             end
           end
@@ -1822,10 +1886,14 @@ module Crig
         private def self.convert_document_content(document : Crig::Completion::Document) : UserContent
           case document.data.kind
           in .base64?, .string?
-            UserContent.text(document.data.string_value || "")
-          in .url?
             if document.media_type == Crig::Completion::DocumentMediaType::PDF
               UserContent.file(file_url: document.data.string_value || "", filename: "document.pdf")
+            else
+              UserContent.text(document.data.string_value || "")
+            end
+          in .url?
+            if document.media_type == Crig::Completion::DocumentMediaType::PDF
+              UserContent.file(file_url: document.data.string_value || "")
             else
               raise Crig::Completion::CompletionError.new("Unsupported document type: #{document.data.kind}")
             end

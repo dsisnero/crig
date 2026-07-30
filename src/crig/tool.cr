@@ -163,6 +163,38 @@ module Crig
     {% params_map = params || {} of Symbol => StringLiteral %}
     {% required_args = required || [] of Symbol %}
 
+    {% for param_name, _ in params_map %}
+      {% param_str = param_name.stringify.gsub(/^:/, "") %}
+      {% found = false %}
+      {% for arg in function.args %}
+        {% if arg.name.stringify == param_str %}
+          {% found = true %}
+        {% end %}
+      {% end %}
+      {% unless found %}
+        {% raise "rig_tool: `#{param_str}` in params does not match any parameter of `#{fn_name}`" %}
+      {% end %}
+    {% end %}
+
+    {% for req_name in required_args %}
+      {% req_str = req_name.stringify %}
+      {% if req_str.starts_with?(":") %}
+        {% req_str = req_str[1..-1] %}
+      {% end %}
+      {% found = false %}
+      {% for arg in function.args %}
+        {% if arg.name.stringify == req_str %}
+          {% found = true %}
+          {% if arg.restriction.stringify.includes?("Nil") %}
+            {% raise "rig_tool: `#{req_str}` in required is nilable — remove it from required or make it non-nilable" %}
+          {% end %}
+        {% end %}
+      {% end %}
+      {% unless found %}
+        {% raise "rig_tool: `#{req_str}` in required does not match any parameter of `#{fn_name}`" %}
+      {% end %}
+    {% end %}
+
     struct {{ params_struct_name }}
       include JSON::Serializable
 
@@ -199,8 +231,10 @@ module Crig
       end
 
       def parameters : JSON::Any
-        schema = {{ params_struct_name }}.json_schema
-        JSON.parse(schema.to_json)
+        @parameters ||= begin
+          schema = {{ params_struct_name }}.json_schema
+          JSON.parse(schema.to_json)
+        end
       end
 
       def call_typed(args : {{ params_struct_name }}) : {{ call_output_type }}
@@ -288,6 +322,32 @@ module Crig
     abstract def description : String
     abstract def parameters : JSON::Any
     abstract def call(args : String) : String
+  end
+
+  # Concrete erased tool with a callback. Matches the upstream DynamicTool
+  # in rig-agent: wraps a name, description, parameters, and a callback
+  # (String, ToolContext) -> ToolResult.
+  class DynamicTool
+    getter name : String
+    getter description : String
+    getter parameters : JSON::Any
+    getter callback : Proc(String, Tool::ToolContext, Tool::ToolResult)
+
+    def initialize(@name : String, @description : String, @parameters : JSON::Any, &@callback : String, Tool::ToolContext -> Tool::ToolResult)
+    end
+
+    def execute(args : String, context : Tool::ToolContext) : Tool::ToolResult
+      @callback.call(args, context)
+    end
+
+    def call(args : String) : String
+      result = execute(args, Tool::ToolContext.new)
+      result.output.render
+    end
+
+    def definition : Completion::ToolDefinition
+      Completion::ToolDefinition.new(@name, @description, @parameters)
+    end
   end
 
   struct EmbeddedToolBox(T)
@@ -388,6 +448,18 @@ module Crig
       raise Crig::ToolSetError.tool_call_error(ex)
     end
 
+    def execute(toolname : String, args : String, context : Tool::ToolContext) : Tool::ToolResult
+      tool = @tools[toolname]?
+      unless tool
+        return Tool::ToolResult.failed(Tool::ToolExecutionError.not_found("tool `#{toolname}` not found"))
+      end
+
+      result = tool.call(args)
+      Tool::ToolResult.success(Tool::ToolOutput.text(result))
+    rescue ex
+      Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "tool execution failed"))
+    end
+
     def schemas : Array(Crig::Embeddings::ToolSchema)
       @tools.values.compact_map { |tool| tool.is_a?(Crig::ToolEmbeddingDyn) ? Crig::Embeddings::ToolSchema.try_from(tool) : nil }
     end
@@ -450,6 +522,11 @@ module Crig
     def dynamic_tool(tool : T) : self forall T
       boxed = Crig::EmbeddedToolBox(T).new(tool)
       self.class.new(@tools + [boxed.as(Crig::ToolDyn)])
+    end
+
+    # Upstream alias: dynamic_tool → retrieved_tool (v0.41.0)
+    def retrieved_tool(tool : T) : self forall T
+      dynamic_tool(tool)
     end
 
     def build : Crig::ToolSet

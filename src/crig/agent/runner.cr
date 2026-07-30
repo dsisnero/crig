@@ -16,7 +16,7 @@ module Crig
     @output_mode : OutputMode = OutputMode::Auto
     @output_schema : JSON::Any? = nil
     @concurrency : Int32 = 1
-    @tool_extensions : Tool::ToolCallExtensions = Tool::ToolCallExtensions.new
+    @tool_context : Tool::ToolContext = Tool::ToolContext.new
     @tool_server_handle : ToolServerHandle?
     @chat_history : Array(Completion::Message)? = nil
     @static_tools : Array(Completion::ToolDefinition) = [] of Completion::ToolDefinition

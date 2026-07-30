@@ -25,3 +25,7 @@ temp/
 bin/
 crig
 ._*
+node_modules/
+package-lock.json
+package.json
+vendor/

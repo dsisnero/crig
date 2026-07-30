@@ -2,7 +2,7 @@ require "json"
 
 module Crig
   module Tool
-    enum ToolFailureKind
+    enum ToolErrorKind
       InvalidArgs
       Timeout
       Cancelled
@@ -35,80 +35,130 @@ module Crig
         end
       end
 
+      def default_model_feedback : String
+        case self
+        in InvalidArgs      then "tool arguments were invalid"
+        in Timeout          then "tool execution timed out"
+        in Cancelled        then "tool execution was cancelled"
+        in NotFound         then "the requested tool or resource was not found"
+        in PermissionDenied then "the tool denied the request"
+        in RateLimited      then "the tool was rate limited; try again later"
+        in Provider         then "the tool provider failed"
+        in Network          then "the tool could not reach its upstream service"
+        in Other            then "the tool failed"
+        end
+      end
+
       def to_s(io : IO) : Nil
         io << as_str
       end
     end
 
-    struct ToolFailure
-      getter kind : ToolFailureKind
+    struct ToolExecutionError
+      getter kind : ToolErrorKind
       getter message : String
-      property retryable : Bool?
-      property code : String?
-      property http_status : Int32?
+      getter retryable : Bool?
+      getter code : String?
+      getter http_status : Int32?
+      getter? refusal : Bool
+      getter model_output : ToolOutput?
+      getter source : Exception?
 
-      def initialize(@kind : ToolFailureKind, message : String)
-        @message = message
-        @retryable = nil
-        @code = nil
-        @http_status = nil
+      def initialize(
+        @kind : ToolErrorKind,
+        @message : String,
+        @retryable : Bool? = nil,
+        @code : String? = nil,
+        @http_status : Int32? = nil,
+        @refusal : Bool = false,
+        @model_output : ToolOutput? = nil,
+        @source : Exception? = nil,
+      )
       end
 
-      protected def self.of_kind(kind : ToolFailureKind, message : String) : self
-        failure = new(kind, message)
-        failure.retryable = kind.default_retryable
-        failure
+      private def self.with_defaults(kind : ToolErrorKind, message : String, refusal : Bool = false) : self
+        model_out = ToolOutput.text(message)
+        new(kind, message, retryable: kind.default_retryable, refusal: refusal, model_output: model_out)
       end
 
       def self.invalid_args(message : String) : self
-        of_kind(ToolFailureKind::InvalidArgs, message)
+        with_defaults(ToolErrorKind::InvalidArgs, message)
       end
 
       def self.timeout(message : String) : self
-        of_kind(ToolFailureKind::Timeout, message)
+        with_defaults(ToolErrorKind::Timeout, message)
       end
 
       def self.cancelled(message : String) : self
-        of_kind(ToolFailureKind::Cancelled, message)
+        with_defaults(ToolErrorKind::Cancelled, message)
       end
 
       def self.not_found(message : String) : self
-        of_kind(ToolFailureKind::NotFound, message)
+        with_defaults(ToolErrorKind::NotFound, message)
       end
 
       def self.permission_denied(message : String) : self
-        of_kind(ToolFailureKind::PermissionDenied, message)
+        with_defaults(ToolErrorKind::PermissionDenied, message)
+      end
+
+      def self.refused(message : String) : self
+        with_defaults(ToolErrorKind::PermissionDenied, message, refusal: true)
       end
 
       def self.rate_limited(message : String) : self
-        of_kind(ToolFailureKind::RateLimited, message)
+        with_defaults(ToolErrorKind::RateLimited, message)
       end
 
       def self.provider(message : String) : self
-        of_kind(ToolFailureKind::Provider, message)
+        with_defaults(ToolErrorKind::Provider, message)
       end
 
       def self.network(message : String) : self
-        of_kind(ToolFailureKind::Network, message)
+        with_defaults(ToolErrorKind::Network, message)
       end
 
       def self.other(message : String) : self
-        of_kind(ToolFailureKind::Other, message)
+        with_defaults(ToolErrorKind::Other, message)
+      end
+
+      def self.from_error(error : self) : self
+        error
+      end
+
+      def self.from_error(error : Exception) : self
+        other(error.message || "unknown error").redact_model_feedback.with_source(error)
+      end
+
+      def model_feedback : String?
+        @model_output.try(&.as_text)
+      end
+
+      def with_model_feedback(feedback : String) : self
+        ToolExecutionError.new(@kind, @message, retryable: @retryable, code: @code, http_status: @http_status, refusal: @refusal, model_output: ToolOutput.text(feedback), source: @source)
+      end
+
+      def with_model_output(output : ToolOutput) : self
+        ToolExecutionError.new(@kind, @message, retryable: @retryable, code: @code, http_status: @http_status, refusal: @refusal, model_output: output, source: @source)
+      end
+
+      def redact_model_feedback : self
+        with_model_feedback(@kind.default_model_feedback)
       end
 
       def with_retryable(retryable : Bool) : self
-        @retryable = retryable
-        self
+        ToolExecutionError.new(@kind, @message, retryable: retryable, code: @code, http_status: @http_status, refusal: @refusal, model_output: @model_output, source: @source)
       end
 
       def with_code(code : String) : self
-        @code = code
-        self
+        ToolExecutionError.new(@kind, @message, retryable: @retryable, code: code, http_status: @http_status, refusal: @refusal, model_output: @model_output, source: @source)
       end
 
       def with_http_status(status : Int32) : self
-        @http_status = status
-        self
+        ToolExecutionError.new(@kind, @message, retryable: @retryable, code: @code, http_status: status, refusal: @refusal, model_output: @model_output, source: @source)
+      end
+
+      def with_source(source : Exception) : self
+        ToolExecutionError.new(@kind, @message, retryable: @retryable, code: @code, http_status: @http_status, refusal: @refusal, model_output: @model_output, source: source)
       end
 
       def to_s(io : IO) : Nil
@@ -116,201 +166,76 @@ module Crig
       end
     end
 
-    struct ToolOutcome
-      enum Kind
-        Success
-        Error
-        Skipped
-        Denied
+    struct ToolResult
+      getter output : ToolOutput
+      getter disposition : ToolDisposition
+      @error : ToolExecutionError?
+
+      def initialize(@disposition : ToolDisposition, @output : ToolOutput, @error : ToolExecutionError? = nil)
       end
 
-      getter kind : Kind
-      getter failure : ToolFailure?
-
-      private def initialize(@kind : Kind, @failure : ToolFailure? = nil)
+      def self.success(output : ToolOutput) : self
+        new(ToolDisposition::Success, output)
       end
 
-      def self.success : self
-        new(Kind::Success)
-      end
-
-      def self.error(failure : ToolFailure) : self
-        new(Kind::Error, failure: failure)
-      end
-
-      def self.skipped : self
-        new(Kind::Skipped)
-      end
-
-      def self.denied : self
-        new(Kind::Denied)
-      end
-
-      def as_str : String
-        case @kind
-        in Kind::Success then "success"
-        in Kind::Error   then "error"
-        in Kind::Skipped then "skipped"
-        in Kind::Denied  then "denied"
+      def self.failed(err : ToolExecutionError) : self
+        if err.refusal?
+          new(ToolDisposition::Refused, err.model_output || ToolOutput.text(err.message), err)
+        else
+          new(ToolDisposition::Error, err.model_output || ToolOutput.text(err.message), err)
         end
+      end
+
+      def self.skipped(reason : String) : self
+        new(ToolDisposition::Skipped, ToolOutput.text(reason))
       end
 
       def success? : Bool
-        @kind.success?
+        @disposition.success?
       end
 
       def error? : Bool
-        @kind.error?
+        @disposition.error?
       end
 
-      def skip? : Bool
-        @kind.skipped?
+      def error : ToolExecutionError?
+        return unless @disposition.error?
+        @error
       end
 
-      def denied? : Bool
-        @kind.denied?
+      def skipped? : Bool
+        @disposition.skipped?
       end
 
-      def error_kind : ToolFailureKind?
-        @failure.try(&.kind)
+      def refused? : Bool
+        @disposition.refused?
       end
 
-      def error_kind?(kind : ToolFailureKind) : Bool
-        error_kind == kind
+      def refusal : ToolExecutionError?
+        return unless @disposition.refused?
+        @error
       end
 
-      def ==(other : ToolOutcome) : Bool
-        @kind == other.kind && @failure == other.failure
-      end
-    end
-
-    struct ToolReturnOutcome
-      enum Kind
-        Success
-        Error
-        Denied
+      # ameba:disable Naming/PredicateName
+      def is_error_kind(kind : ToolErrorKind) : Bool
+        @disposition.error? && @error.try(&.kind) == kind
       end
 
-      getter kind : Kind
-      getter failure : ToolFailure?
-
-      private def initialize(@kind : Kind, @failure : ToolFailure? = nil)
-      end
-
-      def self.success : self
-        new(Kind::Success)
-      end
-
-      def self.error(failure : ToolFailure) : self
-        new(Kind::Error, failure: failure)
-      end
-
-      def self.denied : self
-        new(Kind::Denied)
-      end
-
-      def as_str : String
-        case @kind
-        in Kind::Success then "success"
-        in Kind::Error   then "error"
-        in Kind::Denied  then "denied"
-        end
-      end
-
-      def into_tool_outcome : ToolOutcome
-        case @kind
-        in Kind::Success then ToolOutcome.success
-        in Kind::Error   then ToolOutcome.error(@failure || raise("Bug: Error kind without failure"))
-        in Kind::Denied  then ToolOutcome.denied
+      def status_name : String
+        case @disposition
+        in ToolDisposition::Success then "success"
+        in ToolDisposition::Error   then "error"
+        in ToolDisposition::Refused then "denied"
+        in ToolDisposition::Skipped then "skipped"
         end
       end
     end
 
-    struct ToolExecutionResult
-      getter model_output : String
-      getter outcome : ToolOutcome
-      getter extensions : ToolResultExtensions
-
-      def initialize(@model_output : String, @outcome : ToolOutcome, @extensions : ToolResultExtensions = ToolResultExtensions.new)
-      end
-
-      def self.success(model_output : String) : self
-        new(model_output, ToolOutcome.success)
-      end
-
-      def self.failed(model_output : String, failure : ToolFailure) : self
-        new(model_output, ToolOutcome.error(failure))
-      end
-
-      def self.denied(model_output : String) : self
-        new(model_output, ToolOutcome.denied)
-      end
-
-      def with_extensions(extensions : ToolResultExtensions) : self
-        @extensions = extensions
-        self
-      end
-
-      def with_extension(extension) : self
-        extensions.insert(extension)
-        self
-      end
-    end
-
-    struct ToolReturn(T)
-      getter output : T
-      getter outcome : ToolReturnOutcome
-      getter extensions : ToolResultExtensions
-
-      def self.success(output : U) : ToolReturn(U) forall U
-        ToolReturn(U).new(output, ToolReturnOutcome.success)
-      end
-
-      def self.failed(output : T, failure : ToolFailure) : ToolReturn(T)
-        ToolReturn(T).new(output, ToolReturnOutcome.error(failure))
-      end
-
-      def self.denied(output : T) : ToolReturn(T)
-        ToolReturn(T).new(output, ToolReturnOutcome.denied)
-      end
-
-      protected def initialize(@output : T, @outcome : ToolReturnOutcome, @extensions : ToolResultExtensions = ToolResultExtensions.new)
-      end
-
-      def with_outcome(outcome : ToolReturnOutcome) : self
-        @outcome = outcome
-        self
-      end
-
-      def with_extensions(extensions : ToolResultExtensions) : self
-        @extensions = extensions
-        self
-      end
-
-      def with_extension(extension) : self
-        extensions.insert(extension)
-        self
-      end
-
-      def into_execution_result : ToolExecutionResult
-        model_output = Crig::Tool.serialize_output(@output)
-        ToolExecutionResult.new(model_output, @outcome.into_tool_outcome, @extensions)
-      rescue ex : JSON::SerializableError
-        outcome = case @outcome.kind
-                  in ToolReturnOutcome::Kind::Success
-                    ToolOutcome.error(ToolFailure.other(ex.message || "serialization error"))
-                  in ToolReturnOutcome::Kind::Error, ToolReturnOutcome::Kind::Denied
-                    @outcome.into_tool_outcome
-                  end
-        ToolExecutionResult.new("failed to serialize tool output: #{ex.message}", outcome, @extensions)
-      end
-    end
-
-    def self.serialize_output(output) : String
-      case output
-      when String then output
-      else             output.to_json
-      end
+    enum ToolDisposition
+      Success
+      Error
+      Refused
+      Skipped
     end
   end
 end

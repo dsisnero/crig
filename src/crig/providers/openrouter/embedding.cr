@@ -85,6 +85,10 @@ module Crig
         end
 
         def embed_texts(texts : Enumerable(String)) : Array(Crig::Embeddings::Embedding)
+          if @encoding_format == EncodingFormat::Base64
+            raise Crig::Embeddings::EmbeddingError.unsupported_response_encoding("openrouter", "base64")
+          end
+
           documents = texts.to_a
 
           body = Crig::Providers::OpenAI.build_json_any do |json|

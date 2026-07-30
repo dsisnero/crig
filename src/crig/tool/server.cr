@@ -183,6 +183,11 @@ module Crig
       self
     end
 
+    # Upstream alias: dynamic_tools → retrieved_tools (v0.41.0)
+    def retrieved_tools(sample : Int, index, toolset : Crig::ToolSet) : self
+      dynamic_tools(sample, index, toolset)
+    end
+
     def run : Crig::ToolServerHandle
       Crig::ToolServerHandle.new("tool-server", self)
     end

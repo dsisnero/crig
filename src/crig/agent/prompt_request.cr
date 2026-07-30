@@ -230,8 +230,12 @@ module Crig
         conv_id = @conversation_id
 
         if memory_handle && conv_id
-          loaded = memory_handle.load(conv_id)
-          effective_history = (effective_history || [] of Crig::Completion::Message) + loaded
+          begin
+            loaded = memory_handle.load(conv_id)
+            effective_history = (effective_history || [] of Crig::Completion::Message) + loaded
+          rescue ex : Crig::Memory::MemoryError
+            raise Crig::Completion::PromptError.memory_error(ex)
+          end
         end
 
         @runner.chat_history(effective_history) if effective_history

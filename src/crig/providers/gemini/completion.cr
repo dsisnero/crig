@@ -487,6 +487,14 @@ module Crig
                               end
             in .image?
               parts << function_response_part_for_image(item.image.as(Crig::Completion::Image))
+            in .json?
+              json_str = item.json_value.try(&.to_json) || "{}"
+              parsed = parse_tool_result_text(json_str)
+              response_json = if existing = response_json
+                                merge_tool_result_response(existing, parsed)
+                              else
+                                JSON.parse(%({"result":#{parsed.to_json}}))
+                              end
             end
           end
 

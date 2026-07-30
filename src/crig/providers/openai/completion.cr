@@ -5,6 +5,10 @@ module Crig
     module OpenAI
       GPT_5_2                    = "gpt-5.2"
       GPT_5_1                    = "gpt-5.1"
+      GPT_5_6                    = "gpt-5.6"
+      GPT_5_6_SOL                = "gpt-5.6-sol"
+      GPT_5_6_TERRA              = "gpt-5.6-terra"
+      GPT_5_6_LUNA               = "gpt-5.6-luna"
       GPT_5_5                    = "gpt-5.5"
       GPT_5                      = "gpt-5"
       GPT_5_MINI                 = "gpt-5-mini"

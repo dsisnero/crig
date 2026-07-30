@@ -7,6 +7,10 @@ module Crig
         UrlError
         DocumentError
         ResponseError
+        UnsupportedParameter
+        InvalidParameterValue
+        UnsupportedResponseEncoding
+        MissingUsage
         ProviderError
         ProviderResponse
         Other
@@ -16,6 +20,10 @@ module Crig
       getter source_error : Exception?
       getter detail : String?
       getter provider_response : ProviderResponseError?
+      getter provider : String?
+      getter parameter : String?
+      getter requirement : String?
+      getter encoding_format : String?
 
       def initialize(
         @kind : Kind = Kind::Other,
@@ -23,6 +31,10 @@ module Crig
         @source_error : Exception? = nil,
         @detail : String? = nil,
         @provider_response : ProviderResponseError? = nil,
+        @provider : String? = nil,
+        @parameter : String? = nil,
+        @requirement : String? = nil,
+        @encoding_format : String? = nil,
       )
         super(message || build_message)
       end
@@ -32,6 +44,10 @@ module Crig
         @source_error = nil
         @detail = message
         @provider_response = nil
+        @provider = nil
+        @parameter = nil
+        @requirement = nil
+        @encoding_format = nil
         super(message)
       end
 
@@ -57,6 +73,22 @@ module Crig
 
       def self.provider_error(detail : String) : self
         new(Kind::ProviderError, detail: detail)
+      end
+
+      def self.unsupported_parameter(provider : String, parameter : String) : self
+        new(Kind::UnsupportedParameter, provider: provider, parameter: parameter)
+      end
+
+      def self.invalid_parameter_value(provider : String, parameter : String, requirement : String) : self
+        new(Kind::InvalidParameterValue, provider: provider, parameter: parameter, requirement: requirement)
+      end
+
+      def self.unsupported_response_encoding(provider : String, encoding_format : String) : self
+        new(Kind::UnsupportedResponseEncoding, provider: provider, encoding_format: encoding_format)
+      end
+
+      def self.missing_usage(provider : String) : self
+        new(Kind::MissingUsage, provider: provider)
       end
 
       def self.from_http_response(status : Int32, body : String) : self
@@ -98,6 +130,14 @@ module Crig
           "DocumentError: #{source_message}"
         when Kind::ResponseError
           "ResponseError: #{@detail}"
+        when Kind::UnsupportedParameter
+          "#{@provider} embeddings do not support the `#{@parameter}` parameter"
+        when Kind::InvalidParameterValue
+          "#{@provider} embeddings require `#{@parameter}` #{@requirement}"
+        when Kind::UnsupportedResponseEncoding
+          "Rig cannot decode #{@provider} embedding responses encoded as `#{@encoding_format}`"
+        when Kind::MissingUsage
+          "#{@provider} embedding response omitted required usage"
         when Kind::ProviderError
           "ProviderError: #{@detail}"
         else

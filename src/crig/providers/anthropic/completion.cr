@@ -747,6 +747,16 @@ module Crig
                     else
                       raise Crig::Completion::MessageError.new("Only base64 strings can be used with the Anthropic API")
                     end
+                  in .json?
+                    ToolResultContent.text(entry.json_value.try(&.to_json) || "{}")
+                    image = entry.image || raise Crig::Completion::MessageError.new("Missing tool result image")
+                    data = image.data.string_value
+                    if image.data.kind.base64?
+                      media_type = image.media_type || raise Crig::Completion::MessageError.new("Image media type is required")
+                      ToolResultContent.image(ImageSource.base64(data || "", ImageFormat.from_core(media_type)))
+                    else
+                      raise Crig::Completion::MessageError.new("Only base64 strings can be used with the Anthropic API")
+                    end
                   end
                 end
               ),

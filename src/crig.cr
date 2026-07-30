@@ -3,9 +3,10 @@ module Crig
     {% version_line = read_file("#{__DIR__}/../shard.yml").lines.select(&.starts_with?("version:")).first %}
     VERSION = {{ version_line.split(":").last.strip }}
   {% end %}
-  UPSTREAM_URL         = "https://github.com/0xPlaygrounds/rig.git"
-  UPSTREAM_COMMIT      = "a551c4c5c5df5d26b07111c722cc26ffb2777561"
-  UPSTREAM_SOURCE_PATH = "vendor/rig/crates/rig-core"
+  UPSTREAM_URL               = "https://github.com/0xPlaygrounds/rig.git"
+  UPSTREAM_COMMIT            = "68b4eabb8c9cf749ca73c917b9306e97fb0eda24"
+  UPSTREAM_SOURCE_PATH       = "vendor/rig/crates/rig-core"
+  UPSTREAM_SOURCE_PATH_AGENT = "vendor/rig/crates/rig-agent"
 end
 
 require "./crig/provider_response"
@@ -18,6 +19,8 @@ require "./crig/memory/policies"
 require "./crig/tool"
 require "./crig/tool/extensions"
 require "./crig/tool/result"
+require "./crig/tool/output"
+require "./crig/tool/portable"
 require "./crig/tool/rmcp"
 require "./crig/tool/server"
 require "./crig/tool/builtin/think"

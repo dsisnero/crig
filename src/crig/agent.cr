@@ -51,6 +51,13 @@ module Crig
       raise Crig::ToolServerError.invalid_message(response)
     end
 
+    def execute(name : String, arguments : String, context : Tool::ToolContext) : Tool::ToolResult
+      result = call_tool(name, arguments)
+      Tool::ToolResult.success(Tool::ToolOutput.text(result))
+    rescue ex
+      Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "tool execution failed"))
+    end
+
     def add_tool(tool : Crig::ToolDyn) : Nil
       if server = @server
         response = server.add_tool(tool)
@@ -259,6 +266,8 @@ module Crig
       raise Crig::ToolError.json_error(ex)
     end
 
+    # Deprecated: use `runner(prompt).run/prompt)` instead to route through
+    # the full hook lifecycle.
     def completion(
       prompt : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message) = [] of Crig::Completion::Message,
@@ -648,10 +657,20 @@ module Crig
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value + [source], nil, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
+    # Upstream alias: dynamic_tools → retrieved_tools (v0.41.0)
+    def retrieved_tools(sample : Int32, index, tools : Array(Crig::Completion::ToolDefinition)) : self
+      dynamic_tools(sample, index, tools)
+    end
+
     # Register a dynamic tool source queried from vector search at prompt time
     # using the same ToolSet-oriented surface as the upstream Rust builder.
     def dynamic_tools(sample : Int32, dynamic_tools, toolset : Crig::ToolSet) : self
       dynamic_tools(sample, dynamic_tools, toolset.get_tool_definitions)
+    end
+
+    # Upstream alias: dynamic_tools → retrieved_tools for ToolSet variant (v0.41.0)
+    def retrieved_tools(sample : Int32, index, toolset : Crig::ToolSet) : self
+      dynamic_tools(sample, index, toolset)
     end
 
     def tool_server_handle(handle : ToolServerHandle) : self
@@ -714,6 +733,9 @@ module Crig
     end
 
     def build : Agent(M)
+      if @static_tools_value.any? { |tool| tool.name == "submit" }
+        raise "tool `submit` conflicts with the structured-output tool reserved for extractors"
+      end
       agent = Agent(M).new(
         @model,
         name: @name_value,
