@@ -58,24 +58,31 @@ module Crig
     enum Kind
       StreamAssistantItem
       StreamUserItem
+      ToolExecutionCommitted
       FinalResponse
     end
 
     getter kind : Kind
     getter assistant_item : Crig::StreamedAssistantContent(R)?
     getter user_item : Crig::StreamedUserContent?
+    getter tool_results : Array(Crig::Completion::UserContent)?
     getter final_response : Crig::PromptResponse?
 
     def initialize(
       @kind : Kind,
       @assistant_item : Crig::StreamedAssistantContent(R)? = nil,
       @user_item : Crig::StreamedUserContent? = nil,
+      @tool_results : Array(Crig::Completion::UserContent)? = nil,
       @final_response : Crig::PromptResponse? = nil,
     )
     end
 
     def self.stream_item(item : Crig::StreamedAssistantContent(R)) : self
       new(Kind::StreamAssistantItem, assistant_item: item)
+    end
+
+    def self.tool_execution_committed(results : Array(Crig::Completion::UserContent)) : self
+      new(Kind::ToolExecutionCommitted, tool_results: results)
     end
 
     def self.stream_user_item(item : Crig::StreamedUserContent) : self
