@@ -448,10 +448,44 @@ module Crig
       case outcome.kind
       in .needs_resolution?
         ctx2 = outcome.context || raise "Bug: needs_resolution without context"
-        raise Completion::PromptError.unknown_tool_call(
-          ctx2.tool_name, ctx2.available_tools, ctx2.allowed_tools, ctx2.chat_history)
+        invalid_event = StepEvent.tool_call(
+          ctx2.tool_name, nil, "", ctx2.args || "")
+        flow = dispatch_invalid_tool_call_hook(ctx, invalid_event, ctx2)
+        case flow.kind
+        in .fail?
+          raise Completion::PromptError.unknown_tool_call(
+            ctx2.tool_name, ctx2.available_tools, ctx2.allowed_tools, ctx2.chat_history)
+        in .retry?
+          run.resolve_invalid_tool_call(
+            InvalidToolCallHookAction.retry(flow.feedback || "try again"))
+        in .repair?
+          run.resolve_invalid_tool_call(
+            InvalidToolCallHookAction.repair(flow.tool_name || ctx2.tool_name))
+        in .skip?
+          run.resolve_invalid_tool_call(
+            InvalidToolCallHookAction.skip(flow.reason || "skipped"))
+        in .continue?, .terminate?, .rewrite_args?, .rewrite_result?, .patch_request?
+          raise Completion::PromptError.unknown_tool_call(
+            ctx2.tool_name, ctx2.available_tools, ctx2.allowed_tools, ctx2.chat_history)
+        end
       in .turn_retried?, .continue?
       end
+    end
+
+    private def dispatch_invalid_tool_call_hook(ctx, event, ctx2) : Flow
+      @hooks.each do |hook|
+        flow = hook.on_event(ctx, event)
+        case flow.kind
+        in .continue? then next
+        in .skip?     then return flow
+        in .fail?     then return flow
+        in .retry?    then return flow
+        in .repair?   then return flow
+        in .terminate?, .rewrite_args?, .rewrite_result?, .patch_request?
+          next
+        end
+      end
+      Flow.fail
     end
   end
 end
