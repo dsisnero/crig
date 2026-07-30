@@ -19,6 +19,10 @@ module Crig
       def self.try_from(tool : ::Crig::ToolEmbeddingDyn) : self
         new(tool.name, tool.context, tool.embedding_docs)
       end
+
+      def embed(embedder : Crig::Embeddings::TextEmbedder) : Nil
+        @embedding_docs.each { |doc| embedder.embed(doc) }
+      end
     end
   end
 end
