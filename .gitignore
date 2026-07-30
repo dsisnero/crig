@@ -23,7 +23,7 @@ temp/
 .timestamp-src
 /lib
 bin/
-crig
+/crig
 ._*
 node_modules/
 package-lock.json
