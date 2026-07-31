@@ -182,9 +182,11 @@ module Crig
       ctx = expect_needs_resolution(outcome)
       ctx.tool_name.should eq("unknown_tool")
 
-      expect_raises(Crig::Completion::PromptError) do
+      error = expect_raises(Crig::Completion::PromptError) do
         run.resolve_invalid_tool_call(Crig::InvalidToolCallHookAction.fail)
       end
+
+      Crig::Conformance.validate_unknown_tool_failure(error, "unknown_tool", ["add"])
     end
 
     it "invalid tool call retry rolls back with feedback" do
