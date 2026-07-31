@@ -33,17 +33,27 @@ module Crig
     end
   end
 
+  # Default per-call timeout applied to MCP tools (upstream DEFAULT_MCP_TOOL_TIMEOUT).
+  DEFAULT_MCP_TOOL_TIMEOUT = 300.seconds
+
   struct McpTool
     include Crig::ToolDyn
 
     getter mcp_definition : MCP::Protocol::Tool
     getter client : MCP::Client::Client
+    getter timeout : Time::Span?
 
-    def initialize(@mcp_definition : MCP::Protocol::Tool, @client : MCP::Client::Client)
+    def initialize(@mcp_definition : MCP::Protocol::Tool, @client : MCP::Client::Client, @timeout : Time::Span? = DEFAULT_MCP_TOOL_TIMEOUT)
     end
 
     def self.from_mcp_server(definition : MCP::Protocol::Tool, client : MCP::Client::Client) : self
       new(definition, client)
+    end
+
+    # Set (or clear) the per-call timeout, returning a new tool. On elapse the
+    # call resolves to a ToolError instead of blocking forever (upstream #1914).
+    def with_timeout(timeout : Time::Span?) : self
+      self.class.new(@mcp_definition, @client, timeout)
     end
 
     def self.to_tool_definition(definition : MCP::Protocol::Tool) : Crig::Completion::ToolDefinition
@@ -83,15 +93,28 @@ module Crig
 
       result_ch = Channel(MCP::Shared::AsyncResult(String)).new(1)
       spawn do
-        result_ch.send(render_async_result(raw_ch))
+        result = if t = @timeout
+                   select
+                   when raw = raw_ch.receive
+                     render_async_result(raw)
+                   when timeout(t)
+                     MCP::Shared::AsyncResult(String).new(
+                       error: Crig::ToolError.tool_call_error(
+                         McpToolError.new("MCP tool call timed out after #{t}")
+                       )
+                     )
+                   end
+                 else
+                   render_async_result(raw_ch.receive)
+                 end
+        result_ch.send(result)
       ensure
         result_ch.close
       end
       result_ch
     end
 
-    private def render_async_result(raw_ch) : MCP::Shared::AsyncResult(String)
-      raw = raw_ch.receive
+    private def render_async_result(raw) : MCP::Shared::AsyncResult(String)
       unless raw.success?
         return MCP::Shared::AsyncResult(String).new(
           error: Crig::ToolError.tool_call_error(

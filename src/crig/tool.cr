@@ -328,6 +328,8 @@ module Crig
   # in rig-agent: wraps a name, description, parameters, and a callback
   # (String, ToolContext) -> ToolResult.
   class DynamicTool
+    include Crig::ToolDyn
+
     getter name : String
     getter description : String
     getter parameters : JSON::Any
@@ -452,6 +454,10 @@ module Crig
       tool = @tools[toolname]?
       unless tool
         return Tool::ToolResult.failed(Tool::ToolExecutionError.not_found("tool `#{toolname}` not found"))
+      end
+
+      if dynamic = tool.as?(DynamicTool)
+        return dynamic.execute(args, context)
       end
 
       result = tool.call(args)

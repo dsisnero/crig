@@ -32,6 +32,7 @@ module Crig
       Mistral
       Ollama
       Perplexity
+      Doubleword
 
       def provider_name : String
         self.class.provider_names[to_i]
@@ -68,6 +69,7 @@ module Crig
           "mistral",
           "ollama",
           "perplexity",
+          "doubleword",
         }
       end
 
@@ -107,6 +109,8 @@ module Crig
                     -> { AnyClient.new(Crig::Providers::Ollama::Client.from_env) }
                   in .perplexity?
                     -> { AnyClient.new(Crig::Providers::Perplexity::Client.from_env) }
+                  in .doubleword?
+                    -> { AnyClient.new(Crig::Providers::Doubleword::Client.from_env) }
                   end
 
         ProviderFactory.new(factory)

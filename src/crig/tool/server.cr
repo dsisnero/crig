@@ -262,13 +262,18 @@ module Crig
       Crig::ToolServerResponse.tool_deleted
     end
 
-    def call_tool(name : String, args : String) : String
+    def call_tool(name : String, args : String, context : Tool::ToolContext? = nil) : String
       tool = @lock.synchronize do
         @toolset.get(name)
       end
       raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_not_found(name)) unless tool
 
-      tool.call(args)
+      if ctx = context
+        result = @toolset.execute(name, args, ctx)
+        result.output.render
+      else
+        tool.call(args)
+      end
     rescue ex : Crig::ToolError
       raise Crig::ToolServerError.toolset_error(Crig::ToolSetError.tool_call_error(ex))
     end

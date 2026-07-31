@@ -114,6 +114,13 @@ module Crig
       # Build a fresh execution context with the same inbound values and no
       # result metadata.
       def for_dispatch : ToolContext
+        inbound_only
+      end
+
+      # A context carrying only the inbound values, with no result metadata.
+      # Used to hand the caller's inbound context to a sub-agent invoked as a
+      # tool (upstream `ToolContext::inbound_only`).
+      def inbound_only : ToolContext
         cloned = ToolContext.allocate
         if inbound = @inbound
           cloned.initialize_with_inbound(inbound.dup)
