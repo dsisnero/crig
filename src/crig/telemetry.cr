@@ -163,7 +163,37 @@ module Crig
         if preamble
           span.record_field(GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
         end
+        if request_messages_json
+          span.record_field(GEN_AI_INPUT_MESSAGES, request_messages_json)
+        end
         span
+      end
+
+      # Record serialized model input on gen_ai.input.messages when content
+      # telemetry is explicitly enabled (upstream `record_model_input`).
+      def record_model_input(json : String?) : Nil
+        return if disabled? || json.nil?
+        record_field(GEN_AI_INPUT_MESSAGES, json)
+      end
+
+      # Record serialized model output on gen_ai.output.messages when content
+      # telemetry is explicitly enabled (upstream `record_model_output`).
+      def record_model_output(json : String?) : Nil
+        return if disabled? || json.nil?
+        record_field(GEN_AI_OUTPUT_MESSAGES, json)
+      end
+
+      # Record tool-call arguments when content telemetry is enabled
+      # (upstream records gen_ai.tool.call.arguments when opted in).
+      def record_tool_call_args(name : String, call_id : String?, args : String?) : Nil
+        return if disabled?
+        record_field("gen_ai.tool.name", name)
+        if call_id
+          record_field("gen_ai.tool.call.id", call_id)
+        end
+        if args
+          record_field("gen_ai.tool.call.arguments", args)
+        end
       end
 
       def set_attribute(key : String, value : String) : Nil

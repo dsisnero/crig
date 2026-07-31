@@ -20,6 +20,7 @@ module Crig
     @concurrency : Int32 = 1
     @tool_context : Tool::ToolContext = Tool::ToolContext.new
     @tool_server_handle : ToolServerHandle?
+    @record_content_telemetry : Bool = false
     @chat_history : Array(Completion::Message)? = nil
     @static_tools : Array(Completion::ToolDefinition) = [] of Completion::ToolDefinition
     @hooks : Array(AgentHook) = [] of AgentHook
@@ -110,6 +111,12 @@ module Crig
       @output_mode = v; self
     end
 
+    # Opt into recording sensitive model/tool content on GenAI spans
+    # (upstream `record_content_telemetry`).
+    def record_content_telemetry(enabled : Bool) : self
+      @record_content_telemetry = enabled; self
+    end
+
     def tool_server_handle(h : ToolServerHandle) : self
       @tool_server_handle = h; self
     end
@@ -189,7 +196,6 @@ module Crig
       run
     end
 
-    # ameba:disable Metrics/CyclomaticComplexity
     private def stream_loop(prompt, ch)
       ctx = HookContext.new(is_streaming: true, agent_name: @agent_name)
       run = build_run(prompt)
@@ -211,21 +217,13 @@ module Crig
           request = builder.build
 
           # Trace: chat span (matching upstream source.open_chat_span)
-          span = Span.chat_span(
-            "rig",
-            request.model || "unknown",
-            builder.preamble,
-            nil,
-          )
+          span = open_chat_span(builder, request)
 
           response = @model.completion(request)
           choice = response.choice
 
           # Record response on span
-          if response.responds_to?(:raw_response) && (raw = response.raw_response).responds_to?(:get_response_id)
-            span.record_response_metadata(raw)
-          end
-          span.record_token_usage(response.usage) if response.usage.responds_to?(:token_usage)
+          record_response_on_span(span, response)
           span.end_span
 
           text = choice_text(choice)
@@ -274,8 +272,15 @@ module Crig
       builder = build_completion_request(sprompt, shistory, patch)
       request = builder.build
 
+      # Trace: chat span (matching upstream source.open_chat_span)
+      span = open_chat_span(builder, request)
+
       # 3. Call model
       response = @model.completion(request)
+
+      # Record response on span
+      record_response_on_span(span, response)
+      span.end_span
 
       # 4. Dispatch CompletionResponse hook
       ct = choice_text(response.choice)
@@ -293,6 +298,58 @@ module Crig
       calls = step.calls || raise "Bug: call_tools step without calls"
       results = execute_tools(ctx, calls, error_history)
       run.tool_results(results)
+    end
+
+    private def build_input_messages_json(messages : Array(Completion::Message)) : String
+      JSON.build do |json|
+        json.array do
+          messages.each do |message|
+            json.object do
+              json.field "role", message.role.to_s.downcase
+              if text = message.rag_text
+                json.field "content", text
+              end
+            end
+          end
+        end
+      end
+    end
+
+    private def open_chat_span(builder, request) : Span
+      input_json = if @record_content_telemetry
+                     build_input_messages_json(request.chat_history.to_a)
+                   end
+      Span.chat_span(
+        "rig",
+        request.model || "unknown",
+        builder.preamble,
+        input_json,
+      )
+    end
+
+    private def record_response_on_span(span : Span, response) : Nil
+      if @record_content_telemetry
+        span.record_model_output(build_output_messages_json(response.choice.to_a))
+      end
+      if response.responds_to?(:raw_response) && (raw = response.raw_response).responds_to?(:get_response_id)
+        span.record_response_metadata(raw)
+      end
+      span.record_token_usage(response.usage) if response.usage.responds_to?(:token_usage)
+    end
+
+    private def build_output_messages_json(content : Array(Completion::AssistantContent)) : String
+      JSON.build do |json|
+        json.array do
+          content.each do |item|
+            json.object do
+              json.field "role", "assistant"
+              if text = item.text.try(&.text)
+                json.field "content", text
+              end
+            end
+          end
+        end
+      end
     end
 
     private def build_completion_request(sprompt, shistory, patch : RequestPatch?) : Completion::Request::CompletionRequestBuilder
