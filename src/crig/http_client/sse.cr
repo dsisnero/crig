@@ -115,7 +115,9 @@ module Crig
           return {false, retry_state} unless chunk
 
           if error = chunk.error
-            return handle_stream_error(error, retry_state)
+            # Upstream starts a fresh retry cycle when a transport error occurs
+            # while the stream is open (see `SourceState::Open` in sse.rs).
+            return handle_stream_error(error, nil)
           end
 
           if chunk_string = decode_chunk(chunk.value || raise "stream chunk missing bytes")

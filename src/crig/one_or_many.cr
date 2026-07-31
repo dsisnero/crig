@@ -118,6 +118,13 @@ module Crig
       many(items.flat_map(&.to_a))
     end
 
+    def self.from_iter_optional(items : Enumerable(T)) : self?
+      values = items.to_a
+      return if values.empty?
+
+      new(values[0], values[1..] || [] of T)
+    end
+
     def first : T
       @first
     end
