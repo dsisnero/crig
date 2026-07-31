@@ -14,7 +14,28 @@
 3. Keep `plans/inventory/rust_source_parity.tsv` and `plans/inventory/rust_test_parity.tsv`
    in sync with the pinned upstream source.
 4. Preserve upstream semantics before introducing Crystal idioms.
-5. Run `make format`, `make lint`, and `make test` before closing work.
+5. Work in small, focused units with **red-green TDD**: write a failing spec first,
+   watch it fail, then make it pass with the minimal change. Do not write implementation
+   before its test.
+6. Run `make format`, `make lint`, and `make test` before closing work.
+
+## File Organization
+
+Follow Ruby/Crystal file naming conventions — one class per file, snake_case filename
+matching the primary type it defines:
+
+- `class CompletionRequest` -> `src/crig/completion/completion_request.cr`
+- `struct InMemoryVectorStore` -> `src/crig/vector_store/in_memory_store.cr`
+- spec mirrors the source path: `spec/crig/completion/completion_request_spec.cr`
+
+Do not grow monolith files:
+
+- Do not add new top-level types to a `src/crig/*.cr` file that already defines multiple
+  classes/structs/enums; give each type its own file.
+- Do not add new `describe` blocks to a spec file larger than a few hundred lines; split
+  them into per-type spec files under `spec/crig/`.
+- When touching an existing large file, prefer splitting it (with green tests after each
+  move) over appending to it.
 
 ## Parity Commands
 
