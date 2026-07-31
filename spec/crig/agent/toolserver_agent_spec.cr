@@ -80,11 +80,7 @@ module Crig
     end
 
     it "into_tool propagates inbound context values into the sub-agent" do
-      observed = Atomic(String?).new(nil)
-      probe = DynamicTool.new("context_probe", "Reads context", JSON.parse(%({"type":"object"}))) do |args, ctx|
-        observed.set(ctx.get(String))
-        Tool::ToolResult.success(Tool::ToolOutput.text("probed"))
-      end
+      probe = MockContextProbeTool.new
 
       inner_model = ToolCallThenTextModel.new("context_probe")
       inner_ts = ToolServer.new
@@ -98,12 +94,12 @@ module Crig
 
       tool = inner.into_tool
       context = Tool::ToolContext.new
-      context.insert("abc-123")
+      context.insert(SessionId.new("abc-123"))
 
       result = tool.execute(%({"prompt": "do research"}), context)
 
       result.success?.should be_true
-      observed.get.should eq("abc-123")
+      probe.observed.should eq("session:abc-123")
     end
   end
 end

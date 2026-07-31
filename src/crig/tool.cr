@@ -322,6 +322,12 @@ module Crig
     abstract def description : String
     abstract def parameters : JSON::Any
     abstract def call(args : String) : String
+
+    # Context-aware execution. Defaults to `call`, discarding the context;
+    # tools that observe or publish ToolContext metadata override this.
+    def execute(args : String, context : Tool::ToolContext) : Tool::ToolResult
+      Tool::ToolResult.success(Tool::ToolOutput.text(call(args)))
+    end
   end
 
   # Concrete erased tool with a callback. Matches the upstream DynamicTool
@@ -456,12 +462,7 @@ module Crig
         return Tool::ToolResult.failed(Tool::ToolExecutionError.not_found("tool `#{toolname}` not found"))
       end
 
-      if dynamic = tool.as?(DynamicTool)
-        return dynamic.execute(args, context)
-      end
-
-      result = tool.call(args)
-      Tool::ToolResult.success(Tool::ToolOutput.text(result))
+      tool.execute(args, context)
     rescue ex
       Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "tool execution failed"))
     end
