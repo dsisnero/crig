@@ -1059,6 +1059,8 @@ module Crig
       end
 
       struct ToolResult
+        include JSON::Serializable
+
         @[JSON::Field(key: "type")]
         getter type : String = "function_call_output"
         @[JSON::Field(key: "call_id")]
