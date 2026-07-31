@@ -1,6 +1,8 @@
 module Crig
   EXTRACTOR_PREAMBLE = "You are an AI assistant whose purpose is to extract structured data from the provided text.\nYou will have access to a `submit` function that defines the structure of the data to extract from the provided text.\nUse the `submit` function to submit the structured data.\nBe sure to fill out every field and ALWAYS CALL THE `submit` function, even with default values!!!."
 
+  SUBMIT_TOOL_NAME = "submit"
+
   struct ExtractionResponse(T)
     getter data : T
     getter usage : Completion::Usage
@@ -20,34 +22,6 @@ module Crig
 
     def self.completion_error(error : Exception) : self
       new("CompletionError: #{error.message || error.class.name}")
-    end
-  end
-
-  struct ExtractorSubmitTool(T)
-    include Crig::Tool(T, T)
-
-    def name : String
-      "submit"
-    end
-
-    def description : String
-      "Submit the structured data you extracted from the provided text."
-    end
-
-    def parameters : JSON::Any
-      JSON.parse(
-        JSON.build do |json|
-          json.object do
-            {% begin %}
-              Crig::ToolMacro.json_schema_for({{ @type.type_vars[0] }})
-            {% end %}
-          end
-        end
-      )
-    end
-
-    def call_typed(args : T) : T
-      args
     end
   end
 
@@ -106,23 +80,21 @@ module Crig
         prompt_runner = @agent.runner(prompt_message)
           .chat_history(chat_history)
           .max_turns(1)
+          .output_tool(SUBMIT_TOOL_NAME, "Submit the structured data you extracted from the provided text.")
+          .ignore_unhandled_invalid_tool_calls
         prompt_runner.run(prompt_message)
       rescue ex : Crig::Completion::PromptError
         raise ExtractionError.completion_error(ex)
       end
 
-      arguments = response.content.to_a.compact_map do |content|
-        next unless content.kind.tool_call?
-        tool_call = content.tool_call
-        next unless tool_call
-        next unless tool_call.function.name == "submit"
-        tool_call.function.arguments
+      if response.output.empty?
+        raise ExtractionError.no_data
       end
 
-      raw_data = arguments.last? || raise ExtractionError.no_data
+      raw_data = response.output
 
       begin
-        {T.from_json(raw_data.to_json), response.usage}
+        {T.from_json(raw_data), response.usage}
       rescue ex
         raise ExtractionError.deserialization_error(ex)
       end
@@ -137,7 +109,7 @@ module Crig
       model : M,
       @agent_builder : AgentBuilder(M) = AgentBuilder(M).new(model)
         .preamble(EXTRACTOR_PREAMBLE)
-        .tool(ExtractorSubmitTool(T).new)
+        .output_schema(T)
         .tool_choice(Crig::Completion::ToolChoice.required),
       @retries_value : Int32 = 0,
     )
@@ -173,7 +145,8 @@ module Crig
     end
 
     def build : Extractor(M, T)
-      Extractor(M, T).new(@agent_builder.build, @retries_value)
+      agent = @agent_builder.build
+      Extractor(M, T).new(agent, @retries_value)
     end
   end
 end
