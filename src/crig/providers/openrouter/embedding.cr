@@ -85,46 +85,40 @@ module Crig
         end
 
         def embed_texts(texts : Enumerable(String)) : Array(Crig::Embeddings::Embedding)
-          if @encoding_format == EncodingFormat::Base64
-            raise Crig::Embeddings::EmbeddingError.unsupported_response_encoding("openrouter", "base64")
-          end
+          embed_texts_with_usage(texts).embeddings
+        end
+
+        def embed_texts_with_usage(texts : Enumerable(String)) : Crig::Embeddings::EmbeddingResponse
+          config = Crig::Providers::Internal::EmbeddingCompatible::Config.new(
+            provider_name: "openrouter",
+            requires_usage: false,
+            supports_encoding_format: true,
+            supports_user: true,
+          )
+
+          Crig::Providers::Internal::EmbeddingCompatible.validate_parameters(@encoding_format.try(&.to_wire), @user, config)
 
           documents = texts.to_a
 
-          body = Crig::Providers::OpenAI.build_json_any do |json|
-            json.object do
-              json.field "model", @model
-              json.field "input" do
-                json.array { documents.each { |document| json.string(document) } }
-              end
-              json.field "dimensions", @ndims if @ndims > 0
-              if encoding_format = @encoding_format
-                json.field "encoding_format", encoding_format.to_wire
-              end
-              if user = @user
-                json.field "user", user
-              end
-            end
-          end
+          body = Crig::Providers::Internal::EmbeddingCompatible.build_request(
+            @model,
+            documents,
+            @ndims,
+            @encoding_format.try(&.to_wire),
+            @user,
+            config,
+          )
 
-          response = @client.post_json("/embeddings", body.to_json)
+          response = @client.post_json("/embeddings", body)
           text = response.body
-          raise Crig::Embeddings::EmbeddingError.new(text) if response.status_code >= 400
+          Crig::Providers::Internal::EmbeddingCompatible.check_response_status(response.status_code, text, config)
 
           parsed = JSON.parse(text)
-          body_wrapper = ApiResponse(EmbeddingResponse).from_json_value(parsed) { |value| EmbeddingResponse.from_json(value.to_json) }
-          if error = body_wrapper.error
-            raise Crig::Embeddings::EmbeddingError.new(error.message)
+          if error = parsed["error"]?
+            raise Crig::Embeddings::EmbeddingError.new(error["message"].as_s)
           end
 
-          embedding_response = body_wrapper.ok || raise Crig::Embeddings::EmbeddingError.new("OpenRouter embedding response did not include a success payload")
-          if embedding_response.data.size != documents.size
-            raise Crig::Embeddings::EmbeddingError.new("Response data length does not match input length")
-          end
-
-          embedding_response.data.zip(documents).map do |embedding, document|
-            Crig::Embeddings::Embedding.new(document, embedding.embedding)
-          end
+          Crig::Providers::Internal::EmbeddingCompatible.parse_response_with_usage(text, documents, config)
         end
       end
 
