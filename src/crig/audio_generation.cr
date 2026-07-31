@@ -87,7 +87,7 @@ module Crig
 
     def audio_generation_async(request : AudioGenerationRequest)
       Crig::Concurrency.run do
-        audio_generation(request)
+        (audio_generation(request)).as(AudioGenerationResponse)
       end
     end
   end
@@ -98,7 +98,7 @@ module Crig
 
     def audio_generation_async(request : AudioGenerationRequest)
       Crig::Concurrency.run do
-        audio_generation(request)
+        (audio_generation(request)).as(AudioGenerationResponse)
       end
     end
   end

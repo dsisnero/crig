@@ -28,7 +28,7 @@ module Crig
           audio_generation_request.text(text).voice(voice)
         end
 
-        def audio_generation(request : Crig::AudioGenerationRequest)
+        def audio_generation(request : Crig::AudioGenerationRequest) : Crig::AudioGenerationResponse(Bytes)
           payload = Crig::Providers::OpenAI.build_json_any do |json|
             json.object do
               json.field "model", @model
