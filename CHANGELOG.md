@@ -1,71 +1,41 @@
-## v0.42.0 (2026-07-24)
+## v0.39.1 (2026-07-31)
 
 ### Added
-- **GenericCompletionModel** — shared `send_completion_request`/`send_streaming_request` helper with telemetry span lifecycle; 12 OpenAI-compatible providers migrated (OpenRouter, Perplexity, Together, Groq, Hyperbolic, DeepSeek, HuggingFace, Mira, ZAI, XiaomiMimo, MiniMax, Moonshot)
-- **`force_tool_first_turn` example** — demonstrates hook-based `ToolChoice::Required` patch gated on turn index vs the footgun of re-forcing every turn
+- **Doubleword provider** — OpenAI-compatible realtime tier (`src/crig/providers/doubleword/`): `client.cr`, `completion.cr`, `embedding.cr`, and model constants; registered in `DefaultProviders`. Completions reuse `OpenAI::Chat` types; embeddings route through the shared `EmbeddingCompatible` transport.
+- **Shared embedding transport** — `EmbeddingCompatible` now surfaces provider-reported usage via `parse_response_with_usage` (with `requires_usage`/`MissingUsage` semantics), validates unsupported parameters (`encoding_format`/`user`), and accepts wire-level encoding strings; OpenRouter `EmbeddingModel` delegates to it so `embed_texts_with_usage` reports real usage.
+- **Gemini image generation** — `src/crig/providers/gemini/image_generation.cr`: request body matches upstream (`responseModalities: ["IMAGE"]`, deep-merged `additional_params`), and non-success / 2xx error envelopes preserve status+body via `ImageGenerationError.from_http_response` (#2147).
+- **`Agent#into_tool`** — upstream `Agent::into_tool -> DynamicTool` (agent name or `agent_tool` default), with inbound `ToolContext` propagation into the sub-agent (`ToolContext#inbound_only`, `AgentRunner#tool_context`, `PromptRequest#tool_context`); `AgentBuilder#tool(Agent)`/`tools(Array(Agent))` route through it.
+- **`OneOrMany#from_iter_optional`** — returns `nil` for empty input, preserving first/rest split otherwise (upstream `from_iter_optional`).
+- **`AgentRun` accessors** — `usage`, `is_done`, `response`, `cancel_error(reason)`, `pending_invalid_tool_call` (upstream `AgentRun`).
+- **Streaming hook observations** — `StepEvent.text_delta`/`tool_call_delta` factories and `on_text_delta`/`on_tool_call_delta`/`on_stream_response_finish` hooks (backward-compatible via `on_observation`); `on_text_delta` dispatched in the streaming path.
+- **Per-request builder overrides** — `preamble`, `temperature`, `max_tokens`, `tool_choice`, `additional_params` and their `without_*` clearing variants on `AgentRunner`, `PromptRequest`, and `TypedPromptRequest` (matching upstream `forward_prompt_setters!`).
+- **MCP tool timeout** — `DEFAULT_MCP_TOOL_TIMEOUT = 300s`, `McpTool#with_timeout`, and a `select`+`timeout` race in `call_async` resolving to a `ToolError` on elapse instead of blocking forever (#1914).
+- **`AgentRun` streamed turn support** — `record_streamed_completion_call`, `streamed_turn` on `AgentRun`; direct transition to `ExecutingTools` or `Done` from a streamed turn.
+- **`composes_native_output_with_tools?`** — trait method on `CompletionModel`; OpenAI and Anthropic override to `true`.
+- **`from_http_response` across all 17 providers** — HTTP error paths preserve `provider_response_status`/`provider_response_body` for inspection.
+- **`force_tool_first_turn` example** — hook-based `ToolChoice::Required` patch gated on turn index.
+- **`Crig::VERSION` generated from `shard.yml`** — compile-time macro reads `shard.yml` version as the single source of truth.
 
 ### Changed
-- **Telemetry** — `record_model_input`/`record_model_output` removed from `SpanCombinator`; `gen_ai.input.messages` no longer populated in `chat_span`; message-content span fields kept empty
-- **Tool metadata API** — flattened: `ToolDyn#definition(prompt)` replaced with `ToolDyn#description` + `ToolDyn#parameters`; `Crig.tool_definition(tool)` helper uses registered name as source of truth; all tool implementations and examples updated
-- **ChatGPT error handling** — non-2xx Responses API errors now use `from_http_response` instead of bare `provider_error`, preserving HTTP status and body via `provider_response_status()`/`provider_response_body()`
-- **Pinned upstream** — bumped to `a551c4c5c5df5d26b07111c722cc26ffb2777561` (upstream `v0.40.0`)
-- **Parity inventory** — `rust_source_parity.tsv` tracks 2,368 API items; `rust_test_parity.tsv` tracks 903 test equivalents
+- **Agent runner aligned with upstream v0.41.0** — removed deprecated `Agent#completion`/`Agent#stream_completion` and the Crystal-only `StreamingCompletion` trait; `Agent` keeps `StreamingPrompt`/`StreamingChat` only. `StreamingPromptRequest` builds via a documented `build_completion_request` helper. Seeded `Agent#static_context` into `AgentRunner` (static context previously never reached the runner path).
+- **Spec organization** — split the monolithic `spec/crig_spec.cr` into ~45 per-type spec files mirroring `src/` paths; shared fakes consolidated into `spec/support/`. Full suite: 1403 examples, 0 failures (3 pre-existing pending).
+- **Tool metadata API** — flattened: `ToolDyn#definition(prompt)` replaced with `ToolDyn#description` + `ToolDyn#parameters`; `Crig.tool_definition(tool)` uses the registered name as source of truth.
+- **`DynamicTool` declares `include ToolDyn`** — `ToolSet#add_tool`/`ToolServer#tool` accept it directly.
+- **`ToolServerHandle#execute`** — clears, dispatches, and publishes per-dispatch `ToolContext` result metadata (upstream `ToolServerHandle::execute`); `ToolServer#call_tool` accepts an optional context.
+- **SSE retry cycle** — `GenericEventSource` starts a fresh retry cycle on mid-stream transport errors (upstream `SourceState::Open`), so `max_retries` isn't exhausted prematurely.
+- **ChatGPT error handling** — non-2xx Responses API errors use `from_http_response` preserving HTTP status and body.
+- **Old `PromptHook` types removed** — `PromptHook`, `HookAction`, `ToolCallHookAction`, `InvalidToolCallResolution`, `PromptHookAdapter`; `AgentHook` with `on_event(ctx, event) -> Flow` is the only hook interface.
+- **`http_client` retry cleanup** — removed `Constant`/`Never` retry policies and `with_retry_policy` factory matching upstream removal.
+- **ProviderResponseError helpers on all 7 error types** — `CompletionError`, `EmbeddingError`, `TranscriptionError`, `VerifyError`, `ImageGenerationError`, `AudioGenerationError` include `ProviderResponseHelpers`.
+- **Telemetry** — `record_model_input`/`record_model_output` removed from `SpanCombinator`.
+- **Extractor** — removed `ExtractorSubmitTool`; extraction routes through the runner's `output_tool` + `ignore_unhandled_invalid_tool_calls` mechanism.
+- **Pinned upstream** — `a551c4c5c5df5d26b07111c722cc26ffb2777561` (upstream v0.40.0), targeting v0.41.0 parity.
+- **Parity inventory** — `rust_source_parity.tsv` tracks 2,368 API items; `rust_test_parity.tsv` tracks 903 test equivalents.
+- Bumped `mcp` dependency to **v0.5.6**.
 
 ### Removed
-- **Galadriel provider** — marked for removal (upstream `#695490d`); still present in crig pending final cleanup
-
-## v0.41.0 (2026-07-12)
-
-### Added
-- **AgentRun JSON serialization** — `to_json`/`from_json` extended with `completion_calls`; full round-trip preserves `max_turns`, `chat_history`, and `completion_calls` (R10)
-- **StreamedTurnAssembler** — sans-IO accumulator for streaming agent turns: text accumulation, reasoning delta assembly, tool call validation, canonical finish ordering (R8)
-- **AgentRun streamed turn support** — `record_streamed_completion_call`, `streamed_turn` methods on AgentRun; direct transition to `ExecutingTools` or `Done` from streamed turn (R8)
-- **`composes_native_output_with_tools?`** — trait method on `CompletionModel`; OpenAI and Anthropic override to `true` (R3, R4)
-- **`from_http_response` across all 17 providers** — HTTP error paths now preserve `provider_response_status`/`provider_response_body` for inspection (R5)
-- **DeepSeek thinking/tool_choice suppression** — `thinking_is_disabled?` and `deepseek_tool_choice` helpers suppress `Required`/`Specific` tool_choice when thinking mode active (R2)
-- **OpenAIUsage completion_tokens_details** — `reasoning_tokens`, timing fields (`queue_time`, `prompt_time`, `completion_time`, `total_time`); `output_tokens` uses `completion_tokens` when available (R3)
-- **Anthropic `coerce_tool_input`** — forces `tool_use.input` to a JSON object at the send boundary (R4)
-- **Ollama `think` as optional** — `think` defaults to `nil` (model default), supports `"max"` level; reasoning preserved as `AssistantContent::Reasoning` (R5)
-
-### Changed
-- **PromptRequest.send() → AgentRunner delegation** — legacy hand-rolled agent loop replaced with `@runner.run(@prompt)` matching upstream pattern (R1)
-- **Old PromptHook types removed** — `PromptHook`, `HookAction`, `ToolCallHookAction`, `InvalidToolCallResolution`, `PromptHookAdapter` all removed; `AgentHook` with single `on_event(ctx, event) -> Flow` is the only hook interface (R9)
-- **Agent stores `AgentHook` array** — no more single `@hook : PromptHook?`; `AgentBuilder#hook()` accepts `AgentHook` directly (R9)
-- **Streaming prompt_request uses `AgentHook`** — `execute_tool_call` dispatches `StepEvent` through all registered hooks (R8)
-- **`http_client` retry cleanup** — removed `Constant`/`Never` retry policies and `with_retry_policy` factory matching upstream removal (R6)
-- **`non_success_status`/`non_success_body`** — helpers on `HttpClient::Error` (R6)
-- **ProviderResponseError helpers on all 7 error types** — `CompletionError`, `EmbeddingError`, `TranscriptionError`, `VerifyError`, `ImageGenerationError`, `AudioGenerationError` now include `ProviderResponseHelpers` with `from_http_response`/`from_provider_body` factories (R7)
-- **`provider_response_body`/`status` return for HttpError variants** — matches upstream where both `HttpError` and `ProviderResponse` variants expose provider response info (R3)
-- **Anthropic null citations handling** — explicit `"citations": null` from API `content_block_start` events deserializes as empty vec (R4)
-- **All quality gates clean** — `crystal tool format`, `ameba`, and `crystal spec` pass cleanly
-
-### Dependencies
-- Updated upstream pinned commit to `06bc651f4c64d1673ba6af698f6c66602c5d313f` (upstream v0.39.0) — 51 commits on `port/rig-v0.39.0`
-
-## v0.40.0 (2026-06-28)
-
-### Added
-- **Streamable HTTP MCP example + live integration test** — `examples/rmcp.cr` is re-enabled now that the `mcp` shard ships `MCP::Client::StreamableHttpClientTransport`.
-- **`shard_issues/`** — downstream shard-gap tracking.
-
-### Changed
-- Bumped `mcp` dependency to **v0.5.6**.
-- **Split `DemotingPolicyMemory` / `CompactingMemory` into `src/crig/memory/policies.cr`**.
-
-## v0.39.1 (2026-06-24)
-
-### Added
-- **`Crig::McpTool#call_async`** — non-blocking MCP tool call using `client.call_tool_async`, returns `Channel(MCP::Shared::AsyncResult(String))`; `call` delegates to `call_async` (sync contract preserved)
-- **`Crig::VERSION` generated from `shard.yml`** — compile-time macro reads `shard.yml` version, single source of truth for releases
-- **`InMemoryConversationMemory` uses `Sync::Map`** — replaced `Hash` + `Mutex` with `Sync::Map` for lock-free reads and atomic `compute`-based writes
-
-### Changed
-- Bumped `mcp` dependency from v0.3.0 to **v0.5.2** — `Sync::XMap` correlation maps, atomic request resolution, fiber-safe `Client`, router `Sync::XMap`
-- **Removed `McpClientDispatcher`** — the per-client serializing actor is no longer needed; `mcp` 0.5.2 guarantees concurrent `call_tool` is fiber-safe with no external serialization
-
-### Fixed
-- `docs/pr-workflow.md` — expanded from 5 lines to concrete pre-commit checklist covering CHANGELOG, `shard.yml`, `src/crig.cr`, parity inventory, and quality gates
-- `plans/inventory/rust_port_inventory.tsv` — removed stale "serialized shared-client dispatch" notes from `McpTool` and `rmcp_tool` entries
+- **Galadriel provider** — marked for removal (upstream `#695490d`); still present pending final cleanup.
+- **`McpClientDispatcher`** — no longer needed; `mcp` 0.5.2 guarantees fiber-safe concurrent `call_tool`.
 
 ## v0.39.0 (2026-06-23)
 
