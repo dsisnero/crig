@@ -667,6 +667,64 @@ describe Crig::McpTool do
     handle.call_tool("sum", %({"x":3,"y":4})).should eq("7")
   end
 
+  it "registers MCP tools with a per-call timeout through ToolServer#rmcp_tool_with_timeout" do
+    client, server = build_mcp_test_client_and_server
+    definition = MCP::Protocol::Tool.new(
+      name: "sum",
+      description: "Add numbers",
+      input_schema: MCP::Protocol::Tool::Input.new
+    )
+
+    server.add_tool("sum", "Add numbers", definition.input_schema) do |request|
+      x = request.arguments.not_nil!["x"].as_i
+      y = request.arguments.not_nil!["y"].as_i
+      MCP::Protocol::CallToolResult.new([MCP::Protocol::TextContentBlock.new((x + y).to_s)] of MCP::Protocol::ContentBlock)
+    end
+
+    handle = Crig::ToolServer.new
+      .rmcp_tool_with_timeout(definition, client, 1.second)
+      .run
+
+    handle.get_tool_defs(nil).map(&.name).should eq(["sum"])
+    handle.call_tool("sum", %({"x":3,"y":4})).should eq("7")
+  end
+
+  it "registers MCP tools through AgentBuilder#rmcp_tool_with_timeout" do
+    client, server = build_mcp_test_client_and_server
+    definition = MCP::Protocol::Tool.new(
+      name: "sum",
+      description: "Add numbers",
+      input_schema: MCP::Protocol::Tool::Input.new
+    )
+
+    server.add_tool("sum", "Add numbers", definition.input_schema) do |request|
+      x = request.arguments.not_nil!["x"].as_i
+      y = request.arguments.not_nil!["y"].as_i
+      MCP::Protocol::CallToolResult.new([MCP::Protocol::TextContentBlock.new((x + y).to_s)] of MCP::Protocol::ContentBlock)
+    end
+
+    model = FakeCompletionClientModel.new("gpt-4o")
+    agent = Crig::AgentBuilder(FakeCompletionClientModel).new(model)
+      .rmcp_tool_with_timeout(definition, client, 1.second)
+      .build
+
+    handle = agent.tool_server_handle
+    handle.should_not be_nil
+    handle.try(&.get_tool_defs(nil).map(&.name)).should eq(["sum"])
+  end
+
+  it "defaults ToolServer MCP tools to the upstream 300s timeout" do
+    client, server = build_mcp_test_client_and_server
+    definition = MCP::Protocol::Tool.new(
+      name: "sum",
+      description: "Add numbers",
+      input_schema: MCP::Protocol::Tool::Input.new
+    )
+
+    handle = Crig::ToolServer.new.rmcp_tool(definition, client).run
+    handle.call_tool("sum", %({"x":1,"y":2})).should eq("3")
+  end
+
   it "calls an MCP tool asynchronously using call_tool_async" do
     client, server = build_mcp_test_client_and_server
     definition = MCP::Protocol::Tool.new(

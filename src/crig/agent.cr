@@ -693,15 +693,28 @@ module Crig
     end
 
     def rmcp_tool(tool : MCP::Protocol::Tool, client : MCP::Client::Client) : self
+      rmcp_tool_with_timeout(tool, client, DEFAULT_MCP_TOOL_TIMEOUT)
+    end
+
+    # Add an MCP tool with a per-call timeout (upstream
+    # `AgentBuilder::rmcp_tool_with_timeout`, issue #1914). Pass `nil` to make
+    # the call unbounded.
+    def rmcp_tool_with_timeout(tool : MCP::Protocol::Tool, client : MCP::Client::Client, timeout : Time::Span?) : self
       handle = tool_server_handle_for_builder
-      handle.add_tool(Crig::McpTool.from_mcp_server(tool, client))
+      handle.add_tool(Crig::McpTool.from_mcp_server(tool, client).with_timeout(timeout))
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end
 
     def rmcp_tools(tools : Array(MCP::Protocol::Tool), client : MCP::Client::Client) : self
+      rmcp_tools_with_timeout(tools, client, DEFAULT_MCP_TOOL_TIMEOUT)
+    end
+
+    # Add MCP tools, each with a per-call timeout (upstream
+    # `AgentBuilder::rmcp_tools_with_timeout`). Pass `nil` for unbounded calls.
+    def rmcp_tools_with_timeout(tools : Array(MCP::Protocol::Tool), client : MCP::Client::Client, timeout : Time::Span?) : self
       handle = tool_server_handle_for_builder
       tools.each do |tool|
-        handle.add_tool(Crig::McpTool.from_mcp_server(tool, client))
+        handle.add_tool(Crig::McpTool.from_mcp_server(tool, client).with_timeout(timeout))
       end
       self.class.new(@model, @name_value, @description_value, @preamble_value, @static_context_value, @dynamic_context_value, @static_tools_value, @dynamic_tools_value, handle, @additional_params_value, @max_tokens_value, @default_max_turns_value, @temperature_value, @tool_choice_value, @output_schema_value)
     end

@@ -165,7 +165,14 @@ module Crig
     end
 
     def rmcp_tool(tool : MCP::Protocol::Tool, client : MCP::Client::Client) : self
-      @toolset.add_tool(Crig::McpTool.from_mcp_server(tool, client))
+      rmcp_tool_with_timeout(tool, client, DEFAULT_MCP_TOOL_TIMEOUT)
+    end
+
+    # Add an MCP tool with a per-call timeout (upstream
+    # `ToolServer::rmcp_tool_with_timeout`, issue #1914). Pass `nil` to make
+    # the call unbounded.
+    def rmcp_tool_with_timeout(tool : MCP::Protocol::Tool, client : MCP::Client::Client, timeout : Time::Span?) : self
+      @toolset.add_tool(Crig::McpTool.from_mcp_server(tool, client).with_timeout(timeout))
       @static_tool_names << tool.name
       self
     end
