@@ -24,6 +24,21 @@ module Crig
       items.any? { |i| i.is_a?(StreamDone) }.should be_true
     end
 
+    it "dispatches the text-delta observation hook during streaming" do
+      model = RunnerMockModel.new
+      model.response_text = "Hi there!"
+      hook = TextDeltaHook.new
+      runner = AgentRunner(typeof(model)).new(model).add_hook(hook)
+
+      ch = runner.stream(Completion::Message.user("hello"))
+      while item = ch.receive?
+        # drain
+      end
+
+      hook.deltas.should_not be_empty
+      hook.deltas.includes?("Hi there!").should be_true
+    end
+
     it "streams tool roundtrip" do
       model = RunnerMockModel.new
       model.tool_call_name = "add"

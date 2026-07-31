@@ -222,5 +222,69 @@ module Crig
       calls = expect_call_tools(run)
       calls[0].tool_call.function.name.should eq("add")
     end
+
+    it "exposes usage, response, and is_done after completion" do
+      run = AgentRun.new(Completion::Message.user("hello"))
+      expect_call_model(run)
+      run.model_response(ModelTurn.new(
+        choice: OneOrMany(Completion::AssistantContent).one(text_content("hi")),
+        usage: Completion::Usage.new(input_tokens: 5, output_tokens: 2, total_tokens: 7),
+      ))
+      response = expect_done(run)
+
+      run.is_done.should be_true
+      run.done?.should be_true
+      run.usage.total_tokens.should eq(7)
+      run.usage.input_tokens.should eq(5)
+      run.response.should_not be_nil
+      run.response.not_nil!.output.should eq(response.output)
+    end
+
+    it "exposes usage before completion" do
+      run = AgentRun.new(Completion::Message.user("hello"))
+      run.usage.total_tokens.should eq(0)
+      expect_call_model(run)
+      run.model_response(ModelTurn.new(
+        choice: OneOrMany(Completion::AssistantContent).one(text_content("hi")),
+        usage: Completion::Usage.new(total_tokens: 3),
+      ))
+      run.usage.total_tokens.should eq(3)
+    end
+
+    it "builds a cancellation error carrying full history" do
+      run = AgentRun.new(Completion::Message.user("hello"))
+      error = run.cancel_error("user cancelled")
+
+      error.should be_a(Completion::PromptError)
+      error.to_s.should contain("user cancelled")
+    end
+
+    it "returns nil for pending invalid tool call when none is awaiting resolution" do
+      run = AgentRun.new(Completion::Message.user("hello"))
+      expect_call_model(run)
+      run.model_response(ModelTurn.new(
+        choice: OneOrMany(Completion::AssistantContent).one(text_content("hi")),
+      ))
+      expect_done(run)
+
+      run.pending_invalid_tool_call.should be_nil
+    end
+
+    it "reports the pending invalid tool call while awaiting resolution" do
+      run = AgentRun.new(Completion::Message.user("call mispelled")).max_turns(2)
+      expect_call_model(run)
+
+      outcome = run.model_response(ModelTurn.new(
+        choice: OneOrMany(Completion::AssistantContent).one(tool_call_content("call_1", "ad")),
+        executable_tool_names: ["add"],
+        allowed_tool_names: ["add"],
+      ))
+      expect_needs_resolution(outcome)
+
+      pending = run.pending_invalid_tool_call
+      pending.should_not be_nil
+      pending.not_nil!.tool_name.should eq("ad")
+      pending.not_nil!.tool_call_id.should eq("call_1")
+    end
   end
 end

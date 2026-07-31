@@ -27,7 +27,7 @@ module Crig::Providers::Internal
 
       it "includes encoding_format when set" do
         config = EmbeddingCompatible::Config.new(provider_name: "test")
-        json = EmbeddingCompatible.build_request("test-model", ["hello"], 0, Crig::Providers::OpenAI::EncodingFormat::Float, nil, config)
+        json = EmbeddingCompatible.build_request("test-model", ["hello"], 0, "float", nil, config)
         parsed = JSON.parse(json)
         parsed["encoding_format"].as_s.should eq("float")
       end
@@ -61,6 +61,63 @@ module Crig::Providers::Internal
         expect_raises(Crig::Embeddings::EmbeddingError) do
           EmbeddingCompatible.parse_response(body, ["hello"])
         end
+      end
+    end
+
+    describe ".parse_response_with_usage" do
+      it "surfaces provider-reported usage" do
+        body = %({"object":"list","data":[{"object":"embedding","embedding":[0.1],"index":0}],"model":"test","usage":{"prompt_tokens":2,"completion_tokens":0,"total_tokens":2}})
+        config = EmbeddingCompatible::Config.new(provider_name: "test")
+        response = EmbeddingCompatible.parse_response_with_usage(body, ["hello"], config)
+        response.embeddings.size.should eq(1)
+        response.usage.total_tokens.should eq(2)
+        response.usage.input_tokens.should eq(2)
+      end
+
+      it "raises MissingUsage when usage required but absent" do
+        body = %({"object":"list","data":[{"object":"embedding","embedding":[0.1],"index":0}],"model":"test"})
+        config = EmbeddingCompatible::Config.new(provider_name: "test", requires_usage: true)
+        expect_raises(Crig::Embeddings::EmbeddingError) do
+          EmbeddingCompatible.parse_response_with_usage(body, ["hello"], config)
+        end
+      end
+
+      it "returns zero usage when not required and absent" do
+        body = %({"object":"list","data":[{"object":"embedding","embedding":[0.1],"index":0}],"model":"test"})
+        config = EmbeddingCompatible::Config.new(provider_name: "test", requires_usage: false)
+        response = EmbeddingCompatible.parse_response_with_usage(body, ["hello"], config)
+        response.usage.total_tokens.should eq(0)
+      end
+    end
+
+    describe ".validate_parameters" do
+      it "rejects base64 encoding format" do
+        config = EmbeddingCompatible::Config.new(provider_name: "test")
+        error = expect_raises(Crig::Embeddings::EmbeddingError) do
+          EmbeddingCompatible.validate_parameters("base64", nil, config)
+        end
+        error.to_s.should contain("base64")
+      end
+
+      it "rejects unsupported encoding format" do
+        config = EmbeddingCompatible::Config.new(provider_name: "test", supports_encoding_format: false)
+        error = expect_raises(Crig::Embeddings::EmbeddingError) do
+          EmbeddingCompatible.validate_parameters("float", nil, config)
+        end
+        error.to_s.should contain("encoding_format")
+      end
+
+      it "rejects unsupported user parameter" do
+        config = EmbeddingCompatible::Config.new(provider_name: "test", supports_user: false)
+        error = expect_raises(Crig::Embeddings::EmbeddingError) do
+          EmbeddingCompatible.validate_parameters(nil, "user-1", config)
+        end
+        error.to_s.should contain("user")
+      end
+
+      it "accepts supported parameters" do
+        config = EmbeddingCompatible::Config.new(provider_name: "test")
+        EmbeddingCompatible.validate_parameters("float", "user-1", config)
       end
     end
   end

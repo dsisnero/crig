@@ -18,6 +18,25 @@ class RecordHook
   end
 end
 
+# Hook that records text-delta observations.
+class TextDeltaHook
+  include Crig::AgentHook
+
+  getter deltas : Array(String) = [] of String
+
+  def on_event(ctx : Crig::HookContext, event : Crig::StepEvent) : Crig::Flow
+    if event.text_delta?
+      @deltas << event.delta.to_s
+    end
+    Crig::Flow.cont
+  end
+
+  def on_text_delta(ctx : Crig::HookContext, event : Crig::StepEvent) : Crig::ObservationAction
+    @deltas << event.delta.to_s
+    Crig::ObservationAction.cont
+  end
+end
+
 # Simple completion model for testing AgentRunner
 class RunnerMockModel
   include Crig::Completion::CompletionModel
