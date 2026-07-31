@@ -514,6 +514,20 @@ module Crig
         ObservationAction.cont
       end
     end
+
+    # Streaming text-delta observation (upstream v0.41.0+). Defaults to
+    # dispatching through the legacy observation path for backward compatibility.
+    def on_text_delta(ctx : HookContext, event : StepEvent) : ObservationAction
+      on_observation(ctx, event)
+    end
+
+    def on_tool_call_delta(ctx : HookContext, event : StepEvent) : ObservationAction
+      on_observation(ctx, event)
+    end
+
+    def on_stream_response_finish(ctx : HookContext, event : StepEvent) : ObservationAction
+      on_observation(ctx, event)
+    end
   end
 
   struct StepEvent
@@ -574,6 +588,14 @@ module Crig
       new(Kind::ToolResult, tool_name: tool_name, tool_call_id: tool_call_id, internal_call_id: internal_call_id, args: args, result: result)
     end
 
+    def self.text_delta(delta : String, aggregated : String = "") : self
+      new(Kind::TextDelta, delta: delta, aggregated: aggregated)
+    end
+
+    def self.tool_call_delta(tool_call_id : String?, internal_call_id : String, tool_name : String?, delta : String) : self
+      new(Kind::ToolCallDelta, tool_call_id: tool_call_id, internal_call_id: internal_call_id, tool_name: tool_name, delta: delta)
+    end
+
     def completion_call? : Bool
       @kind.completion_call?
     end
@@ -584,6 +606,14 @@ module Crig
 
     def tool_result? : Bool
       @kind.tool_result?
+    end
+
+    def text_delta? : Bool
+      @kind.text_delta?
+    end
+
+    def tool_call_delta? : Bool
+      @kind.tool_call_delta?
     end
   end
 end

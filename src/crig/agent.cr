@@ -52,10 +52,33 @@ module Crig
     end
 
     def execute(name : String, arguments : String, context : Tool::ToolContext) : Tool::ToolResult
-      result = call_tool(name, arguments)
-      Tool::ToolResult.success(Tool::ToolOutput.text(result))
-    rescue ex
-      Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "tool execution failed"))
+      context.clear_dispatch_result
+      dispatch_context = context.for_dispatch
+
+      result = begin
+        if resolver = @resolver
+          result_text = resolver.call(name, arguments)
+          Tool::ToolResult.success(Tool::ToolOutput.text(result_text))
+        elsif server = @server
+          result_text = server.call_tool(name, arguments, dispatch_context)
+          Tool::ToolResult.success(Tool::ToolOutput.text(result_text))
+        else
+          response = request(Crig::ToolServerRequestMessageKind.call_tool(name, arguments)) ||
+                     raise Crig::ToolServerError.send_error("Tool server handle '#{@id}' is not attached to a server")
+          if response.kind.tool_executed?
+            Tool::ToolResult.success(Tool::ToolOutput.text(response.result || ""))
+          elsif response.kind.tool_error? && (error = response.error)
+            Tool::ToolResult.failed(Tool::ToolExecutionError.provider(error))
+          else
+            raise Crig::ToolServerError.invalid_message(response)
+          end
+        end
+      rescue ex
+        Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "tool execution failed"))
+      end
+
+      context.accept_dispatch_result(dispatch_context)
+      result
     end
 
     def add_tool(tool : Crig::ToolDyn) : Nil
@@ -196,7 +219,6 @@ module Crig
   struct Agent(M)
     include StreamingPrompt(M)
     include StreamingChat(M)
-    include StreamingCompletion(M)
 
     getter model : M
     getter name : String?
@@ -266,9 +288,37 @@ module Crig
       raise Crig::ToolError.json_error(ex)
     end
 
-    # Deprecated: use `runner(prompt).run/prompt)` instead to route through
-    # the full hook lifecycle.
-    def completion(
+    # Convert this agent into a runtime-defined tool.
+    #
+    # The configured agent name becomes the tool name. Unnamed agents use
+    # `agent_tool`. This matches upstream `Agent::into_tool`.
+    def into_tool : DynamicTool
+      name = @name || AGENT_TOOL_NAME
+      description = tool_description
+      parameters = tool_parameters
+      agent = self
+
+      DynamicTool.new(name, description, parameters) do |args, context|
+        begin
+          parsed = Crig::AgentToolArgs.from_json(args)
+          prompt = Crig::Completion::Message.user(parsed.prompt)
+          inherited = context.inbound_only
+          runner = agent.runner(prompt)
+          runner.tool_context(inherited)
+          output = runner.run(prompt).output
+          Tool::ToolResult.success(Tool::ToolOutput.text(output))
+        rescue ex : Crig::ToolError
+          Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "agent tool failed"))
+        rescue ex : Exception
+          Tool::ToolResult.failed(Tool::ToolExecutionError.provider(ex.message || "agent tool failed"))
+        end
+      end
+    end
+
+    # Build a raw completion request from agent config. Used by the deprecated
+    # streaming prompt request. Upstream has no public `Agent#completion`/
+    # `Agent#stream_completion` — execution goes through the runner.
+    def build_completion_request(
       prompt : Crig::Completion::Message | String,
       chat_history : Array(Crig::Completion::Message) = [] of Crig::Completion::Message,
     ) : Crig::Completion::Request::CompletionRequestBuilder
@@ -311,14 +361,6 @@ module Crig
         .tools(dynamic_tool_definitions(rag_text))
     end
 
-    # Deprecated: use `runner(prompt).history(history).stream` instead.
-    def stream_completion(
-      prompt : Crig::Completion::Message | String,
-      chat_history : Array(Crig::Completion::Message) = [] of Crig::Completion::Message,
-    ) : Crig::Completion::Request::CompletionRequestBuilder
-      completion(prompt, chat_history)
-    end
-
     def prompt(prompt : Crig::Completion::Message | String) : Crig::PromptRequest(Crig::Standard, M)
       Crig::PromptRequest(Crig::Standard, M).from_agent(self, prompt)
     end
@@ -344,6 +386,12 @@ module Crig
       end
       runner = runner.max_turns(@default_max_turns || 1)
       runner = runner.static_tools(@static_tools)
+      if !@static_context.empty?
+        runner = runner.static_context(@static_context)
+      end
+      if os = @output_schema
+        runner = runner.output_schema(os)
+      end
       if ap = @additional_params
         runner = runner.additional_params(ap)
       end
@@ -431,12 +479,14 @@ module Crig
       @name = name
     end
 
+    # Legacy alias for `Agent#into_tool` — kept for backward compatibility.
     def self.new(agent : Agent(M)) : self forall M
+      dynamic = agent.into_tool
       new(
-        agent.name,
-        agent.tool_description,
-        agent.tool_parameters,
-      ) { |args| agent.call(args) }
+        dynamic.name,
+        dynamic.description,
+        dynamic.parameters,
+      ) { |args| dynamic.call(args) }
     end
 
     def description : String
@@ -565,11 +615,11 @@ module Crig
       )
     end
 
-    # Add a nested agent as a callable tool.
+    # Add a nested agent as a callable tool (upstream `into_tool`).
     def tool(tool : Crig::Agent(T)) : self forall T
-      adapter = Crig::AgentToolAdapter.new(tool)
+      dynamic = tool.into_tool
       handle = tool_server_handle_for_builder
-      handle.add_tool(adapter)
+      handle.add_tool(dynamic)
       self.class.new(
         @model,
         @name_value,
@@ -577,7 +627,7 @@ module Crig
         @preamble_value,
         @static_context_value,
         @dynamic_context_value,
-        @static_tools_value + [Crig.tool_definition(adapter)],
+        @static_tools_value + [Crig.tool_definition(dynamic)],
         @dynamic_tools_value,
         handle,
         @additional_params_value,
@@ -621,8 +671,8 @@ module Crig
     # Deprecated: use repeated .tool(...) calls instead.
     def tools(tools : Array(Crig::Agent(T))) : self forall T
       handle = tool_server_handle_for_builder
-      adapters = tools.map { |tool| Crig::AgentToolAdapter.new(tool) }
-      adapters.each { |tool| handle.add_tool(tool) }
+      dynamics = tools.map(&.into_tool)
+      dynamics.each { |tool| handle.add_tool(tool) }
       self.class.new(
         @model,
         @name_value,
@@ -630,7 +680,7 @@ module Crig
         @preamble_value,
         @static_context_value,
         @dynamic_context_value,
-        @static_tools_value + adapters.map { |a| Crig.tool_definition(a) },
+        @static_tools_value + dynamics.map { |a| Crig.tool_definition(a) },
         @dynamic_tools_value,
         handle,
         @additional_params_value,

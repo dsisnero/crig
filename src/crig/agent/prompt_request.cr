@@ -184,6 +184,61 @@ module Crig
       self
     end
 
+    def preamble(preamble : String) : self
+      @runner.preamble(preamble)
+      self
+    end
+
+    def without_preamble : self
+      @runner.without_preamble
+      self
+    end
+
+    def temperature(temperature : Float64) : self
+      @runner.temperature(temperature)
+      self
+    end
+
+    def without_temperature : self
+      @runner.without_temperature
+      self
+    end
+
+    def max_tokens(max_tokens : Int) : self
+      @runner.max_tokens(max_tokens.to_u64)
+      self
+    end
+
+    def without_max_tokens : self
+      @runner.without_max_tokens
+      self
+    end
+
+    def tool_choice(tool_choice : Completion::ToolChoice) : self
+      @runner.tool_choice(tool_choice)
+      self
+    end
+
+    def without_tool_choice : self
+      @runner.without_tool_choice
+      self
+    end
+
+    def tool_context(context : Tool::ToolContext) : self
+      @runner.tool_context(context)
+      self
+    end
+
+    def additional_params(params : JSON::Any) : self
+      @runner.additional_params(params)
+      self
+    end
+
+    def without_additional_params : self
+      @runner.without_additional_params
+      self
+    end
+
     def with_tool_concurrency(concurrency : Int) : self
       @runner.tool_concurrency(concurrency.to_i32)
       self
@@ -291,6 +346,46 @@ module Crig
 
     def max_turns(depth : Int) : self
       self.class.new(@inner.max_turns(depth))
+    end
+
+    def preamble(preamble : String) : self
+      self.class.new(@inner.preamble(preamble))
+    end
+
+    def without_preamble : self
+      self.class.new(@inner.without_preamble)
+    end
+
+    def temperature(temperature : Float64) : self
+      self.class.new(@inner.temperature(temperature))
+    end
+
+    def without_temperature : self
+      self.class.new(@inner.without_temperature)
+    end
+
+    def max_tokens(max_tokens : Int) : self
+      self.class.new(@inner.max_tokens(max_tokens))
+    end
+
+    def without_max_tokens : self
+      self.class.new(@inner.without_max_tokens)
+    end
+
+    def tool_choice(tool_choice : Completion::ToolChoice) : self
+      self.class.new(@inner.tool_choice(tool_choice))
+    end
+
+    def without_tool_choice : self
+      self.class.new(@inner.without_tool_choice)
+    end
+
+    def additional_params(params : JSON::Any) : self
+      self.class.new(@inner.additional_params(params))
+    end
+
+    def without_additional_params : self
+      self.class.new(@inner.without_additional_params)
     end
 
     def with_tool_concurrency(concurrency : Int) : self

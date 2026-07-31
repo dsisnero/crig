@@ -169,7 +169,7 @@ module Crig
         current_turn += 1
         maybe_run_completion_hook(current_prompt, history)
 
-        stream = @agent.stream_completion(current_prompt, history).stream(@agent.model)
+        stream = @agent.build_completion_request(current_prompt, history).stream(@agent.model)
         history << current_prompt
 
         turn_result = process_stream_turn(stream, current_prompt, history, items)
@@ -324,9 +324,21 @@ module Crig
           {tool_call, internal_call_id, execute_tool_call(tool_call, internal_call_id, history)}
         end
 
-        committed_results = executed_tool_results.map do |tool_call, internal_call_id, tool_result|
+        committed_user_contents = executed_tool_results.map do |tool_call, _internal_call_id, tool_result|
+          Crig::Completion::UserContent.tool_result_with_call_id(
+            tool_call.id,
+            tool_call.call_id || tool_call.id,
+            Crig::OneOrMany(Crig::Completion::ToolResultContent).one(
+              Crig::Completion::ToolResultContent.text(tool_result)
+            ),
+          )
+        end
+
+        items << Crig::MultiTurnStreamItem(Crig::PromptResponse).tool_execution_committed(committed_user_contents)
+
+        executed_tool_results.each do |tool_call, internal_call_id, tool_result|
           tool_results << {tool_call.id, tool_call.call_id, tool_result}
-          item = Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_user_item(
+          items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_user_item(
             Crig::StreamedUserContent.tool_result(
               Crig::Completion::ToolResult.new(
                 tool_call.id,
@@ -338,18 +350,7 @@ module Crig
               internal_call_id,
             )
           )
-          items << item
-          item
         end
-
-        items << Crig::MultiTurnStreamItem(Crig::PromptResponse).tool_execution_committed(
-          committed_results.compact_map do |item|
-            user_item = item.user_item
-            if user_item && user_item.kind.tool_result?
-              user_item.tool_result
-            end
-          end
-        )
       end
 
       StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning, turn_usage)
@@ -484,6 +485,7 @@ module Crig
           in .final?
           end
         end
+      in .tool_execution_committed?
       in .stream_user_item?
       in .final_response?
         final_res = content.final_response || final_res

@@ -137,12 +137,14 @@ module Crig
     getter executable_tool_names : Set(String)
     getter allowed_tool_names : Set(String)
     getter output_tool_name : String?
+    getter output_schema : JSON::Any?
 
     def initialize(
       @builder : Completion::Request::CompletionRequestBuilder,
       @executable_tool_names : Set(String),
       @allowed_tool_names : Set(String),
       @output_tool_name : String? = nil,
+      @output_schema : JSON::Any? = nil,
     )
     end
 
@@ -164,6 +166,7 @@ module Crig
       output_mode : OutputMode,
       committed_output_tool : String?,
       patch : RequestPatch?,
+      output_tool_description : String = "Structured output",
     ) : self
       # Apply patch overrides
       effective_preamble = patch.try(&.preamble) || preamble
@@ -180,27 +183,35 @@ module Crig
                                additional_params
                              end
 
+      # Build tool definitions, adding output tool if configured
+      effective_tool_defs = tool_defs.dup
+      output_tool_name = committed_output_tool || begin
+        if output_mode.tool?
+          Crig.pick_output_tool_name(effective_tool_defs.map(&.name).to_set)
+        end
+      end
+      if (name = output_tool_name) && (schema = output_schema)
+        effective_tool_defs << Completion::ToolDefinition.new(
+          name: name,
+          description: output_tool_description,
+          parameters: schema,
+        )
+      end
+
       # Build the request builder
       builder = model.completion_request(prompt)
         .messages(chat_history)
-        .tools(tool_defs)
+        .tools(effective_tool_defs)
       builder = builder.preamble(effective_preamble) if effective_preamble
       builder = builder.temperature(effective_temp) if effective_temp
       builder = builder.max_tokens(effective_tokens.to_i64) if effective_tokens
       builder = builder.tool_choice(effective_choice) if effective_choice
       builder = builder.additional_params_opt(effective_additional) if effective_additional
-      builder = builder.output_schema_opt(output_schema)
+      builder = builder.output_schema_opt(output_schema) unless output_tool_name
       builder = builder.documents(static_context) unless static_context.empty?
 
-      # Determine executable tool names
-      executable_names = tool_defs.map(&.name).to_set
-
-      # Pick output tool name
-      output_tool_name = committed_output_tool || begin
-        if output_mode.tool?
-          Crig.pick_output_tool_name(executable_names)
-        end
-      end
+      # Determine executable tool names (includes output tool if added)
+      executable_names = effective_tool_defs.map(&.name).to_set
 
       # Determine allowed tool names
       active_tools = patch.try(&.active_tools)
@@ -213,7 +224,7 @@ module Crig
         allowed &= active.to_set
       end
 
-      new(builder, executable_names, allowed, output_tool_name)
+      new(builder, executable_names, allowed, output_tool_name, output_schema)
     end
   end
 end

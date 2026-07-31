@@ -13,6 +13,8 @@ module Crig
     @additional_params : JSON::Any?
     @tool_choice : Completion::ToolChoice?
     @output_tool_name : String? = nil
+    @output_tool_description : String = "Structured output"
+    @ignore_unhandled_invalid_tool_calls : Bool = false
     @output_mode : OutputMode = OutputMode::Auto
     @output_schema : JSON::Any? = nil
     @concurrency : Int32 = 1
@@ -61,16 +63,43 @@ module Crig
       @tool_choice = v; self
     end
 
+    def without_tool_choice : self
+      @tool_choice = nil; self
+    end
+
     def preamble(v : String) : self
       @preamble = v; self
+    end
+
+    def without_preamble : self
+      @preamble = nil; self
     end
 
     def temperature(v : Float64) : self
       @temperature = v; self
     end
 
+    def without_temperature : self
+      @temperature = nil; self
+    end
+
     def max_tokens(v : UInt64) : self
       @max_tokens = v; self
+    end
+
+    def without_max_tokens : self
+      @max_tokens = nil; self
+    end
+
+    def output_tool(name : String, description : String = "Structured output") : self
+      @output_tool_name = name
+      @output_tool_description = description
+      self
+    end
+
+    def ignore_unhandled_invalid_tool_calls : self
+      @ignore_unhandled_invalid_tool_calls = true
+      self
     end
 
     def output_schema(v : JSON::Any?) : self
@@ -85,6 +114,10 @@ module Crig
       @tool_server_handle = h; self
     end
 
+    def tool_context(v : Tool::ToolContext) : self
+      @tool_context = v; self
+    end
+
     def chat_history(v : Array(Completion::Message)?) : self
       @chat_history = v; self
     end
@@ -93,8 +126,16 @@ module Crig
       @static_tools = v; self
     end
 
+    def static_context(v : Array(Completion::Request::Document)) : self
+      @static_context = v; self
+    end
+
     def additional_params(v : JSON::Any) : self
       @additional_params = v; self
+    end
+
+    def without_additional_params : self
+      @additional_params = nil; self
     end
 
     def run(prompt : Completion::Message) : PromptResponse
@@ -190,6 +231,7 @@ module Crig
           text = choice_text(choice)
           unless text.empty?
             ch.send(StreamTextDelta.new(text, text))
+            dispatch_text_delta_hook(ctx, text, text, error_history)
           end
 
           ct = choice_text(response.choice)
@@ -275,8 +317,9 @@ module Crig
         tool_defs: tool_defs,
         output_schema: @output_schema,
         output_mode: @output_mode,
-        committed_output_tool: nil,
+        committed_output_tool: @output_tool_name,
         patch: patch,
+        output_tool_description: @output_tool_description,
       )
       prepared.builder
     end
@@ -304,6 +347,16 @@ module Crig
     private def dispatch_hook(ctx, event, error_history : Array(Completion::Message)) : Nil
       @hooks.each do |hook|
         action = hook.on_observation(ctx, event)
+        if action.kind.stop?
+          raise Completion::PromptError.prompt_cancelled(error_history, action.reason || "terminated")
+        end
+      end
+    end
+
+    private def dispatch_text_delta_hook(ctx, delta : String, aggregated : String, error_history : Array(Completion::Message)) : Nil
+      event = StepEvent.text_delta(delta, aggregated)
+      @hooks.each do |hook|
+        action = hook.on_text_delta(ctx, event)
         if action.kind.stop?
           raise Completion::PromptError.prompt_cancelled(error_history, action.reason || "terminated")
         end
@@ -417,7 +470,8 @@ module Crig
 
     private def execute_single_tool(name : String, args : String) : String
       if tsh = @tool_server_handle
-        tsh.call_tool(name, args)
+        result = tsh.execute(name, args, @tool_context)
+        result.output.render
       else
         "#{name}_result(#{args})"
       end
@@ -429,6 +483,10 @@ module Crig
       case outcome.kind
       in .needs_resolution?
         ctx2 = outcome.context || raise "Bug: needs_resolution without context"
+        if @ignore_unhandled_invalid_tool_calls
+          run.resolve_invalid_tool_call(InvalidToolCallHookAction.skip("ignored"))
+          return
+        end
         invalid_event = StepEvent.tool_call(
           ctx2.tool_name, nil, "", ctx2.args || "")
         action = dispatch_invalid_tool_call_hook(ctx, invalid_event, ctx2)

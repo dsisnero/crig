@@ -85,7 +85,7 @@ loop do
     history = step.history.not_nil!
 
     puts "-> model call ##{turn}"
-    builder = agent.completion(prompt, history)
+    builder = agent.build_completion_request(prompt, history)
     response = completion_model.completion(builder.build)
 
     turn_data = Crig::ModelTurn.new(

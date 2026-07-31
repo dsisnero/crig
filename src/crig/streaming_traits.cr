@@ -26,13 +26,4 @@ module Crig
       chat_history : Array(Crig::Completion::Message),
     ) : Crig::StreamingPromptRequest(M)
   end
-
-  # Trait for low-level streaming completion interface
-  module StreamingCompletion(M)
-    # Generate a streaming completion from a request
-    abstract def stream_completion(
-      prompt : Crig::Completion::Message | String,
-      chat_history : Array(Crig::Completion::Message),
-    ) : Crig::Completion::Request::CompletionRequestBuilder
-  end
 end

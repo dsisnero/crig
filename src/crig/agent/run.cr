@@ -352,6 +352,34 @@ module Crig
       @state.done?
     end
 
+    # ameba:disable Naming/PredicateName
+    def is_done : Bool
+      done?
+    end
+
+    def usage : Completion::Usage
+      @usage
+    end
+
+    def response : PromptResponse?
+      @done_response
+    end
+
+    def cancel_error(reason : String) : Completion::PromptError
+      Completion::PromptError.prompt_cancelled(full_history, reason)
+    end
+
+    def pending_invalid_tool_call : InvalidToolCallContext?
+      return unless @state.resolving_tool_calls?
+      return if @next_idx >= @items.size
+
+      tc = @items[@next_idx].tool_call || return
+      InvalidToolCallContext.new(tool_name: tc.function.name, tool_call_id: tc.id,
+        args: tc.function.arguments.to_json, available_tools: @exe_tools,
+        allowed_tools: @alw_tools, tool_choice: @tool_choice,
+        chat_history: diagnostic_history, is_streaming: false)
+    end
+
     def full_history : Array(Completion::Message)
       (@chat_history.try(&.dup) || [] of Completion::Message).tap(&.concat(@new_messages))
     end
