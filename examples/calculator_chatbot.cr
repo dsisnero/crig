@@ -199,7 +199,7 @@ module Crig::Examples::CalculatorChatbot
   end
 
   def self.build_chatbot(
-    agent : Crig::Agent(M)
+    agent : Crig::Agent(M),
   ) : Crig::Integrations::ChatBot(Crig::Integrations::AgentImpl(M)) forall M
     Crig::Integrations::ChatBotBuilder(Crig::Integrations::NoImplProvided).new
       .agent(agent)

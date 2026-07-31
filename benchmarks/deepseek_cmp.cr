@@ -7,7 +7,7 @@ module Crig::Benchmarks
 
     AGENT_COUNT = (ENV["AGENT_COUNT"]?.try(&.to_i) || 4)
     MODEL       = ENV["BENCH_MODEL"]? || "deepseek-chat"
-    PROMPTS = [
+    PROMPTS     = [
       "What is 2+2? Answer with just the number.",
       "What is the capital of France? One word.",
       "Say 'hello' in Spanish. One word.",
