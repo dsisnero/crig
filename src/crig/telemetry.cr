@@ -153,14 +153,14 @@ module Crig
         new(Tracing::Span.new(meta))
       end
 
-      def self.chat_span(provider_name : String, model : String, preamble : String?, request_messages_json : String?) : Span
+      def self.chat_span(provider_name : String, model : String, preamble : String?, request_messages_json : String?, record_content : Bool = false) : Span
         meta = Tracing::Metadata.new("chat", "crig", Tracing::Level::INFO)
         inner = Tracing::Span.new(meta)
         span = new(inner)
         span.record_field(GEN_AI_OPERATION_NAME, "chat")
         span.record_field(GEN_AI_PROVIDER_NAME, provider_name)
         span.record_field(GEN_AI_REQUEST_MODEL, model)
-        if preamble
+        if record_content && preamble
           span.record_field(GEN_AI_SYSTEM_INSTRUCTIONS, preamble)
         end
         if request_messages_json

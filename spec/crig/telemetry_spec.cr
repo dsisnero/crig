@@ -120,5 +120,27 @@ module Crig
       sub.fields.find { |(k, _)| k == "gen_ai.input.messages" }.should be_nil
       sub.fields.find { |(k, _)| k == "gen_ai.output.messages" }.should be_nil
     end
+
+    it "does not record system instructions when content telemetry is disabled" do
+      sub = TelemetryCapturingSubscriber.new
+      Tracing::Core::Dispatch.with_default(Tracing::Core::Dispatch.new(sub)) do
+        span = Span.chat_span("openai", "gpt-4o", "be concise", nil, false)
+        span.end_span
+      end
+
+      sub.fields.find { |(k, _)| k == "gen_ai.system_instructions" }.should be_nil
+    end
+
+    it "records system instructions when content telemetry is enabled" do
+      sub = TelemetryCapturingSubscriber.new
+      Tracing::Core::Dispatch.with_default(Tracing::Core::Dispatch.new(sub)) do
+        span = Span.chat_span("openai", "gpt-4o", "be concise", nil, true)
+        span.end_span
+      end
+
+      pair = sub.fields.find { |(k, _)| k == "gen_ai.system_instructions" }
+      pair.should_not be_nil
+      pair.not_nil![1].should eq("be concise")
+    end
   end
 end

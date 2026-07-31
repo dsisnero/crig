@@ -324,6 +324,7 @@ module Crig
         request.model || "unknown",
         builder.preamble,
         input_json,
+        @record_content_telemetry,
       )
     end
 
