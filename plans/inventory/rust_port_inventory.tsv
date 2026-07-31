@@ -2839,3 +2839,12 @@ src/agent/tool/rmcp.rs::func::with_timeout	func	ported	src/crig/tool/rmcp.cr,spe
 src/agent/tool/rmcp.rs::field::timeout	field	ported	src/crig/tool/rmcp.cr,spec/crig/tool/macro_tools_spec.cr	Per-call timeout field; on elapse the call resolves to a ToolError instead of hanging.
 src/agent/tool/server.rs::test::test_toolserver_concurrent_tool_execution	test	ported	spec/crig/tool/server_execute_spec.cr	Concurrent tool dispatch verified via WaitGroup barrier; server lock held only for lookup, not execution.
 src/agent/tool/server.rs::test::test_toolserver_write_while_tool_running	test	ported	spec/crig/tool/server_execute_spec.cr	Adding a tool during an in-flight tool call does not deadlock.
+src/agent/test_utils/tools.rs::struct::MockAddTool	struct	ported	spec/support/mock_tools.cr,spec/crig/tool/mock_tools_spec.cr	MockAddTool ports as a Tool(MockOperationArgs, Int32) adding x+y.
+src/agent/test_utils/tools.rs::struct::MockSubtractTool	struct	ported	spec/support/mock_tools.cr,spec/crig/tool/mock_tools_spec.cr	MockSubtractTool ports as a Tool(MockOperationArgs, Int32) subtracting y from x.
+src/agent/test_utils/tools.rs::func::mock_math_toolset	func	ported	spec/support/mock_tools.cr,spec/crig/tool/mock_tools_spec.cr	Toolset with add + subtract tools.
+src/agent/test_utils/tools.rs::struct::MockContextProbeTool	struct	ported	spec/support/mock_tools.cr,spec/crig/agent/toolserver_agent_spec.cr	Records SessionId observed in its per-call ToolContext; used to assert into_tool context propagation.
+src/agent/test_utils/tools.rs::struct::SessionId	struct	ported	spec/support/mock_tools.cr	Caller-injected context value stored in ToolContext.
+src/agent/test_utils/tools.rs::struct::MockOperationArgs	struct	ported	spec/support/mock_tools.cr	Arguments (x, y) for arithmetic mock tools.
+src/agent/runner.rs::func::record_content_telemetry	func	ported	src/crig/agent/runner.cr,spec/crig/telemetry_spec.cr	AgentRunner#record_content_telemetry opts into recording sensitive model/tool content on GenAI spans.
+src/agent/runner.rs::func::record_model_input	func	ported	src/crig/telemetry.cr,spec/crig/telemetry_spec.cr	Span#record_model_input records gen_ai.input.messages when enabled.
+src/agent/runner.rs::func::record_model_output	func	ported	src/crig/telemetry.cr,spec/crig/telemetry_spec.cr	Span#record_model_output records gen_ai.output.messages when enabled.
