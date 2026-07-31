@@ -409,7 +409,7 @@ src/http_client/sse.rs::func::close	func	ported	src/crig/http_client/sse.cr,spec
 src/http_client/sse.rs::func::last_event_id	func	ported	src/crig/http_client/sse.cr,spec/crig_spec.cr	Last-event-id tracking is ported.
 src/http_client/sse.rs::func::new	func	ported	src/crig/http_client/sse.cr,spec/crig_spec.cr	Generic event source construction is ported on top of the channel-based transport layer.
 src/http_client/sse.rs::method::GenericEventSource.new	method	ported	src/crig/http_client/sse.cr,spec/crig_spec.cr	`GenericEventSource.new` is ported with default or explicit retry policy.
-src/http_client/sse.rs::struct::GenericEventSource	struct	ported	src/crig/http_client/sse.cr,spec/crig_spec.cr	Generic SSE event-source behavior is ported with direct coverage for retry, reconnect, last-event-id carryover, invalid UTF-8 recovery, and response validation.
+src/http_client/sse.rs::struct::GenericEventSource	struct	ported	src/crig/http_client/sse.cr,spec/crig_spec.cr	Generic SSE event-source behavior is ported with direct coverage for retry, reconnect (fresh retry cycle on mid-stream errors), last-event-id carryover, invalid UTF-8 recovery, and response validation.
 src/http_client/sse.rs::type::BoxedStream	type	ported	src/crig/http_client/sse.cr,spec/crig_spec.cr	The boxed-stream role is ported as the Crystal stream-backed response-body wrapper used throughout SSE handling.
 src/image_generation.rs::enum::ImageGenerationError	enum	ported	src/crig/image_generation.cr,spec/crig_spec.cr	Ported as a variant-tagged Crystal exception with http/json/request/response/provider helpers, source retention, and direct spec coverage.
 src/image_generation.rs::func::additional_params	func	ported	src/crig/image_generation.cr:65-67,spec/crig_spec.cr:371-384	Image-generation builder additional params setter is ported.
@@ -556,6 +556,7 @@ src/one_or_many.rs::func::iter_mut	func	ported	src/crig/one_or_many.cr,spec/crig
 src/one_or_many.rs::func::last	func	ported	src/crig/one_or_many.cr:40-42,spec/crig_spec.cr:30-37	Returns the last stored item or the first when no rest items exist.
 src/one_or_many.rs::func::last_mut	func	ported	src/crig/one_or_many.cr,spec/crig_spec.cr	Crystal exposes the upstream-named accessor and returns the last stored value directly, preserving observable behavior.
 src/one_or_many.rs::func::last_ref	func	ported	src/crig/one_or_many.cr,spec/crig_spec.cr	Crystal exposes the upstream-named accessor and returns the last stored value directly, preserving observable behavior.
+src/one_or_many.rs::func::from_iter_optional	func	ported	src/crig/one_or_many.cr,spec/crig/one_or_many_spec.cr	Ported as `OneOrMany#from_iter_optional`, returning nil for empty input and preserving first/rest split for non-empty input.
 src/one_or_many.rs::func::len	func	ported	src/crig/one_or_many.cr:66-68,spec/crig_spec.cr:21-37	Length semantics match upstream.
 src/one_or_many.rs::func::one	func	ported	src/crig/one_or_many.cr:15-17,spec/crig_spec.cr:21-28	Constructs a single-item container.
 src/one_or_many.rs::func::push	func	ported	src/crig/one_or_many.cr:52-54,spec/crig_spec.cr:42-48	Appends to the rest items.
@@ -2555,8 +2556,8 @@ src/providers/openai/completion/mod.rs::test::provider_response_text_response_re
 src/providers/openai/completion/mod.rs::test::request_conversion_omits_response_format_on_initial_tool_turn	test	intentional_divergence	-	Provider integration test requiring HTTP/SSE mock infrastructure; will be ported in targeted test pass
 src/providers/openai/completion/mod.rs::test::request_conversion_restores_response_format_after_tool_result	test	intentional_divergence	-	Provider integration test requiring HTTP/SSE mock infrastructure; will be ported in targeted test pass
 src/providers/openai/completion/mod.rs::type::CompletionModel	type	ported	src/crig/providers/openai/completion.cr:1153	-
-src/providers/openai/embedding.rs::method::GenericEmbeddingModel.new	method	intentional_divergence	-	Crystal uses concrete EmbeddingModel.make instead
-src/providers/openai/embedding.rs::struct::GenericEmbeddingModel	struct	intentional_divergence	-	Crystal uses concrete EmbeddingModel instead of Rust's GenericEmbeddingModel<C>
+src/providers/openai/embedding.rs::method::GenericEmbeddingModel.new	method	ported	src/crig/providers/internal/embedding_compatible.cr	Ported via EmbeddingCompatible shared transport (build_request/parse_response_with_usage/validate_parameters); Crystal providers keep concrete EmbeddingModel.make entry points.
+src/providers/openai/embedding.rs::struct::GenericEmbeddingModel	struct	ported	src/crig/providers/internal/embedding_compatible.cr	Ported as the EmbeddingCompatible shared transport with usage surfacing, requires_usage/MissingUsage, and unsupported-parameter validation; OpenRouter delegates to it.
 src/providers/openai/embedding.rs::type::EmbeddingModel	type	ported	src/crig/providers/openai/embedding.cr:40	-
 src/providers/openai/image_generation.rs::const::GPT_IMAGE_1_5	const	ported	src/crig/providers/openai/image_generation.cr	-
 src/providers/openai/image_generation.rs::const::GPT_IMAGE_2	const	ported	src/crig/providers/openai/image_generation.cr	-
@@ -2762,3 +2763,79 @@ src/providers/internal/openai_chat_completions_compatible.rs::fn::append_tool_ca
 src/providers/internal/openai_chat_completions_compatible.rs::fn::finalize_pending_tool_call	func	ported	src/crig/providers/internal/openai_chat_completions_compatible.cr	EOF cleanup: drops nameless, normalizes null/empty to {}, calls parse_tool_arguments
 src/providers/internal/openai_chat_completions_compatible.rs::fn::should_evict_distinct_named_tool_call	func	ported	src/crig/providers/internal/openai_chat_completions_compatible.cr	Eviction logic for same-index distinct-id tool calls
 src/providers/together/streaming.rs::fn::stream	func	ported	src/crig/providers/together/completion.cr	Refactored to use OpenAICompatible.process_compatible_sse_stream with Together-specific StreamingProfile
+src/providers/doubleword/mod.rs::mod::client	module	ported	src/crig/providers/doubleword/client.cr	Doubleword provider client module.
+src/providers/doubleword/mod.rs::mod::completion	module	ported	src/crig/providers/doubleword/completion.cr	Doubleword completion module (OpenAI-compatible).
+src/providers/doubleword/mod.rs::mod::embedding	module	ported	src/crig/providers/doubleword/embedding.cr	Doubleword embedding module.
+src/providers/doubleword/client.rs::const::DOUBLEWORD_API_BASE_URL	const	ported	src/crig/providers/doubleword/client.cr	Ported as `DOUBLEWORD_API_BASE_URL`.
+src/providers/doubleword/client.rs::struct::DoublewordExt	struct	ported	src/crig/providers/doubleword/client.cr	Ported as marker ext struct.
+src/providers/doubleword/client.rs::struct::DoublewordExtBuilder	struct	ported	src/crig/providers/doubleword/client.cr	Ported as builder marker struct.
+src/providers/doubleword/client.rs::type::Client	type	ported	src/crig/providers/doubleword/client.cr	Ported as `Crig::Providers::Doubleword::Client`.
+src/providers/doubleword/client.rs::type::ClientBuilder	type	ported	src/crig/providers/doubleword/client.cr	Ported as `Crig::Providers::Doubleword::ClientBuilder`.
+src/providers/doubleword/client.rs::mod::doubleword_api_types	module	ported	src/crig/providers/doubleword/client.cr	ApiErrorResponse/ApiResponse envelope ported.
+src/providers/doubleword/client.rs::struct::ApiErrorResponse	struct	ported	src/crig/providers/doubleword/client.cr	Ported with message/type/code fields.
+src/providers/doubleword/client.rs::enum::ApiResponse	enum	ported	src/crig/providers/doubleword/client.cr	Ported as generic Ok/Error envelope.
+src/providers/doubleword/completion.rs::const::QWEN3_5_4B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::QWEN3_5_9B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::QWEN3_5_397B_A17B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::QWEN3_6_35B_A3B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::GPT_OSS_20B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::GPT_OSS_120B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::DEEPSEEK_V4_PRO	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::DEEPSEEK_V4_FLASH	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::KIMI_K2_6	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::GLM_5_2	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::QWEN3_VL_30B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::const::QWEN3_VL_235B	const	ported	src/crig/providers/doubleword/completion.cr	Ported completion model constant.
+src/providers/doubleword/completion.rs::type::CompletionModel	type	ported	src/crig/providers/doubleword/completion.cr	Ported as `Crig::Providers::Doubleword::CompletionModel` using shared OpenAI-compatible completion.
+src/providers/doubleword/embedding.rs::const::QWEN3_EMBEDDING_8B	const	ported	src/crig/providers/doubleword/embedding.cr	Ported embedding model constant.
+src/providers/doubleword/embedding.rs::struct::EmbeddingResponse	struct	ported	src/crig/providers/doubleword/embedding.cr	Ported via shared OpenAI EmbeddingResponse.
+src/providers/doubleword/embedding.rs::struct::EmbeddingData	struct	ported	src/crig/providers/doubleword/embedding.cr	Ported via shared OpenAI EmbeddingData.
+src/providers/doubleword/embedding.rs::struct::EmbeddingModel	struct	ported	src/crig/providers/doubleword/embedding.cr	Ported as `Crig::Providers::Doubleword::EmbeddingModel` using EmbeddingCompatible transport.
+src/providers/doubleword/embedding.rs::func::new	func	ported	src/crig/providers/doubleword/embedding.cr	Ported as `EmbeddingModel.new`.
+src/providers/gemini/image_generation.rs::const::GEMINI_2_5_FLASH_IMAGE	const	ported	src/crig/providers/gemini/image_generation.cr	Ported Gemini image generation model constant.
+src/providers/gemini/image_generation.rs::struct::ImageGenerationModel	struct	ported	src/crig/providers/gemini/image_generation.cr	Ported as `Crig::Providers::Gemini::ImageGenerationModel`.
+src/providers/gemini/image_generation.rs::func::image_generation	func	ported	src/crig/providers/gemini/image_generation.cr	Ported with upstream request body shape, deep-merged additional params, and ProviderResponse error-envelope preservation (#2147).
+src/providers/gemini/image_generation.rs::func::generate_content_path	func	ported	src/crig/providers/gemini/image_generation.cr	Ported as `generate_content_path`.
+src/providers/gemini/image_generation.rs::func::create_request_body	func	ported	src/crig/providers/gemini/image_generation.cr	Ported as `build_request_body` with deep-merge helper.
+src/providers/gemini/image_generation.rs::func::aspect_ratio	func	ported	src/crig/providers/gemini/image_generation.cr	Ported as `compute_aspect_ratio`.
+src/providers/gemini/image_generation.rs::func::first_image_bytes	func	ported	src/crig/providers/gemini/image_generation.cr	Ported as `extract_first_image` (first non-thought inline image).
+src/agent/runner.rs::func::without_preamble	func	ported	src/crig/agent/runner.cr,spec/crig/agent/agent_builder_spec.cr	Per-run preamble clearing ported on AgentRunner + PromptRequest.
+src/agent/runner.rs::func::without_temperature	func	ported	src/crig/agent/runner.cr,spec/crig/agent/agent_builder_spec.cr	Per-run temperature clearing ported on AgentRunner + PromptRequest.
+src/agent/runner.rs::func::without_max_tokens	func	ported	src/crig/agent/runner.cr,spec/crig/agent/agent_builder_spec.cr	Per-run max-tokens clearing ported on AgentRunner + PromptRequest.
+src/agent/runner.rs::func::without_additional_params	func	ported	src/crig/agent/runner.cr,spec/crig/agent/agent_builder_spec.cr	Per-run additional-params clearing ported on AgentRunner + PromptRequest.
+src/agent/runner.rs::func::without_tool_choice	func	ported	src/crig/agent/runner.cr,spec/crig/agent/agent_builder_spec.cr	Per-run tool-choice clearing ported on AgentRunner + PromptRequest.
+src/agent/prompt_request/mod.rs::func::without_preamble	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request preamble override/clear ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::without_temperature	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request temperature override/clear ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::without_max_tokens	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request max-tokens override/clear ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::without_additional_params	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request additional-params override/clear ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::without_tool_choice	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request tool-choice override/clear ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::preamble	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request preamble setter ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::temperature	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request temperature setter ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::max_tokens	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request max-tokens setter ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::additional_params	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request additional-params setter ported via runner delegation.
+src/agent/prompt_request/mod.rs::func::tool_choice	func	ported	src/crig/agent/prompt_request.cr,spec/crig/agent/agent_builder_spec.cr	PromptRequest per-request tool-choice setter ported via runner delegation.
+src/agent/run/mod.rs::func::usage	func	ported	src/crig/agent/run.cr,spec/crig/agent/run_spec.cr	Aggregate run usage accessor ported on AgentRun.
+src/agent/run/mod.rs::func::is_done	func	ported	src/crig/agent/run.cr,spec/crig/agent/run_spec.cr	Ported as upstream-named `is_done` (Ameba-disabled) alongside `done?`.
+src/agent/run/mod.rs::func::response	func	ported	src/crig/agent/run.cr,spec/crig/agent/run_spec.cr	Final PromptResponse accessor ported, nil until the run reaches Done.
+src/agent/run/mod.rs::func::cancel_error	func	ported	src/crig/agent/run.cr,spec/crig/agent/run_spec.cr	Builds PromptCancelled carrying full history.
+src/agent/run/mod.rs::func::pending_invalid_tool_call	func	ported	src/crig/agent/run.cr,spec/crig/agent/run_spec.cr	InvalidToolCallContext accessor ported, nil unless a resolution is pending.
+src/agent/hook.rs::method::on_text_delta	method	ported	src/crig/agent/hook.cr,spec/crig/agent/streaming_spec.cr	Streaming text-delta observation hook ported; dispatched in the runner streaming path.
+src/agent/hook.rs::method::on_tool_call_delta	method	ported	src/crig/agent/hook.cr	Streaming tool-call-delta observation hook default ported (no producer yet in non-streaming runner).
+src/agent/hook.rs::method::on_stream_response_finish	method	ported	src/crig/agent/hook.cr	Streaming response-finish observation hook default ported (backward-compatible via on_observation).
+src/agent/hook.rs::struct::TextDelta	struct	ported	src/crig/agent/hook.cr,spec/crig/agent/streaming_spec.cr	Ported as StepEvent.text_delta carrying delta + aggregated text.
+src/agent/hook.rs::struct::ToolCallDelta	struct	ported	src/crig/agent/hook.cr	Ported as StepEvent.tool_call_delta carrying call id, internal id, name, and delta.
+src/agent/tool/server.rs::func::execute	func	ported	src/crig/agent.cr,spec/crig/tool/server_execute_spec.cr	ToolServerHandle#execute clears + dispatches + publishes per-dispatch result metadata via ToolContext.
+src/agent/tool/server.rs::func::dispatch	func	ported	src/crig/tool/server.cr,spec/crig/tool/server_execute_spec.cr	Per-dispatch ToolContext flow ported; DynamicTool declares include ToolDyn so it registers directly.
+src/agent/agent/completion.rs::method::completion	note	removed	-	Upstream v0.41.0 has no Agent::completion; Crystal deprecated method removed, replaced by internal build_completion_request for StreamingPromptRequest.
+src/agent/agent/completion.rs::method::stream_completion	note	removed	-	Upstream v0.41.0 has no Agent::stream_completion; Crystal deprecated method removed. Crystal-only StreamingCompletion trait also removed (Agent keeps StreamingPrompt/StreamingChat).
+src/agent/agent/tool.rs::func::into_tool	func	ported	src/crig/agent.cr,spec/crig/agent/toolserver_agent_spec.cr	Agent#into_tool returns a DynamicTool (agent name or agent_tool default); propagates inbound ToolContext into the sub-agent.
+src/agent/agent/tool.rs::struct::AgentToolArgs	struct	ported	src/crig/agent.cr,spec/crig/agent/agent_builder_spec.cr	Ported with prompt field.
+src/agent/agent/tool.rs::const::DEFAULT_AGENT_TOOL_NAME	const	ported	src/crig/agent.cr	Ported as AGENT_TOOL_NAME.
+src/agent/agent/tool.rs::impl::From	func	ported	src/crig/agent.cr	From<Agent> for DynamicTool covered by into_tool (Crystal uses explicit into_tool).
+src/agent/tool/extensions.rs::func::inbound_only	func	ported	src/crig/tool/extensions.cr,spec/crig/agent/toolserver_agent_spec.cr	ToolContext#inbound_only returns a context with inbound values only.
+src/agent/runner.rs::func::tool_context	func	ported	src/crig/agent/runner.cr,spec/crig/agent/toolserver_agent_spec.cr	AgentRunner#tool_context seeds the run's ToolContext; execute_single_tool routes through ToolServerHandle#execute.
+src/agent/tool/rmcp.rs::const::DEFAULT_MCP_TOOL_TIMEOUT	const	ported	src/crig/tool/rmcp.cr,spec/crig/tool/macro_tools_spec.cr	Ported as DEFAULT_MCP_TOOL_TIMEOUT (300s) applied to MCP tool calls.
+src/agent/tool/rmcp.rs::func::with_timeout	func	ported	src/crig/tool/rmcp.cr,spec/crig/tool/macro_tools_spec.cr	McpTool#with_timeout sets/clears the per-call timeout.
+src/agent/tool/rmcp.rs::field::timeout	field	ported	src/crig/tool/rmcp.cr,spec/crig/tool/macro_tools_spec.cr	Per-call timeout field; on elapse the call resolves to a ToolError instead of hanging.
+src/agent/tool/server.rs::test::test_toolserver_concurrent_tool_execution	test	ported	spec/crig/tool/server_execute_spec.cr	Concurrent tool dispatch verified via WaitGroup barrier; server lock held only for lookup, not execution.
+src/agent/tool/server.rs::test::test_toolserver_write_while_tool_running	test	ported	spec/crig/tool/server_execute_spec.cr	Adding a tool during an in-flight tool call does not deadlock.
