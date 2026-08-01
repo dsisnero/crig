@@ -119,5 +119,29 @@ module Crig
         Conformance.validate_extraction_fields("extract", "Ada", "Lovelace", "Mathematician", Crig::Completion::Usage.new)
       end
     end
+
+    it "decodes a structured output response" do
+      result = Conformance.decode_structured_output("decode", %({"city":"NYC","temperature":72}), ConformanceWeather)
+
+      result.city.should eq("NYC")
+      result.temperature.should eq(72)
+    end
+
+    it "rejects an undecodable structured output response" do
+      expect_raises(Exception, /structured output did not decode/) do
+        Conformance.decode_structured_output("decode", "not-json", ConformanceWeather)
+      end
+    end
+  end
+end
+
+# JSON::Serializable payload for decode_structured_output tests.
+struct ConformanceWeather
+  include JSON::Serializable
+
+  getter city : String
+  getter temperature : Int32
+
+  def initialize(@city : String, @temperature : Int32)
   end
 end

@@ -153,5 +153,13 @@ module Crig
         raise "first_name=#{first_name}, last_name=#{last_name}, job=#{job}, usage=#{usage}"
       end
     end
+
+    # Decode a structured-output JSON response as T, failing with a contract
+    # message (upstream `decode_structured_output`).
+    def self.decode_structured_output(scenario : String, response : String, type : T.class) : T forall T
+      T.from_json(response)
+    rescue ex : JSON::ParseException | JSON::SerializableError
+      raise "structured output did not decode: #{ex.message}; response=#{response.inspect}"
+    end
   end
 end
