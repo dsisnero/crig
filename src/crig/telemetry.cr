@@ -57,6 +57,60 @@ module Crig
     GEN_AI_PROMPT                = "gen_ai.prompt"
     GEN_AI_COMPLETION            = "gen_ai.completion"
 
+    # Marker a completion-parent span must declare to be adopted by a
+    # completion-span builder (upstream COMPLETION_PARENT_MARKER_FIELD).
+    COMPLETION_PARENT_MARKER_FIELD = "rig.completion_parent"
+
+    # Fields a completion-parent span must statically declare, alongside the
+    # marker, to be adopted (upstream COMPLETION_PARENT_REQUIRED_FIELDS).
+    COMPLETION_PARENT_REQUIRED_FIELDS = [
+      "gen_ai.operation.name",
+      "gen_ai.provider.name",
+      "gen_ai.request.model",
+      "gen_ai.system_instructions",
+      "gen_ai.response.id",
+      "gen_ai.response.model",
+      "gen_ai.usage.input_tokens",
+      "gen_ai.usage.output_tokens",
+      "gen_ai.usage.cache_read.input_tokens",
+      "gen_ai.usage.cache_creation.input_tokens",
+      "gen_ai.usage.tool_use_prompt_tokens",
+      "gen_ai.usage.reasoning_tokens",
+      "gen_ai.input.messages",
+      "gen_ai.output.messages",
+    ]
+
+    enum CompletionParentVerdict
+      Adopt
+      RejectMissingFields
+      NotAParent
+    end
+
+    # Whether `metadata` declares the given field (exact name match).
+    private def self.declares_field?(metadata : Tracing::Core::Metadata, name : String) : Bool
+      metadata.fields.fields.any? { |field| field.name == name }
+    end
+
+    # Fields in COMPLETION_PARENT_REQUIRED_FIELDS that `metadata` does not
+    # statically declare. Only called on the warning path.
+    def self.missing_required_fields(metadata : Tracing::Core::Metadata) : Array(String)
+      COMPLETION_PARENT_REQUIRED_FIELDS.reject { |name| declares_field?(metadata, name) }
+    end
+
+    # Classify span `metadata` as a completion parent (upstream
+    # `classify_completion_parent`). Pure: no logging, no global state.
+    def self.classify_completion_parent(metadata : Tracing::Core::Metadata) : CompletionParentVerdict
+      # Exact match, never a prefix: a runtime field that merely starts with the
+      # marker name (rig.completion_parent.id, say) is not the marker.
+      return CompletionParentVerdict::NotAParent unless declares_field?(metadata, COMPLETION_PARENT_MARKER_FIELD)
+
+      if COMPLETION_PARENT_REQUIRED_FIELDS.all? { |name| declares_field?(metadata, name) }
+        CompletionParentVerdict::Adopt
+      else
+        CompletionParentVerdict::RejectMissingFields
+      end
+    end
+
     module ProviderRequestExt(InputMessage)
       abstract def input_messages : Array(InputMessage)
       abstract def system_prompt : String?

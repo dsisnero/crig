@@ -1,5 +1,11 @@
 require "../spec_helper"
 
+# Builds a span metadata with the given declared field names.
+def telemetry_parent_metadata(field_names : Array(String)) : Tracing::Core::Metadata
+  fields = Tracing::Field::FieldSet.new(field_names.map { |n| Tracing::Field::Field.new(n) })
+  Tracing::Core::Metadata.new("chat", "test", Tracing::Level::INFO, fields: fields)
+end
+
 # Captures (field, value) pairs recorded on spans.
 class TelemetryCapturingSubscriber < Tracing::MockSubscriber
   getter fields = [] of {String, String}
@@ -141,6 +147,37 @@ module Crig
       pair = sub.fields.find { |(k, _)| k == "gen_ai.system_instructions" }
       pair.should_not be_nil
       pair.not_nil![1].should eq("be concise")
+    end
+  end
+
+  describe "completion-parent classification" do
+    it "classifies a span without the marker as NotAParent" do
+      meta = telemetry_parent_metadata(["gen_ai.operation.name"])
+      Telemetry.classify_completion_parent(meta).should eq(Telemetry::CompletionParentVerdict::NotAParent)
+    end
+
+    it "classifies a span with the marker and all required fields as Adopt" do
+      meta = telemetry_parent_metadata(["rig.completion_parent"] + Telemetry::COMPLETION_PARENT_REQUIRED_FIELDS)
+      Telemetry.classify_completion_parent(meta).should eq(Telemetry::CompletionParentVerdict::Adopt)
+    end
+
+    it "classifies a marker span missing required fields as RejectMissingFields" do
+      meta = telemetry_parent_metadata(["rig.completion_parent", "gen_ai.operation.name"])
+      Telemetry.classify_completion_parent(meta).should eq(Telemetry::CompletionParentVerdict::RejectMissingFields)
+    end
+
+    it "reports the missing required field names" do
+      meta = telemetry_parent_metadata(["rig.completion_parent", "gen_ai.operation.name"])
+      missing = Telemetry.missing_required_fields(meta)
+
+      missing.includes?("gen_ai.response.id").should be_true
+      missing.includes?("gen_ai.usage.input_tokens").should be_true
+      missing.includes?("gen_ai.input.messages").should be_true
+    end
+
+    it "treats a prefix of the marker name as not-a-marker" do
+      meta = telemetry_parent_metadata(["rig.completion_parent.id"])
+      Telemetry.classify_completion_parent(meta).should eq(Telemetry::CompletionParentVerdict::NotAParent)
     end
   end
 end
