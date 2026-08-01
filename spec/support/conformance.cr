@@ -80,5 +80,78 @@ module Crig
         raise "chat_history is nil for max-turns failure"
       end
     end
+
+    # Validate that a sensitive raw tool result was produced but did not reach
+    # the model's user-visible response after result hooks ran (upstream
+    # `validate_result_redaction`).
+    def self.validate_result_redaction(
+      scenario : String,
+      tool_produced_secret : Bool,
+      visible_output : String,
+      secret : String,
+    ) : Nil
+      secret_visible = visible_output.includes?(secret)
+      unless tool_produced_secret && !visible_output.empty? && !secret_visible
+        raise "produced_secret=#{tool_produced_secret}, secret_visible=#{secret_visible}, output=#{visible_output.inspect}"
+      end
+    end
+
+    # Validate that a tool's rewritten arguments contain the expected fields
+    # on every observed call (upstream `validate_rewritten_arguments`).
+    def self.validate_rewritten_arguments(
+      scenario : String,
+      observations : Array(JSON::Any),
+      expected_fields : JSON::Any,
+    ) : Nil
+      expected = expected_fields.as_h? || raise "expected rewritten fields must be a JSON object"
+      raise "the rewritten tool was never invoked" if observations.empty?
+
+      observations.each do |observation|
+        actual = observation.as_h? || raise "observed rewritten arguments were not an object"
+        expected.each do |key, expected_value|
+          if actual[key]? != expected_value
+            raise "rewritten field #{key} expected #{expected_value}, observed #{observation}"
+          end
+        end
+      end
+    end
+
+    # Validate that forbidden protocol markers do not leak into the visible
+    # output or the serialized run history (upstream `validate_protocol_hygiene`).
+    def self.validate_protocol_hygiene(
+      scenario : String,
+      visible_output : String,
+      serialized_history : String,
+      forbidden_markers : Array(String),
+    ) : Nil
+      leaked = forbidden_markers.reject do |marker|
+        !visible_output.includes?(marker) && !serialized_history.includes?(marker)
+      end
+
+      unless leaked.empty?
+        raise "protocol markers leaked: #{leaked}; output=#{visible_output.inspect}, history=#{serialized_history.inspect}"
+      end
+    end
+
+    # Validate a provider-neutral person extraction and that usage has values
+    # (upstream `validate_extraction_fields`).
+    def self.validate_extraction_fields(
+      scenario : String,
+      first_name : String?,
+      last_name : String?,
+      job : String?,
+      usage : Crig::Completion::Usage,
+    ) : Nil
+      fields_match =
+        first_name.try(&.downcase) == "ada" &&
+          last_name.try(&.downcase) == "lovelace" &&
+          (job.try(&.downcase).try(&.includes?("mathematician")) || false)
+
+      usage_has_values = usage.input_tokens > 0 || usage.output_tokens > 0 || usage.total_tokens > 0
+
+      unless fields_match && usage_has_values
+        raise "first_name=#{first_name}, last_name=#{last_name}, job=#{job}, usage=#{usage}"
+      end
+    end
   end
 end
