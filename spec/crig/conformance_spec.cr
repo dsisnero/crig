@@ -4,6 +4,10 @@ def conformance_tool_call_content(id : String, name : String) : Crig::Completion
   Crig::Completion::AssistantContent.tool_call(id, name, JSON.parse(%({"x":1})))
 end
 
+def completion_tool_call_with_call_id(id : String, call_id : String, name : String) : Crig::Completion::AssistantContent
+  Crig::Completion::AssistantContent.tool_call_with_call_id(id, call_id, name, JSON.parse(%({"x":1})))
+end
+
 module Crig
   describe "conformance validators" do
     it "validates an UnknownToolCall failure shape" do
@@ -143,5 +147,74 @@ struct ConformanceWeather
   getter temperature : Int32
 
   def initialize(@city : String, @temperature : Int32)
+  end
+end
+
+module Crig
+  describe "tool correlation" do
+    it "validates that every tool call has one correlated result" do
+      history = [
+        Completion::Message.new(
+          Completion::Message::Role::Assistant,
+          Crig::OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
+            completion_tool_call_with_call_id("call_1", "corr-1", "ping").as(Completion::UserContent | Completion::AssistantContent)
+          )
+        ),
+        Completion::Message.user(
+          Crig::Completion::UserContent.tool_result_with_call_id("call_1", "corr-1", Crig::OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.text("pong")))
+        ),
+      ]
+
+      Conformance.validate_tool_correlation("zero_argument_tool", history)
+    end
+
+    it "rejects an uncorrelated tool result" do
+      history = [
+        Completion::Message.new(
+          Completion::Message::Role::Assistant,
+          Crig::OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
+            completion_tool_call_with_call_id("call_1", "corr-1", "ping").as(Completion::UserContent | Completion::AssistantContent)
+          )
+        ),
+        Completion::Message.user(
+          Crig::Completion::UserContent.tool_result_with_call_id("other", "corr-x", Crig::OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.text("pong")))
+        ),
+      ]
+
+      expect_raises(Exception, /correlated results/) do
+        Conformance.validate_tool_correlation("zero_argument_tool", history)
+      end
+    end
+  end
+
+  describe "tool roundtrip" do
+    it "detects a call-and-result roundtrip in history" do
+      history = [
+        Completion::Message.new(
+          Completion::Message::Role::Assistant,
+          Crig::OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
+            completion_tool_call_with_call_id("call_1", "corr-1", "ping").as(Completion::UserContent | Completion::AssistantContent)
+          )
+        ),
+        Completion::Message.user(
+          Crig::Completion::UserContent.tool_result_with_call_id("call_1", "corr-1", Crig::OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.text("pong")))
+        ),
+      ]
+
+      Conformance.has_tool_roundtrip(history).should be_true
+    end
+
+    it "returns false when history has no tool result" do
+      history = [
+        Completion::Message.new(
+          Completion::Message::Role::Assistant,
+          Crig::OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
+            completion_tool_call_with_call_id("call_1", "corr-1", "ping").as(Completion::UserContent | Completion::AssistantContent)
+          )
+        ),
+      ]
+
+      Conformance.has_tool_roundtrip(history).should be_false
+    end
   end
 end

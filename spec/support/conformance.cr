@@ -161,5 +161,80 @@ module Crig
     rescue ex : JSON::ParseException | JSON::SerializableError
       raise "structured output did not decode: #{ex.message}; response=#{response.inspect}"
     end
+
+    # Validate that every assistant tool call in history has exactly one
+    # correlated user tool result with matching id and call_id (upstream
+    # `validate_tool_correlation`).
+    def self.validate_tool_correlation(
+      scenario : String,
+      messages : Array(Crig::Completion::Message),
+    ) : Nil
+      calls = [] of {String, String?}
+      results = [] of {String, String?}
+
+      messages.each do |message|
+        if message.role.assistant?
+          message.content.each do |item|
+            content = item.as?(Crig::Completion::AssistantContent)
+            if content && content.kind.tool_call?
+              call = content.tool_call
+              if call
+                calls << {call.id, call.call_id}
+              end
+            end
+          end
+        elsif message.role.user?
+          message.content.each do |item|
+            content = item.as?(Crig::Completion::UserContent)
+            if content && content.kind.tool_result?
+              result = content.tool_result
+              if result
+                results << {result.id, result.call_id}
+              end
+            end
+          end
+        end
+      end
+
+      raise "history has no assistant tool calls" if calls.empty?
+
+      calls.each do |(id, call_id)|
+        matches = results.count { |(result_id, result_call_id)| result_id == id && call_id == result_call_id }
+        if matches != 1
+          raise "tool call id=#{id} call_id=#{call_id} has #{matches} correlated results"
+        end
+      end
+
+      if results.size != calls.size
+        raise "results=#{results.size} do not match calls=#{calls.size}"
+      end
+    end
+
+    # Whether history contains both an assistant tool call and a user tool
+    # result (upstream `has_tool_roundtrip`).
+    def self.has_tool_roundtrip(messages : Array(Crig::Completion::Message)) : Bool
+      saw_call = false
+      saw_result = false
+
+      messages.each do |message|
+        if message.role.assistant?
+          message.content.each do |item|
+            content = item.as?(Crig::Completion::AssistantContent)
+            if content && content.kind.tool_call? && content.tool_call
+              saw_call = true
+            end
+          end
+        elsif message.role.user?
+          message.content.each do |item|
+            content = item.as?(Crig::Completion::UserContent)
+            if content && content.kind.tool_result? && content.tool_result
+              saw_result = true
+            end
+          end
+        end
+      end
+
+      saw_call && saw_result
+    end
   end
 end
