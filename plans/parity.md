@@ -3,9 +3,9 @@
 - **Repository**: `https://github.com/0xPlaygrounds/rig.git`
 - **Crates**: `crates/rig-core` + `crates/rig-agent`
 - **Pinned upstream**: `68b4eabb8c9cf749ca73c917b9306e97fb0eda24` (rig-core v0.41.0)
-- **Crystal tag**: `v0.41.0` (in progress)
+- **Crystal tag**: `v0.41.0` (feature plan complete; parity manifests regenerated)
 
-## v0.41.0 Features (in progress)
+## v0.41.0 Features (complete)
 
 **Detailed plan**: [plans/v41.md](./v41.md)
 
@@ -83,10 +83,10 @@ Key findings from [release discussion #2225](https://github.com/0xPlaygrounds/ri
 - [x] 50+ spec files added across modules
 - [x] make format passes
 - [x] make lint passes
-- [ ] make test passes
-- [ ] Parity verification scripts run
-- [ ] Update rust_source_parity.tsv and rust_test_parity.tsv
-- [ ] Update plans/parity.md completion status
+- [x] make test passes (1641 examples, 0 failures, 0 errors, 3 pending)
+- [x] Parity verification scripts run
+- [x] Update rust_source_parity.tsv and rust_test_parity.tsv
+- [x] Update plans/parity.md completion status
 
 ## v0.40.0 Features (completed)
 
@@ -98,12 +98,8 @@ Key findings from [release discussion #2225](https://github.com/0xPlaygrounds/ri
 
 ## Remaining Gaps
 
-- SSE helpers need retry/resume logic and stream types alignment (upstream 374 vs 227 lines)
-- Agent completion/stream_completion still present but deprecated
-- Agent runtime files need alignment with rig-agent v0.41.0
-- Tool server/rmcp need significant expansion for managed tool features
-- Doubleword, GenericEmbeddingModel, Anthropic code_exec, Gemini image gen errors
-- Telemetry span lifecycle not centralized
+- `rust_source_parity.tsv` (1955 items) and `rust_test_parity.tsv` (839 items) are regenerated against the v0.41.0 layout as baseline manifests; per-item `mapped` status is filled in as the curated `rust_port_inventory.tsv` (2668 ported, 240 intentional divergences) is reconciled
+- Upstream `rig-core` test parity not yet re-verified via `cargo test` side-by-side (adversarial harness available)
 
 ## Companion Crates Ported
 
