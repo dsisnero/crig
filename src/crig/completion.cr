@@ -340,6 +340,17 @@ module Crig
         self
       end
 
+      # Whether any usage values are set and non-zero (upstream `Usage::has_values`).
+      def has_values? : Bool
+        @input_tokens != 0 ||
+          @output_tokens != 0 ||
+          @total_tokens != 0 ||
+          @cached_input_tokens != 0 ||
+          @cache_creation_input_tokens != 0 ||
+          @reasoning_tokens != 0 ||
+          @tool_use_prompt_tokens != 0
+      end
+
       def +(other : self) : self
         self.class.new(
           input_tokens: @input_tokens + other.input_tokens,

@@ -59,6 +59,7 @@ module Crig
       StreamAssistantItem
       StreamUserItem
       ToolExecutionCommitted
+      CompletionCall
       FinalResponse
     end
 
@@ -66,6 +67,7 @@ module Crig
     getter assistant_item : Crig::StreamedAssistantContent(R)?
     getter user_item : Crig::StreamedUserContent?
     getter tool_results : Array(Crig::Completion::UserContent)?
+    getter completion_call : Crig::CompletionCall?
     getter final_response : Crig::PromptResponse?
 
     def initialize(
@@ -73,6 +75,7 @@ module Crig
       @assistant_item : Crig::StreamedAssistantContent(R)? = nil,
       @user_item : Crig::StreamedUserContent? = nil,
       @tool_results : Array(Crig::Completion::UserContent)? = nil,
+      @completion_call : Crig::CompletionCall? = nil,
       @final_response : Crig::PromptResponse? = nil,
     )
     end
@@ -89,6 +92,10 @@ module Crig
       new(Kind::StreamUserItem, user_item: item)
     end
 
+    def self.completion_call(call : Crig::CompletionCall) : self
+      new(Kind::CompletionCall, completion_call: call)
+    end
+
     def self.final_response(response : String, aggregated_usage : Crig::Completion::Usage) : self
       content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(response))
       new(Kind::FinalResponse, final_response: Crig::PromptResponse.new(response, aggregated_usage, content: content))
@@ -98,9 +105,10 @@ module Crig
       response : String,
       aggregated_usage : Crig::Completion::Usage,
       history : Array(Crig::Completion::Message)?,
+      completion_calls : Array(Crig::CompletionCall) = [] of Crig::CompletionCall,
     ) : self
       content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(response))
-      new(Kind::FinalResponse, final_response: Crig::PromptResponse.new(response, aggregated_usage, history, content: content))
+      new(Kind::FinalResponse, final_response: Crig::PromptResponse.new(response, aggregated_usage, history, completion_calls, content: content))
     end
   end
 
@@ -157,8 +165,12 @@ module Crig
       has_history = !@chat_history.nil?
       items = [] of Crig::MultiTurnStreamItem(Crig::PromptResponse)
       aggregated_usage = Crig::Completion::Usage.new
+      completion_calls = [] of Crig::CompletionCall
       current_prompt = @prompt
       current_turn = 0
+      output_tool_name = if @agent.output_schema
+                           Crig.pick_output_tool_name(@agent.static_tools.map(&.name).to_set)
+                         end
 
       loop do
         if current_turn >= @max_turns
@@ -172,8 +184,12 @@ module Crig
         stream = @agent.build_completion_request(current_prompt, history).stream(@agent.model)
         history << current_prompt
 
-        turn_result = process_stream_turn(stream, current_prompt, history, items)
+        turn_result = process_stream_turn(stream, current_prompt, history, items, output_tool_name)
         aggregated_usage += turn_result.usage
+        completion_calls << Crig::CompletionCall.new(current_turn - 1, turn_result.usage)
+        items << Crig::MultiTurnStreamItem(Crig::PromptResponse).completion_call(
+          Crig::CompletionCall.new(current_turn - 1, turn_result.usage)
+        )
 
         if turn_result.saw_tool_call
           append_tool_turn_history(history, turn_result.reasoning, turn_result.tool_calls, turn_result.tool_results)
@@ -181,13 +197,19 @@ module Crig
           next
         end
 
+        # Structured output finalizes via the synthetic output tool call; the
+        # response is the call's arguments and the turn persists as text
+        # (upstream run/mod.rs).
+        response_text = turn_result.structured_output || turn_result.response_text
+
         final_history = history.dup
-        final_history << Crig::Completion::Message.assistant(turn_result.response_text) unless turn_result.response_text.empty?
-        content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(turn_result.response_text))
+        final_history << Crig::Completion::Message.assistant(response_text) unless response_text.empty?
+        content = Crig::OneOrMany(Crig::Completion::AssistantContent).one(Crig::Completion::AssistantContent.text(response_text))
         final_response = Crig::PromptResponse.new(
-          turn_result.response_text,
+          response_text,
           aggregated_usage,
           has_history ? final_history : nil,
+          completion_calls,
           content: content,
         )
 
@@ -195,6 +217,7 @@ module Crig
           final_response.output,
           final_response.usage,
           final_response.messages,
+          final_response.completion_calls,
         )
         return Crig::MultiTurnStreamingResult(Crig::PromptResponse).new(items)
       end
@@ -221,7 +244,8 @@ module Crig
       tool_calls : Array(Crig::Completion::AssistantContent),
       tool_results : Array(Tuple(String, String?, String)),
       reasoning : Array(Crig::Completion::Reasoning),
-      usage : Crig::Completion::Usage
+      usage : Crig::Completion::Usage,
+      structured_output : String?
 
     private def maybe_run_completion_hook(
       prompt : Crig::Completion::Message,
@@ -244,10 +268,12 @@ module Crig
       prompt : Crig::Completion::Message,
       history : Array(Crig::Completion::Message),
       items : Array(Crig::MultiTurnStreamItem(Crig::PromptResponse)),
+      output_tool_name : String?,
     ) : StreamTurnResult
       response_text = ""
       saw_text = false
       saw_tool_call = false
+      structured_output = nil.as(String?)
       tool_calls = [] of Crig::Completion::AssistantContent
       tool_results = [] of Tuple(String, String?, String)
       pending_tool_calls = [] of Tuple(Crig::Completion::ToolCall, String)
@@ -286,6 +312,15 @@ module Crig
         in .tool_call?
           if tool_call = item.tool_call
             internal_call_id = item.internal_call_id || tool_call.call_id || tool_call.id
+
+            # Tool output mode (#1928): a call to the synthetic output tool
+            # finalizes the run with the call's arguments as the structured
+            # response, instead of executing it (upstream run/mod.rs).
+            if output_tool_name && tool_call.function.name == output_tool_name
+              structured_output = tool_call.function.arguments.to_json
+              next
+            end
+
             saw_tool_call = true
 
             items << Crig::MultiTurnStreamItem(Crig::PromptResponse).stream_item(
@@ -353,7 +388,7 @@ module Crig
         end
       end
 
-      StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning, turn_usage)
+      StreamTurnResult.new(response_text, saw_tool_call, tool_calls, tool_results, reasoning, turn_usage, structured_output)
     end
 
     # ameba:enable Metrics/CyclomaticComplexity
@@ -487,6 +522,7 @@ module Crig
         end
       in .tool_execution_committed?
       in .stream_user_item?
+      in .completion_call?
       in .final_response?
         final_res = content.final_response || final_res
       end

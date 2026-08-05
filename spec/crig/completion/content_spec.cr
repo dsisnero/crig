@@ -146,6 +146,15 @@ describe Crig::Completion::Usage, tags: %w[completion usage] do
       )
     )
   end
+
+  it "reports whether any usage values are set" do
+    Crig::Completion::Usage.new.has_values?.should be_false
+    Crig::Completion::Usage.new(input_tokens: 0, output_tokens: 0, total_tokens: 0).has_values?.should be_false
+    Crig::Completion::Usage.new(input_tokens: 1).has_values?.should be_true
+    Crig::Completion::Usage.new(output_tokens: 5).has_values?.should be_true
+    Crig::Completion::Usage.new(total_tokens: 3).has_values?.should be_true
+    Crig::Completion::Usage.new(cached_input_tokens: 2).has_values?.should be_true
+  end
 end
 
 describe Crig::Completion::CompletionResponse do

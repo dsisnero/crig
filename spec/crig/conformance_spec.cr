@@ -217,4 +217,53 @@ module Crig
       Conformance.has_tool_roundtrip(history).should be_false
     end
   end
+
+  describe "value_matches_integer" do
+    it "matches a numeric JSON value" do
+      Conformance.value_matches_integer(JSON::Any.new(7), 7).should be_true
+      Conformance.value_matches_integer(JSON::Any.new(8), 7).should be_false
+    end
+
+    it "matches an integer string" do
+      Conformance.value_matches_integer(JSON::Any.new("7"), 7).should be_true
+      Conformance.value_matches_integer(JSON::Any.new(" 7 "), 7).should be_true
+      Conformance.value_matches_integer(JSON::Any.new("7.5"), 7).should be_false
+    end
+
+    it "rejects non-numeric values" do
+      Conformance.value_matches_integer(JSON::Any.new("seven"), 7).should be_false
+      Conformance.value_matches_integer(JSON::Any.new(true), 7).should be_false
+    end
+  end
+
+  describe "tool_result_values" do
+    it "collects text and json tool-result values from user messages" do
+      history = [
+        Completion::Message.user(
+          Crig::Completion::UserContent.tool_result_with_call_id("a", "a", Crig::OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.text("motto")))
+        ),
+        Completion::Message.user(
+          Crig::Completion::UserContent.tool_result_with_call_id("b", "b", Crig::OneOrMany(Crig::Completion::ToolResultContent).one(Crig::Completion::ToolResultContent.json(JSON.parse(%({"max_retries":3})))))
+        ),
+      ]
+
+      values = Conformance.tool_result_values(history)
+      values.map(&.as_s?).compact.should eq(["motto"])
+      retries = values.compact_map { |v| h = v.as_h?; h && h["max_retries"]?.try(&.as_i) }
+      retries.should eq([3])
+    end
+
+    it "ignores non-user and tool-call messages" do
+      history = [
+        Completion::Message.new(
+          Completion::Message::Role::Assistant,
+          Crig::OneOrMany(Completion::UserContent | Completion::AssistantContent).one(
+            completion_tool_call_with_call_id("call_1", "corr-1", "ping").as(Completion::UserContent | Completion::AssistantContent)
+          )
+        ),
+      ]
+
+      Conformance.tool_result_values(history).should be_empty
+    end
+  end
 end

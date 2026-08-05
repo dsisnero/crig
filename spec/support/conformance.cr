@@ -236,5 +236,42 @@ module Crig
 
       saw_call && saw_result
     end
+
+    # Whether a JSON tool-result value represents the given integer, either as a
+    # number or as a string that parses to it (upstream `value_matches_integer`).
+    def self.value_matches_integer(value : JSON::Any, expected : Int32) : Bool
+      if value.as_i64?
+        value.as_i64 == expected
+      elsif str = value.as_s?
+        str.strip.to_i64? == expected
+      else
+        false
+      end
+    end
+
+    # Collect every tool-result value from user messages in history, as JSON
+    # (upstream `tool_result_values`).
+    def self.tool_result_values(messages : Array(Crig::Completion::Message)) : Array(JSON::Any)
+      values = [] of JSON::Any
+      messages.each do |message|
+        next unless message.role.user?
+        message.content.each do |item|
+          uc = item.as?(Crig::Completion::UserContent)
+          next unless uc
+          result = uc.tool_result
+          next unless result
+          result.content.each do |content|
+            trc = content.as?(Crig::Completion::ToolResultContent)
+            next unless trc
+            if (v = trc.as_json?)
+              values << v
+            elsif (t = trc.as_text?)
+              values << JSON::Any.new(t)
+            end
+          end
+        end
+      end
+      values
+    end
   end
 end

@@ -191,6 +191,14 @@ module Crig
       end
       if otn = @output_tool_name
         run.with_output_tool_name(otn)
+      elsif @output_schema && @output_mode != OutputMode::Native && @output_mode != OutputMode::Prompted
+        # Derive the collision-safe synthetic output tool name so the run can
+        # intercept it, matching the name advertised by the request builder.
+        tool_names = (@static_tools || [] of Completion::ToolDefinition).map(&.name)
+        if tsh = @tool_server_handle
+          tool_names += tsh.get_tool_defs(nil).map(&.name)
+        end
+        run.with_output_tool_name(Crig.pick_output_tool_name(tool_names.to_set))
       end
       run.with_output_validation(@output_schema, 0) if @output_schema
       run
@@ -501,6 +509,8 @@ module Crig
         in .rewrite?
           if a = action.args
             effective = a.to_json
+            # Subsequent hooks observe the rewritten arguments (upstream order).
+            event = StepEvent.tool_call(event.tool_name || "", event.tool_call_id, event.internal_call_id || "", effective)
           end
         in .stop? then return {effective, action.reason}
         end
@@ -518,6 +528,8 @@ module Crig
           if output = action.output
             if text = output.as_text
               effective = text
+              # Subsequent hooks observe the rewritten result (upstream order).
+              event = StepEvent.tool_result(event.tool_name || "", event.tool_call_id, event.internal_call_id || "", event.args || "", effective)
             end
           end
         in .stop? then raise Completion::PromptError.prompt_cancelled(error_history, action.reason || "terminated")

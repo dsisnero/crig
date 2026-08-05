@@ -183,10 +183,27 @@ module Crig
                                additional_params
                              end
 
+      # Resolve the effective output mode (upstream resolve_output_mode).
+      has_schema = !output_schema.nil?
+      has_executable_tools = !tool_defs.empty?
+      choice_permits = Crig.tool_choice_permits_output_tool(effective_choice)
+      committed_callable = if oname = committed_output_tool
+                             Crig.output_tool_callable(effective_choice, oname)
+                           else
+                             false
+                           end
+      resolved_mode = Crig.resolve_output_mode(
+        has_schema,
+        has_executable_tools,
+        choice_permits || committed_callable,
+        model.composes_native_output_with_tools?,
+        output_mode,
+      )
+
       # Build tool definitions, adding output tool if configured
       effective_tool_defs = tool_defs.dup
       output_tool_name = committed_output_tool || begin
-        if output_mode.tool?
+        if resolved_mode.tool?
           Crig.pick_output_tool_name(effective_tool_defs.map(&.name).to_set)
         end
       end

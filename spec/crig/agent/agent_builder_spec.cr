@@ -28,12 +28,17 @@ describe Crig::Agent(FakeCompletionClientModel), tags: %w[agent] do
     built = request.not_nil!
     built.preamble.should eq("Be concise.")
     built.documents.map(&.text).should eq(["Denver is cold."])
-    built.tools.map(&.name).should eq(["weather"])
+    built.tools.map(&.name).should eq(["weather", "final_result"])
     built.temperature.should eq(0.3)
     built.max_tokens.should eq(128)
     built.tool_choice.try(&.kind.required?).should be_true
     built.additional_params.try(&.["mode"].as_s).should eq("strict")
-    built.output_schema.try(&.["title"].as_s).should eq("answer")
+    # Tool mode conveys the schema via the synthetic output tool, not the
+    # request-level output_schema (upstream behavior).
+    built.output_schema.should be_nil
+    final_result = built.tools.find { |t| t.name == "final_result" }
+    final_result.should_not be_nil
+    final_result.not_nil!.parameters["title"].as_s.should eq("answer")
   end
 
   it "merges dynamic context and tools from rag text in chat history" do
@@ -423,16 +428,18 @@ describe Crig::StreamingPromptRequest(FakeCompletionClientModel) do
 
     result = agent.stream_prompt("hello").send_items
 
-    result.items.size.should eq(3)
+    result.items.size.should eq(4)
     result.items[0].kind.stream_assistant_item?.should be_true
     result.items[0].assistant_item.try(&.text).try(&.text).should eq("chunk:gpt-4o")
     result.items[1].kind.stream_assistant_item?.should be_true
     result.items[1].assistant_item.try(&.kind.final?).should be_true
     result.items[1].assistant_item.try(&.final).try(&.output).should eq("chunk:gpt-4o")
     result.items[1].assistant_item.try(&.final).try(&.usage).try(&.total_tokens).should eq(3)
-    result.items[2].kind.final_response?.should be_true
-    result.items[2].final_response.try(&.output).should eq("chunk:gpt-4o")
-    result.items[2].final_response.try(&.usage).try(&.total_tokens).should eq(3)
+    result.items[2].kind.completion_call?.should be_true
+    result.items[2].completion_call.try(&.usage).try(&.total_tokens).should eq(3)
+    result.items[3].kind.final_response?.should be_true
+    result.items[3].final_response.try(&.output).should eq("chunk:gpt-4o")
+    result.items[3].final_response.try(&.usage).try(&.total_tokens).should eq(3)
   end
 
   it "supports streaming chat history" do
@@ -453,13 +460,15 @@ describe Crig::StreamingPromptRequest(FakeStreamingAgentModel) do
 
     result = agent.stream_prompt("hello").send_items
 
-    result.items.size.should eq(2)
+    result.items.size.should eq(3)
     result.items[0].kind.stream_assistant_item?.should be_true
     result.items[0].assistant_item.try(&.kind.reasoning?).should be_true
     result.items[0].assistant_item.try(&.reasoning).try(&.id).should eq("r1")
     result.items[0].assistant_item.try(&.reasoning).try(&.display_text).should eq("step one")
-    result.items[1].kind.final_response?.should be_true
-    result.items[1].final_response.try(&.usage).try(&.total_tokens).should eq(1)
+    result.items[1].kind.completion_call?.should be_true
+    result.items[1].completion_call.try(&.usage).try(&.total_tokens).should eq(1)
+    result.items[2].kind.final_response?.should be_true
+    result.items[2].final_response.try(&.usage).try(&.total_tokens).should eq(1)
   end
 end
 
@@ -493,6 +502,8 @@ describe Crig::StreamingPromptRequest(FakeMultiTurnStreamingModel) do
         saw_tool_result = true if item.user_item.try(&.kind.tool_result?)
       in .tool_execution_committed?
         item.tool_results
+      in .completion_call?
+        item.completion_call
       in .final_response?
         saw_final_response = true
       end
@@ -589,7 +600,7 @@ describe Crig::StreamingPromptRequest(FakeDeltaStreamingModel) do
 
     result = agent.stream_prompt("hello").with_history([] of Crig::Completion::Message).send_items
 
-    result.items.size.should eq(8)
+    result.items.size.should eq(10)
     result.items[0].assistant_item.try(&.kind.reasoning_delta?).should be_true
     result.items[0].assistant_item.try(&.reasoning_delta).should eq("step")
     result.items[1].assistant_item.try(&.kind.reasoning_delta?).should be_true
@@ -597,11 +608,12 @@ describe Crig::StreamingPromptRequest(FakeDeltaStreamingModel) do
     result.items[2].assistant_item.try(&.kind.tool_call?).should be_true
     result.items[3].kind.tool_execution_committed?.should be_true
     result.items[4].user_item.try(&.kind.tool_result?).should be_true
-    result.items[5].assistant_item.try(&.kind.text?).should be_true
-    result.items[5].assistant_item.try(&.text).try(&.text).should eq("done")
-    result.items[6].assistant_item.try(&.kind.final?).should be_true
-    result.items[6].assistant_item.try(&.final).try(&.output).should eq("done")
-    result.items[6].assistant_item.try(&.final).try(&.usage).try(&.total_tokens).should eq(4)
+    result.items[5].kind.completion_call?.should be_true
+    result.items[6].assistant_item.try(&.kind.text?).should be_true
+    result.items[6].assistant_item.try(&.text).try(&.text).should eq("done")
+    result.items[7].assistant_item.try(&.kind.final?).should be_true
+    result.items[7].assistant_item.try(&.final).try(&.output).should eq("done")
+    result.items[7].assistant_item.try(&.final).try(&.usage).try(&.total_tokens).should eq(4)
     final_history = result.items.last.final_response.try(&.messages)
     final_history.should_not be_nil
     assistant_message = final_history.try(&.find do |message|
