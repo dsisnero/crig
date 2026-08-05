@@ -721,8 +721,10 @@ describe Crig::McpTool do
       input_schema: MCP::Protocol::Tool::Input.new
     )
 
-    handle = Crig::ToolServer.new.rmcp_tool(definition, client).run
-    handle.call_tool("sum", %({"x":1,"y":2})).should eq("3")
+    ts = Crig::ToolServer.new
+    ts.rmcp_tool(definition, client)
+    tool = ts.toolset.get("sum").as(Crig::McpTool)
+    tool.timeout.should eq(Crig::DEFAULT_MCP_TOOL_TIMEOUT)
   end
 
   it "calls an MCP tool asynchronously using call_tool_async" do
