@@ -2,7 +2,7 @@ def run_crig_probe(source : String) : JSON::Any
   probe_id = "#{Process.pid}_#{Time.utc.to_unix_ms}_#{Random.rand(1_000_000)}"
   source_path = nil.as(String?)
   binary_path = nil.as(String?)
-  cache_dir = "#{Dir.current}/.crystal-cache"
+  cache_dir = "#{Dir.current}/temp/crystal-cache"
   Dir.mkdir_p(cache_dir)
   env = {"CRYSTAL_CACHE_DIR" => cache_dir}
 

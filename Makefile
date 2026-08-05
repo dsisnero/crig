@@ -1,4 +1,4 @@
-CRYSTAL_CACHE_DIR ?= $(PWD)/.crystal-cache
+CRYSTAL_CACHE_DIR ?= $(PWD)/temp/crystal-cache
 install:
 	shards install
 
